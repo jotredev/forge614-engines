@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { closeSync, existsSync, openSync } from "node:fs";
 import { mkdir, readFile, rename, rm, symlink, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import pkg from "../../package.json";
@@ -104,13 +104,26 @@ for ($i = 0; $i -lt 40; $i++) {
 // undiagnosed for several CI runs.
 const WINDOWS_SHELL_CANDIDATES = ["pwsh", "powershell.exe"];
 
-async function spawnDetached(command: string, args: string[]): Promise<ReturnType<typeof spawn>> {
-  const child = spawn(command, args, { detached: true, stdio: "ignore", windowsHide: true });
-  await new Promise<void>((resolve, reject) => {
-    child.once("spawn", () => resolve());
-    child.once("error", (error) => reject(error));
-  });
-  return child;
+async function spawnDetached(command: string, args: string[], outputLogPath: string): Promise<ReturnType<typeof spawn>> {
+  // Redirect the child's own stdout/stderr to a file at the OS level, not
+  // just relying on the PowerShell script's internal Out-File logging: a
+  // parameter-binding error, execution-policy block, or any other failure
+  // pwsh hits before reaching the script body would otherwise be completely
+  // invisible — Node only sees "a process was created," never what it
+  // actually printed. This is cheap enough to keep permanently, not just for
+  // this diagnostic round: a real user hitting a self-update failure on
+  // Windows deserves the same visibility.
+  const fd = openSync(outputLogPath, "a");
+  try {
+    const child = spawn(command, args, { detached: true, stdio: ["ignore", fd, fd], windowsHide: true });
+    await new Promise<void>((resolve, reject) => {
+      child.once("spawn", () => resolve());
+      child.once("error", (error) => reject(error));
+    });
+    return child;
+  } finally {
+    closeSync(fd);
+  }
 }
 
 async function scheduleWindowsSwap(
@@ -120,8 +133,10 @@ async function scheduleWindowsSwap(
   version: string,
   helperDir: string,
 ): Promise<string> {
-  const helperPath = join(helperDir, `swap-helper-${Date.now()}.ps1`);
-  const logPath = join(helperDir, `swap-helper-${Date.now()}.log`);
+  const stamp = Date.now();
+  const helperPath = join(helperDir, `swap-helper-${stamp}.ps1`);
+  const logPath = join(helperDir, `swap-helper-${stamp}.log`);
+  const spawnLogPath = join(helperDir, `swap-helper-${stamp}.spawn.log`);
   await writeFile(helperPath, WINDOWS_SWAP_HELPER_SCRIPT, "utf8");
   const args = [
     "-NoProfile",
@@ -147,7 +162,7 @@ async function scheduleWindowsSwap(
   let lastError: unknown;
   for (const command of WINDOWS_SHELL_CANDIDATES) {
     try {
-      const child = await spawnDetached(command, args);
+      const child = await spawnDetached(command, args, spawnLogPath);
       child.unref();
       return logPath;
     } catch (error) {

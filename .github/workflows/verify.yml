@@ -112,6 +112,20 @@ jobs:
             Write-Host "No swap-helper-*.log files found under $env:USERPROFILE\.forge614\engines"
           }
 
+          # The script's own Out-File logging (above) is silent if pwsh/powershell
+          # fails before reaching the script body (execution policy, parameter
+          # binding, path quoting, etc). This captures the child process's raw
+          # stdout/stderr instead, which surfaces exactly that kind of failure.
+          $spawnLogs = Get-ChildItem -Path "$env:USERPROFILE\.forge614\engines" -Filter "swap-helper-*.spawn.log" -ErrorAction SilentlyContinue
+          if ($spawnLogs) {
+            foreach ($spawnLog in $spawnLogs) {
+              Write-Host "--- swap helper spawn output ($($spawnLog.FullName)) ---"
+              Get-Content $spawnLog.FullName
+            }
+          } else {
+            Write-Host "No swap-helper-*.spawn.log files found under $env:USERPROFILE\.forge614\engines"
+          }
+
           Write-Host "--- process list (any leftover forge614-engines/powershell children?) ---"
           Get-Process | Where-Object { $_.ProcessName -like "*forge614-engines*" -or $_.ProcessName -eq "powershell" } | Format-Table Id, ProcessName, StartTime
       - name: Run install.ps1 -Uninstall
