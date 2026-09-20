@@ -118,10 +118,12 @@ let logPath;
 try {
   const match = JSON.parse(stdout).result?.note?.match(/Helper log: (.+)$/);
   logPath = match?.[1]?.trim();
-} catch {
-  // Fall through — diagnostics below don't depend on this.
+  diag(`parsed helper log path from launcher output: ${logPath}`);
+} catch (error) {
+  diag(`could not parse launcher stdout for a helper log path: ${error}`);
 }
 
+diag("starting to poll for the launcher file to be swapped (up to 15s)");
 const deadline = Date.now() + 15_000;
 let content = "";
 while (Date.now() < deadline) {
@@ -131,16 +133,25 @@ while (Date.now() < deadline) {
   }
   await new Promise((resolve) => setTimeout(resolve, 200));
 }
+diag(`polling finished, launcher content is now: ${JSON.stringify(content)}`);
 
 if (content !== `fake binary content for ${fakeVersion}\n`) {
-  console.error(`Launcher was not swapped to the new version within the timeout. Current content: ${JSON.stringify(content)}`);
+  diag(`Launcher was not swapped to the new version within the timeout. Current content: ${JSON.stringify(content)}`);
   if (logPath && existsSync(logPath)) {
-    console.error(`--- swap helper log (${logPath}) ---`);
-    console.error(readFileSync(logPath, "utf8"));
+    diag(`--- swap helper log (${logPath}) ---`);
+    diag(readFileSync(logPath, "utf8"));
   } else {
-    console.error(`No helper log found at ${logPath ?? "(unknown path)"}.`);
+    diag(`No helper log found at ${logPath ?? "(unknown path)"}.`);
   }
+  // Explicit exit, not a natural event-loop drain: the same class of
+  // "process should have nothing left keeping it alive but doesn't exit
+  // promptly on Windows" issue fixed in src/interfaces/cli/main.ts turned
+  // out to affect this orchestrator script too — it, not the launcher, was
+  // the actual source of the multi-minute hangs in earlier runs (the
+  // launcher itself already exits in well under a second, per the "Launcher
+  // process settled" log line above).
   process.exit(1);
 }
 
-console.log("Self-update swap verified: the running launcher replaced itself with the new version.");
+diag("Self-update swap verified: the running launcher replaced itself with the new version.");
+process.exit(0);
