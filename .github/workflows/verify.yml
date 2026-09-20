@@ -27,6 +27,7 @@ jobs:
       - run: bash -n scripts/install.sh
       - run: node --check scripts/release-bundle.mjs
       - run: node --check scripts/release-cut.mjs
+      - run: node --check scripts/verify-windows-self-update.mjs
 
   windows:
     name: Windows checks
@@ -71,6 +72,12 @@ jobs:
           if (-not (Test-Path $installed)) { throw "install.ps1 did not produce $installed" }
           $output = & $installed detect | ConvertFrom-Json
           if ($output.schemaVersion -ne 1) { throw "unexpected schemaVersion from installed binary" }
+      - name: Verify self-update while the launcher is the currently-running process
+        shell: pwsh
+        env:
+          FORGE614_HOME: ${{ github.workspace }}\.forge614-test-home
+          FORGE614_LAUNCHER_PATH: ${{ github.workspace }}\.forge614-test-home\engines\bin\forge614-engines.exe
+        run: bun run scripts/verify-windows-self-update.mjs
       - name: Run install.ps1 -Uninstall
         shell: pwsh
         env:

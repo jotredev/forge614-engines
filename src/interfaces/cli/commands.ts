@@ -5,6 +5,7 @@ import { capabilitiesFor } from "../../app/capabilities";
 import { detectAgents } from "../../app/detect";
 import { planMcpInstall } from "../../app/plan-mcp-install";
 import { planMcpRemove } from "../../app/plan-mcp-remove";
+import { performUpdate } from "../../app/self-update";
 import type { AgentId } from "../../modules/agents/types";
 
 const SCHEMA_VERSION = 1;
@@ -39,4 +40,9 @@ export async function runApply(planId: string): Promise<void> {
 export async function runCapabilities(agentId: AgentId): Promise<void> {
   const registry = buildDefaultRegistry();
   printJson({ ...capabilitiesFor(registry, agentId) });
+}
+
+export async function runUpdate(): Promise<void> {
+  const result = await performUpdate(homedir());
+  printJson({ result });
 }

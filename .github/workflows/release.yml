@@ -25,6 +25,7 @@ jobs:
       - run: bash -n scripts/install.sh
       - run: node --check scripts/release-bundle.mjs
       - run: node --check scripts/release-cut.mjs
+      - run: node --check scripts/verify-windows-self-update.mjs
 
   build:
     name: Build ${{ matrix.platform }}-${{ matrix.arch }}
