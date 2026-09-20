@@ -24,4 +24,9 @@ export const cursorAdapter: AgentAdapter = {
   mcpEntryShape(server: McpServerDefinition) {
     return { command: server.command, args: server.args };
   },
+  // No `instructions` target: Cursor's global "User Rules" are only configurable
+  // through the Cursor Settings UI (cursor.com/docs/rules), with no officially
+  // documented external file. `.cursor/rules/*.mdc` is file-based but
+  // project-scoped, not global, so it cannot satisfy "loads in every new
+  // session" without a project path this adapter does not have.
 };

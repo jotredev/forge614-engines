@@ -22,6 +22,14 @@ export const codexAdapter: AgentAdapter = {
   mcpEntryShape(server: McpServerDefinition) {
     return { command: server.command, args: server.args };
   },
+  instructions: {
+    primaryFile(home) {
+      return join(home, ".codex", "AGENTS.md");
+    },
+    shadowingFiles(home) {
+      return [join(home, ".codex", "AGENTS.override.md")];
+    },
+  },
   headlessCommand(executable, opts) {
     return { command: executable, args: ["exec", opts.prompt] };
   },

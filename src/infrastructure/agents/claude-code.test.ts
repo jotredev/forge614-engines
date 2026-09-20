@@ -31,4 +31,12 @@ describe("claudeCodeAdapter", () => {
     expect(claudeCodeAdapter.candidateExecutableNames("win32")).toEqual(["claude.exe"]);
     expect(claudeCodeAdapter.candidateExecutableNames("darwin")).toEqual(["claude"]);
   });
+
+  test("manages global instructions through CLAUDE.md with a satellite content file", () => {
+    const target = claudeCodeAdapter.instructions;
+    expect(target).toBeDefined();
+    expect(target?.primaryFile("/home/u")).toBe(join("/home/u", ".claude", "CLAUDE.md"));
+    expect(target?.shadowingFiles("/home/u")).toEqual([]);
+    expect(target?.contentFile?.("/home/u")).toBe(join("/home/u", ".claude", "forge614-engram-memory-protocol.md"));
+  });
 });

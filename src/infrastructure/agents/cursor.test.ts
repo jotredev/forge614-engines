@@ -19,4 +19,8 @@ describe("cursorAdapter", () => {
     ]);
     expect(cursorAdapter.knownInstallPaths("linux", "/home/u")).toEqual([]);
   });
+
+  test("has no global instructions mechanism (no officially documented file for User Rules)", () => {
+    expect(cursorAdapter.instructions).toBeUndefined();
+  });
 });

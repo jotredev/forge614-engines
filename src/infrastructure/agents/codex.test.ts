@@ -19,4 +19,12 @@ describe("codexAdapter", () => {
       args: ["exec", "hello"],
     });
   });
+
+  test("manages global instructions through AGENTS.md, embedded, watching for AGENTS.override.md", () => {
+    const target = codexAdapter.instructions;
+    expect(target).toBeDefined();
+    expect(target?.primaryFile("/home/u")).toBe(join("/home/u", ".codex", "AGENTS.md"));
+    expect(target?.shadowingFiles("/home/u")).toEqual([join("/home/u", ".codex", "AGENTS.override.md")]);
+    expect(target?.contentFile).toBeUndefined();
+  });
 });

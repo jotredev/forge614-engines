@@ -22,6 +22,17 @@ export const claudeCodeAdapter: AgentAdapter = {
   mcpEntryShape(server: McpServerDefinition) {
     return { command: server.command, args: server.args };
   },
+  instructions: {
+    primaryFile(home) {
+      return join(home, ".claude", "CLAUDE.md");
+    },
+    shadowingFiles() {
+      return [];
+    },
+    contentFile(home) {
+      return join(home, ".claude", "forge614-engram-memory-protocol.md");
+    },
+  },
   headlessCommand(executable, opts) {
     return { command: executable, args: ["-p", opts.prompt] };
   },
