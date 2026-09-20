@@ -94,10 +94,19 @@ jobs:
       - name: Print self-update diagnostics (always, even if the check above timed out or failed)
         if: always()
         shell: pwsh
+        env:
+          FORGE614_HOME: ${{ github.workspace }}\.forge614-test-home
         run: |
           $log = "${{ runner.temp }}\self-update-diag.log"
           Write-Host "--- orchestrator diag log ($log) ---"
           if (Test-Path $log) { Get-Content $log } else { Write-Host "No diagnostic log at $log" }
+
+          # Engines' own storage now honors FORGE614_HOME (matching
+          # install.sh/install.ps1) rather than always defaulting to the real
+          # $env:USERPROFILE\.forge614 — this must look in the same
+          # FORGE614_HOME-relative directory the update step used, or these
+          # logs are read from a location `update` never touched.
+          $enginesHome = "$env:FORGE614_HOME\engines"
 
           # The orchestrator only prints the PowerShell swap-helper's own log
           # on its failure path — read directly from outside instead, so this
@@ -106,28 +115,28 @@ jobs:
           # on its own also matches "swap-helper-*.spawn.log" (the "*" is
           # greedy and happily eats ".spawn"), which merged both logs into
           # this section in an earlier run and hid the spawn-output log.
-          $helperLogs = Get-ChildItem -Path "$env:USERPROFILE\.forge614\engines" -Filter "swap-helper-*.log" -Exclude "*.spawn.log" -ErrorAction SilentlyContinue
+          $helperLogs = Get-ChildItem -Path $enginesHome -Filter "swap-helper-*.log" -Exclude "*.spawn.log" -ErrorAction SilentlyContinue
           if ($helperLogs) {
             foreach ($helperLog in $helperLogs) {
               Write-Host "--- swap helper log ($($helperLog.FullName)) ---"
               Get-Content $helperLog.FullName
             }
           } else {
-            Write-Host "No swap-helper-*.log files found under $env:USERPROFILE\.forge614\engines"
+            Write-Host "No swap-helper-*.log files found under $enginesHome"
           }
 
           # The script's own Out-File logging (above) is silent if pwsh/powershell
           # fails before reaching the script body (execution policy, parameter
           # binding, path quoting, etc). This captures the child process's raw
           # stdout/stderr instead, which surfaces exactly that kind of failure.
-          $spawnLogs = Get-ChildItem -Path "$env:USERPROFILE\.forge614\engines" -Filter "swap-helper-*.spawn.log" -ErrorAction SilentlyContinue
+          $spawnLogs = Get-ChildItem -Path $enginesHome -Filter "swap-helper-*.spawn.log" -ErrorAction SilentlyContinue
           if ($spawnLogs) {
             foreach ($spawnLog in $spawnLogs) {
               Write-Host "--- swap helper spawn output ($($spawnLog.FullName)) ---"
               Get-Content $spawnLog.FullName
             }
           } else {
-            Write-Host "No swap-helper-*.spawn.log files found under $env:USERPROFILE\.forge614\engines"
+            Write-Host "No swap-helper-*.spawn.log files found under $enginesHome"
           }
 
           Write-Host "--- process list (any leftover forge614-engines/powershell children?) ---"
