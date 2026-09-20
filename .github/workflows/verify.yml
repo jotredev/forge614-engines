@@ -96,7 +96,24 @@ jobs:
         shell: pwsh
         run: |
           $log = "${{ runner.temp }}\self-update-diag.log"
+          Write-Host "--- orchestrator diag log ($log) ---"
           if (Test-Path $log) { Get-Content $log } else { Write-Host "No diagnostic log at $log" }
+
+          # The orchestrator only prints the PowerShell swap-helper's own log
+          # on its failure path — read directly from outside instead, so this
+          # shows up even if the orchestrator itself is what's stuck.
+          $helperLogs = Get-ChildItem -Path "$env:USERPROFILE\.forge614\engines" -Filter "swap-helper-*.log" -ErrorAction SilentlyContinue
+          if ($helperLogs) {
+            foreach ($helperLog in $helperLogs) {
+              Write-Host "--- swap helper log ($($helperLog.FullName)) ---"
+              Get-Content $helperLog.FullName
+            }
+          } else {
+            Write-Host "No swap-helper-*.log files found under $env:USERPROFILE\.forge614\engines"
+          }
+
+          Write-Host "--- process list (any leftover forge614-engines/powershell children?) ---"
+          Get-Process | Where-Object { $_.ProcessName -like "*forge614-engines*" -or $_.ProcessName -eq "powershell" } | Format-Table Id, ProcessName, StartTime
       - name: Run install.ps1 -Uninstall
         shell: pwsh
         env:
