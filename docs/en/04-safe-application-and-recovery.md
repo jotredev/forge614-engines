@@ -14,6 +14,8 @@ The identifier must match a file under `~/.forge614/engines/plans/`. If it is ab
 
 For every real write, Engines reads the target file again. It calculates SHA-256 and requires it to equal the plan's `beforeHash`. A difference produces `STALE_PLAN` (an expired plan), without writing anything. The safe solution is to create another plan, show it again, and request confirmation again.
 
+A write can also be a deletion — used to fully remove Claude Code's dedicated instructions content file on `plan memory-remove` — and it is applied through that exact same hash-check and snapshot path as every other write.
+
 ## Backup and reliable write
 
 Before changing an existing file, Engines creates a backup under `~/.forge614/engines/snapshots/<planId>/`. The manifest (a structured inventory of backups) stores the original path, backup name, date, and fingerprint.

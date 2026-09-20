@@ -28,6 +28,15 @@ forge614-engines plan mcp-remove --agent codex --name engram --command forge614-
 
 Si la entrada no existe, el plan es `noop`. Si existe pero no coincide exactamente con el comando y argumentos esperados, devuelve `UNRECOGNIZED_ENTRY`. Esto protege configuraciones creadas manualmente o por otra aplicación.
 
+## Planear la integración de memoria
+
+```text
+forge614-engines plan memory-install --agent codex
+forge614-engines plan memory-remove --agent codex
+```
+
+`plan memory-install` y `plan memory-remove` agrupan dos decisiones —la entrada MCP `engram` y el o los archivos de instrucciones del agente— en un solo plan, con un único `planId` que cubre ambas. Un conflicto en un solo componente no aborta ese plan: una entrada MCP `engram` diferente, o un `AGENTS.override.md` no vacío que eclipsa el `AGENTS.md` de Codex, se reporta como `blocked` solo para ese componente, mientras el otro componente sigue su curso normal. El componente de instrucciones de Cursor siempre se reporta como `unsupported`, porque Cursor no tiene un mecanismo global basado en archivos oficialmente documentado para cargar instrucciones automáticamente en cada sesión nueva.
+
 ## Ciclo correcto
 
 1. Shell solicita el plan.

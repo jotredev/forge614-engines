@@ -28,6 +28,15 @@ forge614-engines plan mcp-remove --agent codex --name engram --command forge614-
 
 When the entry does not exist, the plan is `noop`. When it exists but does not exactly match the expected command and arguments, it returns `UNRECOGNIZED_ENTRY`. That protects configuration created manually or by another application.
 
+## Planning the memory integration
+
+```text
+forge614-engines plan memory-install --agent codex
+forge614-engines plan memory-remove --agent codex
+```
+
+`plan memory-install` and `plan memory-remove` bundle two decisions — the `engram` MCP entry and the agent's instructions file(s) — into one plan, with one `planId` that covers both. A per-component conflict does not abort that plan: a different `engram` MCP entry, or a non-empty `AGENTS.override.md` shadowing Codex's `AGENTS.md`, is reported as `blocked` for that one component while the other component still proceeds normally. Cursor's instructions component is always reported `unsupported`, because Cursor has no officially documented global, file-based mechanism for loading instructions automatically in every new session.
+
 ## Correct cycle
 
 1. Shell requests the plan.

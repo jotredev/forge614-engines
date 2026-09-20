@@ -52,37 +52,37 @@
       "localPath": "docs/es/03-plan-seguro-de-mcp.md",
       "language": "es",
       "notionUrl": "https://app.notion.com/p/3e121943d12981f79fd1e4fd43e2587c",
-      "sha256": "d98f78467f1a5b27b194893e2cca0115ad7772ed0de82d887e9afd0baa7b17f9"
+      "sha256": "71dcee14f2b6b5f0fcc00641e6a2430f61ebed31bdf98ebd0111129212cc9cd1"
     },
     {
       "localPath": "docs/en/03-safe-mcp-planning.md",
       "language": "en",
       "notionUrl": "https://app.notion.com/p/3e121943d129811a822eec896be4b4dc",
-      "sha256": "71c43fbbbc4a7a53f098aba0399873ddb51d80b8618fc6a4bc991490e88f2c1d"
+      "sha256": "de90cd7973d60b468f75bd94e96434faa1ec9c431e3f7f90363c6e58351a7e47"
     },
     {
       "localPath": "docs/es/04-aplicacion-segura-y-recuperacion.md",
       "language": "es",
       "notionUrl": "https://app.notion.com/p/3e121943d1298188a91afcb72465d572",
-      "sha256": "6923c8f33c3b89e2703171fc4c4c638b4e222695b215c42053562934f085cf78"
+      "sha256": "4f4fbf274112e81721586c22e18c7df3be6a4e295ad56d4617f158eb1460dee4"
     },
     {
       "localPath": "docs/en/04-safe-application-and-recovery.md",
       "language": "en",
       "notionUrl": "https://app.notion.com/p/3e121943d12981758935cb7ce48535c2",
-      "sha256": "c249a23a8d3519b4e76c00b07b695fee2ecf5c20d54b8b6c9c73cb073956ff8c"
+      "sha256": "05986f2f6987e51dcc163ddfd16d9df70b1d952de5cd2c9be46c00999067df90"
     },
     {
       "localPath": "docs/es/05-referencia-del-cli-publico.md",
       "language": "es",
       "notionUrl": "https://app.notion.com/p/3e121943d1298178b133f109e29a742f",
-      "sha256": "e7db1b8fca1b677652aaf48dbd09f71235ec7be7ce3c923dc95df875cc636e1c"
+      "sha256": "cba7ee074d9796525468b644d519c211d49d4946582064dcdec4eb0322065535"
     },
     {
       "localPath": "docs/en/05-public-cli-reference.md",
       "language": "en",
       "notionUrl": "https://app.notion.com/p/3e121943d12981c097f7ff61185f3454",
-      "sha256": "90529c8eb05697a8b1ec4cbb51b055361a334a88fdd67c6be636ff75e99d838a"
+      "sha256": "5a04f0e9032dd32ec4af4c93c556e0c14d56e28bef7e9c35e5c06b1e83bf5588"
     },
     {
       "localPath": "docs/es/06-ejecucion-automatica-e-integraciones.md",
@@ -100,13 +100,13 @@
       "localPath": "docs/es/07-arquitectura-y-mapa-del-codigo.md",
       "language": "es",
       "notionUrl": "https://app.notion.com/p/3e121943d1298111ac2dfc6ec005122c",
-      "sha256": "efa64991d4d837bd09b6156887234c796775bd516d125b373c9053c2ed4410bd"
+      "sha256": "a09668c3871e3a853ed2a69b3a0d096f66d9c2ab514049d154d8582faaacf005"
     },
     {
       "localPath": "docs/en/07-architecture-and-code-map.md",
       "language": "en",
       "notionUrl": "https://app.notion.com/p/3e121943d1298141af4dc49853c508e7",
-      "sha256": "cdd178af83f1a2b17da7d32ad3407c525dc435a0964036e23e70e3f4f8d1ecdd"
+      "sha256": "7b53a0334b5b8672005231feec005e25c7fa0cfaaff6c415c58d8b422b64e0bd"
     }
   ]
 }
