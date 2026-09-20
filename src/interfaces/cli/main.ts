@@ -6,8 +6,12 @@ import {
   runHeadlessCommand,
   runPlanMcpInstall,
   runPlanMcpRemove,
+  runPlanMemoryInstall,
+  runPlanMemoryRemove,
   runUpdate,
+  runVerifyMemoryIntegration,
 } from "./commands";
+import { EngramProtocolUnavailableError } from "../../infrastructure/engram/memory-protocol-client";
 import { StalePlanError } from "../../app/apply-plan";
 import { HeadlessUnsupportedError } from "../../app/headless-command";
 import { UnrecognizedEntryError } from "../../app/plan-mcp-remove";
@@ -50,6 +54,7 @@ function mcpArgsFlag(args: string[]): string[] {
 
 export function errorCodeFor(error: unknown): string {
   if (error instanceof ConfigConflictError) return "CONFLICT";
+  if (error instanceof EngramProtocolUnavailableError) return "ENGRAM_PROTOCOL_UNAVAILABLE";
   if (error instanceof StalePlanError) return "STALE_PLAN";
   if (error instanceof UnrecognizedEntryError) return "UNRECOGNIZED_ENTRY";
   if (error instanceof PlanNotFoundError) return "PLAN_NOT_FOUND";
@@ -79,6 +84,16 @@ async function main(): Promise<void> {
     return runPlanMcpRemove(agentId, name, cmd, mcpArgsFlag(rest));
   }
 
+  if (command === "plan" && subcommand === "memory-install") {
+    const agentId = flag(rest, "--agent") as AgentId;
+    return runPlanMemoryInstall(agentId);
+  }
+
+  if (command === "plan" && subcommand === "memory-remove") {
+    const agentId = flag(rest, "--agent") as AgentId;
+    return runPlanMemoryRemove(agentId);
+  }
+
   if (command === "apply") {
     return runApply(flag(process.argv.slice(3), "--plan-id")!);
   }
@@ -89,6 +104,11 @@ async function main(): Promise<void> {
 
   if (command === "update") {
     return runUpdate();
+  }
+
+  if (command === "verify" && subcommand === "memory-integration") {
+    const agentId = flag(rest, "--agent") as AgentId;
+    return runVerifyMemoryIntegration(agentId);
   }
 
   if (command === "headless") {

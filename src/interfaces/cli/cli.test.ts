@@ -117,4 +117,28 @@ describe("forge614-engines CLI", () => {
     const parsed = JSON.parse(stdout);
     expect(parsed.error.code).toBe("UNKNOWN_COMMAND");
   });
+
+  test("plan memory-install for an agent without Engram installed reports ENGRAM_PROTOCOL_UNAVAILABLE", async () => {
+    const { stdout, exitCode } = await runCli(["plan", "memory-install", "--agent", "claude-code"]);
+
+    expect(exitCode).toBe(1);
+    const parsed = JSON.parse(stdout);
+    expect(parsed.error.code).toBe("ENGRAM_PROTOCOL_UNAVAILABLE");
+  });
+
+  test("plan memory-remove is a noop when nothing was installed", async () => {
+    const { stdout, exitCode } = await runCli(["plan", "memory-remove", "--agent", "cursor"]);
+
+    expect(exitCode).toBe(0);
+    const parsed = JSON.parse(stdout);
+    expect(parsed.plan.noop).toBe(true);
+  });
+
+  test("verify memory-integration reports absent components when nothing was installed", async () => {
+    const { stdout, exitCode } = await runCli(["verify", "memory-integration", "--agent", "cursor"]);
+
+    expect(exitCode).toBe(0);
+    const parsed = JSON.parse(stdout);
+    expect(parsed.verification.mcp.present).toBe(false);
+  });
 });

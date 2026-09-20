@@ -6,7 +6,10 @@ import { detectAgents } from "../../app/detect";
 import { headlessCommandFor } from "../../app/headless-command";
 import { planMcpInstall } from "../../app/plan-mcp-install";
 import { planMcpRemove } from "../../app/plan-mcp-remove";
+import { planMemoryInstall } from "../../app/plan-memory-install";
+import { planMemoryRemove } from "../../app/plan-memory-remove";
 import { performUpdate } from "../../app/self-update";
+import { verifyMemoryIntegration } from "../../app/verify-memory-integration";
 import type { AgentId } from "../../modules/agents/types";
 
 const SCHEMA_VERSION = 1;
@@ -57,4 +60,22 @@ export async function runHeadlessCommand(
   const registry = buildDefaultRegistry();
   const result = headlessCommandFor(registry, agentId, executable, prompt, timeoutMs);
   printJson({ headless: result });
+}
+
+export async function runPlanMemoryInstall(agentId: AgentId): Promise<void> {
+  const registry = buildDefaultRegistry();
+  const plan = await planMemoryInstall(registry, { agentId, home: homedir() });
+  printJson({ plan });
+}
+
+export async function runPlanMemoryRemove(agentId: AgentId): Promise<void> {
+  const registry = buildDefaultRegistry();
+  const plan = await planMemoryRemove(registry, { agentId, home: homedir() });
+  printJson({ plan });
+}
+
+export async function runVerifyMemoryIntegration(agentId: AgentId): Promise<void> {
+  const registry = buildDefaultRegistry();
+  const verification = await verifyMemoryIntegration(registry, { agentId, home: homedir() });
+  printJson({ verification });
 }
