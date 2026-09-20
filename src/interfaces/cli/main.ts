@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { runApply, runDetect, runPlanMcpInstall } from "./commands";
+import { runApply, runDetect, runPlanMcpInstall, runPlanMcpRemove } from "./commands";
 import type { AgentId } from "../../modules/agents/types";
 
 function flag(args: string[], name: string): string | undefined {
@@ -19,6 +19,15 @@ async function main(): Promise<void> {
     const argsIndex = rest.indexOf("--args");
     const args = argsIndex === -1 ? [] : rest.slice(argsIndex + 1);
     return runPlanMcpInstall(agentId, name, cmd, args);
+  }
+
+  if (command === "plan" && subcommand === "mcp-remove") {
+    const agentId = flag(rest, "--agent") as AgentId;
+    const name = flag(rest, "--name")!;
+    const cmd = flag(rest, "--command")!;
+    const argsIndex = rest.indexOf("--args");
+    const args = argsIndex === -1 ? [] : rest.slice(argsIndex + 1);
+    return runPlanMcpRemove(agentId, name, cmd, args);
   }
 
   if (command === "apply") {

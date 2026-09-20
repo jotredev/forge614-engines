@@ -3,6 +3,7 @@ import { applyPlan } from "../../app/apply-plan";
 import { buildDefaultRegistry } from "../../app/default-registry";
 import { detectAgents } from "../../app/detect";
 import { planMcpInstall } from "../../app/plan-mcp-install";
+import { planMcpRemove } from "../../app/plan-mcp-remove";
 import type { AgentId } from "../../modules/agents/types";
 
 const SCHEMA_VERSION = 1;
@@ -20,6 +21,12 @@ export async function runDetect(): Promise<void> {
 export async function runPlanMcpInstall(agentId: AgentId, name: string, command: string, args: string[]): Promise<void> {
   const registry = buildDefaultRegistry();
   const plan = await planMcpInstall(registry, { agentId, home: homedir(), server: { name, command, args } });
+  printJson({ plan });
+}
+
+export async function runPlanMcpRemove(agentId: AgentId, name: string, command: string, args: string[]): Promise<void> {
+  const registry = buildDefaultRegistry();
+  const plan = await planMcpRemove(registry, { agentId, home: homedir(), server: { name, command, args } });
   printJson({ plan });
 }
 
