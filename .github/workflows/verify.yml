@@ -1,0 +1,77 @@
+name: Verify
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  unix:
+    name: Unix checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.8
+      - run: bun install --frozen-lockfile
+      - run: bun test
+      - run: bun run typecheck
+      - run: git diff --check
+      - run: bash -n scripts/install.sh
+      - run: node --check scripts/release-bundle.mjs
+      - run: node --check scripts/release-cut.mjs
+
+  windows:
+    name: Windows checks
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.8
+      - run: bun install --frozen-lockfile
+      - run: bun test
+      - run: bun run typecheck
+      - name: PowerShell syntax check
+        shell: pwsh
+        run: |
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("scripts/install.ps1", [ref]$null, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_ }
+            exit 1
+          }
+      - name: Build a windows-x64 artifact for install.ps1 to install
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist/release-test/forge614-engines-0.0.0-test-windows-x64 | Out-Null
+          bun build ./src/interfaces/cli/main.ts --compile --target=bun-windows-x64 --outfile dist/release-test/forge614-engines-0.0.0-test-windows-x64/forge614-engines.exe
+          Copy-Item package.json dist/release-test/forge614-engines-0.0.0-test-windows-x64/package.json
+          $pkg = Get-Content dist/release-test/forge614-engines-0.0.0-test-windows-x64/package.json -Raw | ConvertFrom-Json
+          $pkg.version = "0.0.0-test"
+          $pkg | ConvertTo-Json | Set-Content dist/release-test/forge614-engines-0.0.0-test-windows-x64/package.json
+          tar -czf dist/release-test/forge614-engines-0.0.0-test-windows-x64.tar.gz -C dist/release-test forge614-engines-0.0.0-test-windows-x64
+      - name: Run install.ps1 against the local archive
+        shell: pwsh
+        env:
+          FORGE614_HOME: ${{ github.workspace }}\.forge614-test-home
+        run: |
+          ./scripts/install.ps1 -Archive dist/release-test/forge614-engines-0.0.0-test-windows-x64.tar.gz
+          $installed = "$env:FORGE614_HOME\engines\bin\forge614-engines.exe"
+          if (-not (Test-Path $installed)) { throw "install.ps1 did not produce $installed" }
+          $output = & $installed detect | ConvertFrom-Json
+          if ($output.schemaVersion -ne 1) { throw "unexpected schemaVersion from installed binary" }
+      - name: Run install.ps1 -Uninstall
+        shell: pwsh
+        env:
+          FORGE614_HOME: ${{ github.workspace }}\.forge614-test-home
+        run: |
+          "y" | ./scripts/install.ps1 -Uninstall
+          if (Test-Path "$env:FORGE614_HOME\engines") { throw "uninstall left files behind" }

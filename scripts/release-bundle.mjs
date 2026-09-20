@@ -15,11 +15,15 @@ if (outputFlag !== -1 && !args[outputFlag + 1]) throw new Error("--out requires 
 // runtime assumptions on the target machine), so each supported OS/arch gets
 // its own compiled binary and its own release asset — unlike forge614-shell,
 // which ships JS run by the user's own Node install.
+// Bun does not support a windows-arm64 --compile target yet (confirmed by
+// trying it: "Target platform 'bun-windows-aarch64' is not available for
+// download"), so Windows only ships x64 for now.
 const targets = [
-  { bunTarget: "bun-darwin-arm64", platform: "darwin", arch: "arm64" },
-  { bunTarget: "bun-darwin-x64", platform: "darwin", arch: "x64" },
-  { bunTarget: "bun-linux-arm64", platform: "linux", arch: "arm64" },
-  { bunTarget: "bun-linux-x64", platform: "linux", arch: "x64" },
+  { bunTarget: "bun-darwin-arm64", platform: "darwin", arch: "arm64", exeSuffix: "" },
+  { bunTarget: "bun-darwin-x64", platform: "darwin", arch: "x64", exeSuffix: "" },
+  { bunTarget: "bun-linux-arm64", platform: "linux", arch: "arm64", exeSuffix: "" },
+  { bunTarget: "bun-linux-x64", platform: "linux", arch: "x64", exeSuffix: "" },
+  { bunTarget: "bun-windows-x64", platform: "windows", arch: "x64", exeSuffix: ".exe" },
 ];
 
 const metadata = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
@@ -34,7 +38,7 @@ try {
   for (const target of targets) {
     const releaseName = `forge614-engines-${version}-${target.platform}-${target.arch}`;
     const releaseRoot = join(stagingRoot, releaseName);
-    const binaryPath = join(releaseRoot, "forge614-engines");
+    const binaryPath = join(releaseRoot, `forge614-engines${target.exeSuffix}`);
     const archive = join(output, `${releaseName}.tar.gz`);
 
     await mkdir(releaseRoot, { recursive: true });

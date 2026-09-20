@@ -8,11 +8,14 @@ describe("cursorAdapter", () => {
     expect(cursorAdapter.configFile("/home/u")).toBe("/home/u/.cursor/mcp.json");
   });
 
-  test("has no PATH-scannable binary, only known install paths on darwin", () => {
+  test("has no PATH-scannable binary, only known install paths on darwin/win32", () => {
     expect(cursorAdapter.candidateExecutableNames("darwin")).toEqual([]);
     expect(cursorAdapter.knownInstallPaths("darwin", "/home/u")).toContain(
       "/Applications/Cursor.app/Contents/MacOS/Cursor",
     );
+    expect(cursorAdapter.knownInstallPaths("win32", "C:\\Users\\u")).toEqual([
+      "C:\\Users\\u\\AppData\\Local\\Programs\\cursor\\Cursor.exe",
+    ]);
     expect(cursorAdapter.knownInstallPaths("linux", "/home/u")).toEqual([]);
   });
 });

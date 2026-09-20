@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, win32 } from "node:path";
 import type { AgentAdapter, McpServerDefinition } from "../../modules/agents/types";
 
 export const cursorAdapter: AgentAdapter = {
@@ -10,9 +10,10 @@ export const cursorAdapter: AgentAdapter = {
   candidateExecutableNames() {
     return [];
   },
-  knownInstallPaths(platform) {
-    if (platform !== "darwin") return [];
-    return ["/Applications/Cursor.app/Contents/MacOS/Cursor"];
+  knownInstallPaths(platform, home) {
+    if (platform === "darwin") return ["/Applications/Cursor.app/Contents/MacOS/Cursor"];
+    if (platform === "win32") return [win32.join(home, "AppData", "Local", "Programs", "cursor", "Cursor.exe")];
+    return [];
   },
   configDir(home) {
     return join(home, ".cursor");

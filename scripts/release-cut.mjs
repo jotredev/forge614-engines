@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readFile, writeFile, readdir } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -23,9 +23,13 @@ run("bun", ["install"]);
 run("bun", ["test"]);
 run("bun", ["run", "typecheck"]);
 
-const releaseDir = join(root, "dist", "release");
-run("bun", ["scripts/release-bundle.mjs"]);
-
+// Building and publishing happen in CI (.github/workflows/release.yml),
+// triggered by the tag push below — each platform's binary is compiled and
+// smoke-tested on its own native runner (including a real Windows machine
+// for windows-x64), which is more trustworthy than cross-compiling all
+// targets from one developer's machine and catches bugs a single-host build
+// can't (this replaced an earlier local-only version of this script after a
+// stale-output bug leaked old assets into the v1.0.0 release).
 const status = runCapture("git", ["status", "--porcelain", "--", "package.json", "bun.lock"]);
 if (status) {
   run("git", ["add", "package.json", "bun.lock"]);
@@ -37,20 +41,5 @@ run("git", ["tag", tag]);
 run("git", ["push", "origin", "HEAD"]);
 run("git", ["push", "origin", tag]);
 
-const assets = (await readdir(releaseDir))
-  .filter((name) => name !== "install.sh")
-  .map((name) => join(releaseDir, name));
-assets.push(join(releaseDir, "install.sh"));
-
-run("gh", [
-  "release",
-  "create",
-  tag,
-  ...assets,
-  "--title",
-  tag,
-  "--notes",
-  `Forge614 Engines ${tag}. Install with:\n\ncurl -fsSL https://github.com/jotredev/forge614-engines/releases/download/${tag}/install.sh | bash`,
-]);
-
-console.log(`\nRelease ${tag} published: https://github.com/jotredev/forge614-engines/releases/tag/${tag}`);
+console.log(`\nPushed tag ${tag} — GitHub Actions will build, verify, and publish the release:`);
+console.log(`https://github.com/jotredev/forge614-engines/actions`);
