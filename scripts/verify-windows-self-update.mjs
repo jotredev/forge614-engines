@@ -8,10 +8,19 @@
 // file `update` must overwrite) as a genuine child process, waits for it to
 // exit, then confirms the detached Windows swap helper (see
 // src/app/self-update.ts) finished the job afterwards.
+//
+// The fake release is served via `file://` URLs (Bun's `fetch()` resolves
+// them), not a local HTTP server: an earlier version of this script used
+// Bun.serve(), and on a real windows-latest run the spawned .exe hung for
+// several minutes on its first network call before failing — almost
+// certainly Defender/firewall scrutiny of a freshly-written, unsigned
+// binary's first network access, even to loopback. Reading static files
+// sidesteps networking (and that flakiness) entirely.
 import { createHash } from "node:crypto";
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const launcherPath = process.env.FORGE614_LAUNCHER_PATH;
 const forgeHome = process.env.FORGE614_HOME;
@@ -37,30 +46,26 @@ writeFileSync(join(releaseRoot, "package.json"), JSON.stringify({ version: fakeV
 const archivePath = join(workDir, assetName);
 execFileSync("tar", ["-czf", archivePath, "-C", workDir, `forge614-engines-${fakeVersion}-windows-x64`]);
 const checksum = createHash("sha256").update(readFileSync(archivePath)).digest("hex");
+const checksumPath = `${archivePath}.sha256`;
+writeFileSync(checksumPath, `${checksum}  ${assetName}\n`);
 
-const server = Bun.serve({
-  port: 0,
-  fetch(request) {
-    const url = new URL(request.url);
-    if (url.pathname === "/release") {
-      return Response.json({
-        tag_name: `v${fakeVersion}`,
-        assets: [
-          { name: assetName, browser_download_url: `http://127.0.0.1:${server.port}/${assetName}` },
-          { name: `${assetName}.sha256`, browser_download_url: `http://127.0.0.1:${server.port}/${assetName}.sha256` },
-        ],
-      });
-    }
-    if (url.pathname === `/${assetName}`) return new Response(readFileSync(archivePath));
-    if (url.pathname === `/${assetName}.sha256`) return new Response(`${checksum}  ${assetName}\n`);
-    return new Response("not found", { status: 404 });
-  },
-});
+const releaseJsonPath = join(workDir, "release.json");
+writeFileSync(
+  releaseJsonPath,
+  JSON.stringify({
+    tag_name: `v${fakeVersion}`,
+    assets: [
+      { name: assetName, browser_download_url: pathToFileURL(archivePath).href },
+      { name: `${assetName}.sha256`, browser_download_url: pathToFileURL(checksumPath).href },
+    ],
+  }),
+);
+const releaseApiUrl = pathToFileURL(releaseJsonPath).href;
 
-console.log(`Fixture server on http://127.0.0.1:${server.port}, spawning the real launcher: ${launcherPath}`);
+console.log(`Fixture release at ${releaseApiUrl}, spawning the real launcher: ${launcherPath}`);
 
 const child = spawn(launcherPath, ["update"], {
-  env: { ...process.env, FORGE614_HOME: forgeHome, FORGE614_RELEASE_API_URL: `http://127.0.0.1:${server.port}/release` },
+  env: { ...process.env, FORGE614_HOME: forgeHome, FORGE614_RELEASE_API_URL: releaseApiUrl },
   stdio: ["ignore", "pipe", "inherit"],
 });
 
@@ -73,7 +78,6 @@ child.stdout.on("data", (chunk) => {
 const exitCode = await new Promise((resolve) => child.on("exit", (code) => resolve(code ?? 1)));
 console.log(`Launcher process exited with code ${exitCode}`);
 if (exitCode !== 0) {
-  server.stop(true);
   process.exit(1);
 }
 
@@ -94,8 +98,6 @@ while (Date.now() < deadline) {
   }
   await new Promise((resolve) => setTimeout(resolve, 200));
 }
-
-server.stop(true);
 
 if (content !== `fake binary content for ${fakeVersion}\n`) {
   console.error(`Launcher was not swapped to the new version within the timeout. Current content: ${JSON.stringify(content)}`);

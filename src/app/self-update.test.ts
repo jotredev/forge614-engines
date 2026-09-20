@@ -4,12 +4,12 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { enginesRoot, performUpdate, platformArch, UpdateAssetMissingError } from "./self-update";
 import pkg from "../../package.json";
 
 let workDir: string;
 let home: string;
-let server: ReturnType<typeof Bun.serve> | undefined;
 let previousApiUrl: string | undefined;
 
 beforeEach(() => {
@@ -20,15 +20,25 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  server?.stop(true);
-  server = undefined;
   rmSync(workDir, { recursive: true, force: true });
   if (previousApiUrl === undefined) delete process.env.FORGE614_RELEASE_API_URL;
   else process.env.FORGE614_RELEASE_API_URL = previousApiUrl;
 });
 
-/** Builds a real, valid release archive (same layout release-bundle.mjs produces) for the given version, and serves it plus a fake GitHub "latest release" API response over a local HTTP server. Returns the API URL to point FORGE614_RELEASE_API_URL at. */
-function serveFakeRelease(version: string, opts: { corruptChecksum?: boolean; omitAsset?: boolean } = {}): string {
+/**
+ * Builds a real, valid release archive (same layout release-bundle.mjs
+ * produces) for the given version, and a fake GitHub "latest release" API
+ * response pointing at it — all as plain files, served back via `file://`
+ * URLs rather than a local HTTP server. `performUpdate` only ever calls
+ * `fetch()`, which Bun resolves for `file://` URLs too, so this exercises
+ * the exact same code path a real download would, with no networking
+ * involved — deliberately, since a real run on Windows CI showed a freshly
+ * spawned, unsigned .exe making even a loopback HTTP call can hang for
+ * several minutes (almost certainly Defender/firewall interference with a
+ * newly-written binary's first network access), which a fixture server
+ * would misreport as this code being broken.
+ */
+function fakeRelease(version: string, opts: { corruptChecksum?: boolean; omitAsset?: boolean } = {}): string {
   const { platform, arch, exeSuffix } = platformArch();
   const releaseName = `forge614-engines-${version}-${platform}-${arch}`;
   const assetName = `${releaseName}.tar.gz`;
@@ -43,36 +53,24 @@ function serveFakeRelease(version: string, opts: { corruptChecksum?: boolean; om
   execFileSync("tar", ["-czf", archivePath, "-C", stagingRoot, releaseName]);
   const realChecksum = createHash("sha256").update(readFileSync(archivePath)).digest("hex");
   const checksum = opts.corruptChecksum ? "0".repeat(64) : realChecksum;
+  const checksumPath = `${archivePath}.sha256`;
+  writeFileSync(checksumPath, `${checksum}  ${assetName}\n`);
 
-  server = Bun.serve({
-    port: 0,
-    fetch(request) {
-      const url = new URL(request.url);
-      if (url.pathname === "/release") {
-        const assets = opts.omitAsset
-          ? []
-          : [
-              { name: assetName, browser_download_url: `http://localhost:${server!.port}/${assetName}` },
-              { name: `${assetName}.sha256`, browser_download_url: `http://localhost:${server!.port}/${assetName}.sha256` },
-            ];
-        return Response.json({ tag_name: `v${version}`, assets });
-      }
-      if (url.pathname === `/${assetName}`) {
-        return new Response(readFileSync(archivePath));
-      }
-      if (url.pathname === `/${assetName}.sha256`) {
-        return new Response(`${checksum}  ${assetName}\n`);
-      }
-      return new Response("not found", { status: 404 });
-    },
-  });
+  const assets = opts.omitAsset
+    ? []
+    : [
+        { name: assetName, browser_download_url: pathToFileURL(archivePath).href },
+        { name: `${assetName}.sha256`, browser_download_url: pathToFileURL(checksumPath).href },
+      ];
+  const releaseJsonPath = join(workDir, "release.json");
+  writeFileSync(releaseJsonPath, JSON.stringify({ tag_name: `v${version}`, assets }));
 
-  return `http://localhost:${server.port}/release`;
+  return pathToFileURL(releaseJsonPath).href;
 }
 
 describe("performUpdate", () => {
   test("is a noop when the latest release is already the running version", async () => {
-    process.env.FORGE614_RELEASE_API_URL = serveFakeRelease(pkg.version);
+    process.env.FORGE614_RELEASE_API_URL = fakeRelease(pkg.version);
 
     const result = await performUpdate(home);
 
@@ -81,7 +79,7 @@ describe("performUpdate", () => {
 
   test("downloads, verifies, and activates a newer version", async () => {
     const newVersion = "9999.0.0";
-    process.env.FORGE614_RELEASE_API_URL = serveFakeRelease(newVersion);
+    process.env.FORGE614_RELEASE_API_URL = fakeRelease(newVersion);
 
     const result = await performUpdate(home);
 
@@ -119,14 +117,14 @@ describe("performUpdate", () => {
 
   test("throws UpdateAssetMissingError when the latest release has no asset for this platform/arch", async () => {
     const newVersion = "9999.0.0";
-    process.env.FORGE614_RELEASE_API_URL = serveFakeRelease(newVersion, { omitAsset: true });
+    process.env.FORGE614_RELEASE_API_URL = fakeRelease(newVersion, { omitAsset: true });
 
     await expect(performUpdate(home)).rejects.toThrow(UpdateAssetMissingError);
   });
 
   test("refuses to activate a download whose checksum does not match", async () => {
     const newVersion = "9999.0.0";
-    process.env.FORGE614_RELEASE_API_URL = serveFakeRelease(newVersion, { corruptChecksum: true });
+    process.env.FORGE614_RELEASE_API_URL = fakeRelease(newVersion, { corruptChecksum: true });
 
     await expect(performUpdate(home)).rejects.toThrow("checksum failed");
 
