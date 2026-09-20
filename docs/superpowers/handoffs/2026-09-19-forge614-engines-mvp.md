@@ -90,3 +90,13 @@ Verified end to end on the real v1.1.0 release: watched the full Actions run bui
    out of scope for this repo; owned by each product's own agent per the ecosystem contract.
 2. Hook installation (`hookEntryShape`) — this plan only covers MCP servers, not native hooks, even though the spec's adapter interface anticipates them.
 3. Migrate `forge614-engram`'s own MCP self-installation to call this CLI instead of its own writer (ecosystem contract §11, item 4) — same ownership note as above.
+
+## Documentation maintenance (2026-09-20)
+
+The current product guide lives in `docs/README.md`, with synchronized Spanish and English pairs `00` through `07`. Local Markdown is the reviewed source of truth; `docs/notion-map.json` maps every page to the matching Notion mirror and records its content fingerprint.
+
+Whenever a public command, error code, adapter, capability, configuration location, or safety rule changes:
+
+1. Update the matching ES/EN local pair and the Notion mirror together.
+2. Refresh the map fingerprints with `bun scripts/verify-documentation.mjs --refresh-fingerprints`.
+3. Run `bun run verify:docs`, `bun test`, and `bun run typecheck` before declaring the documentation synchronized.
