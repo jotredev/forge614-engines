@@ -61,7 +61,13 @@ console.log(`Fixture server on http://127.0.0.1:${server.port}, spawning the rea
 
 const child = spawn(launcherPath, ["update"], {
   env: { ...process.env, FORGE614_HOME: forgeHome, FORGE614_RELEASE_API_URL: `http://127.0.0.1:${server.port}/release` },
-  stdio: "inherit",
+  stdio: ["ignore", "pipe", "inherit"],
+});
+
+let stdout = "";
+child.stdout.on("data", (chunk) => {
+  stdout += chunk;
+  process.stdout.write(chunk);
 });
 
 const exitCode = await new Promise((resolve) => child.on("exit", (code) => resolve(code ?? 1)));
@@ -69,6 +75,14 @@ console.log(`Launcher process exited with code ${exitCode}`);
 if (exitCode !== 0) {
   server.stop(true);
   process.exit(1);
+}
+
+let logPath;
+try {
+  const match = JSON.parse(stdout).result?.note?.match(/Helper log: (.+)$/);
+  logPath = match?.[1]?.trim();
+} catch {
+  // Fall through — diagnostics below don't depend on this.
 }
 
 const deadline = Date.now() + 15_000;
@@ -85,6 +99,12 @@ server.stop(true);
 
 if (content !== `fake binary content for ${fakeVersion}\n`) {
   console.error(`Launcher was not swapped to the new version within the timeout. Current content: ${JSON.stringify(content)}`);
+  if (logPath && existsSync(logPath)) {
+    console.error(`--- swap helper log (${logPath}) ---`);
+    console.error(readFileSync(logPath, "utf8"));
+  } else {
+    console.error(`No helper log found at ${logPath ?? "(unknown path)"}.`);
+  }
   process.exit(1);
 }
 

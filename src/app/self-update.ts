@@ -67,22 +67,28 @@ param(
   [string]$NewBinary,
   [string]$ActiveLauncher,
   [string]$ActiveVersionFile,
-  [string]$Version
+  [string]$Version,
+  [string]$LogFile
 )
-$ErrorActionPreference = "SilentlyContinue"
+"$(Get-Date -Format o) starting swap helper" | Out-File -FilePath $LogFile -Append
 for ($i = 0; $i -lt 40; $i++) {
   Start-Sleep -Milliseconds 250
-  Copy-Item -Path $NewBinary -Destination $ActiveLauncher -Force -ErrorAction SilentlyContinue
-  if (Test-Path $ActiveLauncher) {
-    $newHash = (Get-FileHash -Path $NewBinary -Algorithm SHA256).Hash
-    $activeHash = (Get-FileHash -Path $ActiveLauncher -Algorithm SHA256).Hash
-    if ($newHash -eq $activeHash) {
-      Set-Content -Path $ActiveVersionFile -Value $Version -NoNewline
-      Remove-Item -Path $PSCommandPath -Force -ErrorAction SilentlyContinue
-      exit 0
-    }
+  try {
+    Copy-Item -Path $NewBinary -Destination $ActiveLauncher -Force
+  } catch {
+    "$(Get-Date -Format o) attempt $i copy failed: $_" | Out-File -FilePath $LogFile -Append
+    continue
+  }
+  $newHash = (Get-FileHash -Path $NewBinary -Algorithm SHA256).Hash
+  $activeHash = (Get-FileHash -Path $ActiveLauncher -Algorithm SHA256).Hash
+  if ($newHash -eq $activeHash) {
+    Set-Content -Path $ActiveVersionFile -Value $Version -NoNewline
+    "$(Get-Date -Format o) swap succeeded on attempt $i" | Out-File -FilePath $LogFile -Append
+    Remove-Item -Path $PSCommandPath -Force -ErrorAction SilentlyContinue
+    exit 0
   }
 }
+"$(Get-Date -Format o) swap did not succeed after all retries" | Out-File -FilePath $LogFile -Append
 `;
 
 async function scheduleWindowsSwap(
@@ -91,13 +97,15 @@ async function scheduleWindowsSwap(
   activeVersionFile: string,
   version: string,
   helperDir: string,
-): Promise<void> {
+): Promise<string> {
   const helperPath = join(helperDir, `swap-helper-${Date.now()}.ps1`);
+  const logPath = join(helperDir, `swap-helper-${Date.now()}.log`);
   await writeFile(helperPath, WINDOWS_SWAP_HELPER_SCRIPT, "utf8");
   const child = spawn(
-    "powershell",
+    "powershell.exe",
     [
       "-NoProfile",
+      "-NonInteractive",
       "-WindowStyle",
       "Hidden",
       "-ExecutionPolicy",
@@ -112,10 +120,13 @@ async function scheduleWindowsSwap(
       activeVersionFile,
       "-Version",
       version,
+      "-LogFile",
+      logPath,
     ],
     { detached: true, stdio: "ignore", windowsHide: true },
   );
   child.unref();
+  return logPath;
 }
 
 export async function performUpdate(home: string): Promise<UpdateResult> {
@@ -171,12 +182,12 @@ export async function performUpdate(home: string): Promise<UpdateResult> {
       // Write the helper script directly under `root` (not `scratchDir`,
       // which this function's `finally` block deletes almost immediately
       // after spawning it) — the script deletes itself once it finishes.
-      await scheduleWindowsSwap(newBinary, activeLauncher, activeVersionFile, latestVersion, root);
+      const logPath = await scheduleWindowsSwap(newBinary, activeLauncher, activeVersionFile, latestVersion, root);
       return {
         updated: true,
         currentVersion,
         latestVersion,
-        note: "Finishing the active binary swap in the background; the next invocation will use the new version.",
+        note: `Finishing the active binary swap in the background; the next invocation will use the new version. Helper log: ${logPath}`,
       };
     }
 
