@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { open, readFile, rename } from "node:fs/promises";
+import { mkdir, open, readFile, rename, unlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 export interface AtomicWriteResult {
@@ -15,16 +15,22 @@ export async function atomicWrite(targetPath: string, content: string): Promise<
   }
   if (existing === content) return { changed: false };
 
-  const tempPath = join(dirname(targetPath), `.${Math.random().toString(36).slice(2)}.tmp`);
-  const handle = await open(tempPath, "w", 0o600);
-  try {
-    await handle.writeFile(content, "utf8");
-    await handle.sync();
-  } finally {
-    await handle.close();
-  }
+  await mkdir(dirname(targetPath), { recursive: true });
 
-  await rename(tempPath, targetPath);
+  const tempPath = join(dirname(targetPath), `.${Math.random().toString(36).slice(2)}.tmp`);
+  try {
+    const handle = await open(tempPath, "w", 0o600);
+    try {
+      await handle.writeFile(content, "utf8");
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+    await rename(tempPath, targetPath);
+  } catch (error) {
+    await unlink(tempPath).catch(() => {});
+    throw error;
+  }
 
   const verifyContent = await readFile(targetPath, "utf8");
   const expectedHash = createHash("sha256").update(content).digest("hex");

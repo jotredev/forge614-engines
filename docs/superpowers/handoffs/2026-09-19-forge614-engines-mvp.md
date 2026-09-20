@@ -25,16 +25,19 @@ A working `forge614-engines` CLI covering Claude Code, Codex and Cursor:
 ## Test suite results
 
 **Final run:** `bun test && bun run typecheck`
-- Tests passing: 54
+- Tests passing: 62
 - Type checking: pass
-- Total test files: 20
-- Total expect() calls: 83
+- Total test files: 21
+- Total expect() calls: 122
 
 ## Known scope reductions vs. the spec
 
 - Snapshots are plain file copies + a checksum manifest, not a compressed archive (Task 10 note).
 - TOML writes re-serialize the whole document; comments/ordering are not preserved (Task 15 note).
 - No GitHub Releases / install.sh / checksum-verified distribution yet — only the compiled binary (Task 17 note). Needed before other Forge614 products can auto-bootstrap this one per the ecosystem contract §5/§8.
+- `apply --plan-id <id> --revert` (restoring from a snapshot) is not wired up — `restoreSnapshot()` exists and is tested in isolation but is not reachable from any CLI command yet.
+- `configFile(home, scope)` was reduced to `configFile(home)` — workspace-scoped config (as opposed to user-scoped) is not supported by any adapter yet.
+- Snapshot and plan file retention/pruning was never implemented — `~/.forge614/engines/plans/` and `~/.forge614/engines/snapshots/` grow unbounded; nothing prunes old entries.
 
 ## Follow-up plans needed
 

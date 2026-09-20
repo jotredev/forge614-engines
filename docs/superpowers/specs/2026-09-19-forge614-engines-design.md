@@ -98,10 +98,12 @@ All commands emit JSON with a `schemaVersion` field so callers can detect breaki
 forge614-engines detect --json
 forge614-engines capabilities --agent <id> --json
 forge614-engines plan mcp-install --agent <id> --name <mcp-name> --command <exe> --args <...> --json
-forge614-engines plan mcp-remove  --agent <id> --name <mcp-name> --json
+forge614-engines plan mcp-remove  --agent <id> --name <mcp-name> --command <exe> --args <...> --json
 forge614-engines apply --plan-id <id> --json
 forge614-engines apply --plan-id <id> --revert --json   # restores from the snapshot taken for that plan
 ```
+
+`plan mcp-remove` takes the full `--command`/`--args` of the entry, not just its name, because removal must reprove ownership of the exact entry (§5: only entries matching what `mcpEntryShape` would have produced are ever removed, so a user-authored entry that merely shares a name is never deleted).
 
 This satisfies the contract's required contracts table (Section 10): Engines→Shell gets detection + capabilities + plan preview + apply; Engines→Atlas gets `detect`/`capabilities` (specifically `supportsHeadlessExec` + `headlessCommand`).
 

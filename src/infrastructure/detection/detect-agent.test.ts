@@ -18,7 +18,7 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-function fakeAdapter(): AgentAdapter {
+function fakeAdapter(overrides: Partial<AgentAdapter> = {}): AgentAdapter {
   return {
     id: "claude-code",
     label: "Fake",
@@ -30,6 +30,7 @@ function fakeAdapter(): AgentAdapter {
     configDir: (h) => join(h, ".fake"),
     configFile: (h) => join(h, ".fake.json"),
     mcpEntryShape: (server) => ({ command: server.command, args: server.args }),
+    ...overrides,
   };
 }
 
@@ -56,5 +57,21 @@ describe("detectAgent", () => {
     expect(result.installed).toBe(true);
     expect(result.executable).toBe(binPath);
     expect(result.configFound).toBe(true);
+  });
+
+  test("falls back to knownInstallPaths for an agent that is not on PATH (e.g. a desktop app)", async () => {
+    const appPath = join(dir, "Fake.app", "Contents", "MacOS", "Fake");
+    mkdirSync(join(dir, "Fake.app", "Contents", "MacOS"), { recursive: true });
+    writeFileSync(appPath, "");
+
+    const adapter = fakeAdapter({
+      candidateExecutableNames: () => [],
+      knownInstallPaths: () => [join(dir, "Missing.app", "Contents", "MacOS", "Missing"), appPath],
+    });
+
+    const result = await detectAgent(adapter, home, { PATH: dir }, "darwin");
+    expect(result.installed).toBe(true);
+    expect(result.executable).toBe(appPath);
+    expect(result.configFound).toBe(false);
   });
 });

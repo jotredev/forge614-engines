@@ -20,6 +20,7 @@ export interface PlanMcpRemoveInput {
 export async function planMcpRemove(registry: AgentRegistry, input: PlanMcpRemoveInput): Promise<Plan> {
   const adapter = registry.get(input.agentId);
   if (!adapter) throw new Error(`Unknown agent: ${input.agentId}`);
+  if (!adapter.capabilities.supportsMcp) throw new Error(`${input.agentId} does not support MCP servers`);
 
   const format = configFormats[adapter.configFormat];
   const configPath = adapter.configFile(input.home);

@@ -20,7 +20,9 @@ export function snapshotDirectory(home: string, planId: string): string {
 
 export async function createSnapshot(home: string, planId: string, filePaths: string[]): Promise<SnapshotManifest> {
   const dir = snapshotDirectory(home, planId);
-  await mkdir(dir, { recursive: true });
+  // Backups mirror config files that can contain credentials — owner-only.
+  // (copyFile preserves each source file's own mode for the backups themselves.)
+  await mkdir(dir, { recursive: true, mode: 0o700 });
 
   const files: SnapshotManifestEntry[] = [];
   for (const filePath of filePaths) {
