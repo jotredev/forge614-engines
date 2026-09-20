@@ -1,5 +1,112 @@
 {
   "schemaVersion": 1,
   "productVersion": "1.3.0",
-  "documents": []
+  "requiredNumbers": [
+    "00",
+    "01",
+    "02",
+    "03",
+    "04",
+    "05",
+    "06",
+    "07"
+  ],
+  "documents": [
+    {
+      "localPath": "docs/es/00-resumen-y-guia-rapida.md",
+      "language": "es",
+      "notionUrl": "pending://00-es",
+      "sha256": "200c28184d1ba7f9e6650257d9bae4d600ee1956f584924a6ebe9c9ac1d4553d"
+    },
+    {
+      "localPath": "docs/en/00-summary-and-quickstart.md",
+      "language": "en",
+      "notionUrl": "pending://00-en",
+      "sha256": "523a95e51cfc85417c6ff5db6e66f84aa2766dddf002bc81262fca4da82d37d3"
+    },
+    {
+      "localPath": "docs/es/01-instalacion-interna-y-limites.md",
+      "language": "es",
+      "notionUrl": "pending://01-es",
+      "sha256": "5da428afac6120599af94feb01fb663ff6f181632b9dbf155aa4d645d8b87425"
+    },
+    {
+      "localPath": "docs/en/01-internal-installation-and-boundaries.md",
+      "language": "en",
+      "notionUrl": "pending://01-en",
+      "sha256": "7a0f2022b09deaf63a00f060bc126c531c299a904ffecefabbc495eeb6a0f596"
+    },
+    {
+      "localPath": "docs/es/02-deteccion-de-agentes-y-capacidades.md",
+      "language": "es",
+      "notionUrl": "pending://02-es",
+      "sha256": "a295a39aca851d38a4a97461009719c750e8afbef6a1e73c21c4be778fdc058e"
+    },
+    {
+      "localPath": "docs/en/02-agent-detection-and-capabilities.md",
+      "language": "en",
+      "notionUrl": "pending://02-en",
+      "sha256": "df629efcab7b3b5958a7c4714405571f2fa9d6c8ea8a68861c85faf0793670bc"
+    },
+    {
+      "localPath": "docs/es/03-plan-seguro-de-mcp.md",
+      "language": "es",
+      "notionUrl": "pending://03-es",
+      "sha256": "d98f78467f1a5b27b194893e2cca0115ad7772ed0de82d887e9afd0baa7b17f9"
+    },
+    {
+      "localPath": "docs/en/03-safe-mcp-planning.md",
+      "language": "en",
+      "notionUrl": "pending://03-en",
+      "sha256": "71c43fbbbc4a7a53f098aba0399873ddb51d80b8618fc6a4bc991490e88f2c1d"
+    },
+    {
+      "localPath": "docs/es/04-aplicacion-segura-y-recuperacion.md",
+      "language": "es",
+      "notionUrl": "pending://04-es",
+      "sha256": "6923c8f33c3b89e2703171fc4c4c638b4e222695b215c42053562934f085cf78"
+    },
+    {
+      "localPath": "docs/en/04-safe-application-and-recovery.md",
+      "language": "en",
+      "notionUrl": "pending://04-en",
+      "sha256": "c249a23a8d3519b4e76c00b07b695fee2ecf5c20d54b8b6c9c73cb073956ff8c"
+    },
+    {
+      "localPath": "docs/es/05-referencia-del-cli-publico.md",
+      "language": "es",
+      "notionUrl": "pending://05-es",
+      "sha256": "e7db1b8fca1b677652aaf48dbd09f71235ec7be7ce3c923dc95df875cc636e1c"
+    },
+    {
+      "localPath": "docs/en/05-public-cli-reference.md",
+      "language": "en",
+      "notionUrl": "pending://05-en",
+      "sha256": "90529c8eb05697a8b1ec4cbb51b055361a334a88fdd67c6be636ff75e99d838a"
+    },
+    {
+      "localPath": "docs/es/06-ejecucion-automatica-e-integraciones.md",
+      "language": "es",
+      "notionUrl": "pending://06-es",
+      "sha256": "ec3fe3b5f1c16977919057808586c80192e09718410c364e0f93f8ad1d572b87"
+    },
+    {
+      "localPath": "docs/en/06-headless-execution-and-integrations.md",
+      "language": "en",
+      "notionUrl": "pending://06-en",
+      "sha256": "9c17621d32868fe127b9049c6d2210c34d90320e2562c5b10295e042f093dee6"
+    },
+    {
+      "localPath": "docs/es/07-arquitectura-y-mapa-del-codigo.md",
+      "language": "es",
+      "notionUrl": "pending://07-es",
+      "sha256": "efa64991d4d837bd09b6156887234c796775bd516d125b373c9053c2ed4410bd"
+    },
+    {
+      "localPath": "docs/en/07-architecture-and-code-map.md",
+      "language": "en",
+      "notionUrl": "pending://07-en",
+      "sha256": "cdd178af83f1a2b17da7d32ad3407c525dc435a0964036e23e70e3f4f8d1ecdd"
+    }
+  ]
 }

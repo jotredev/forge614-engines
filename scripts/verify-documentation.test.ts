@@ -18,6 +18,7 @@ async function fixture(
   roots.push(root);
   await mkdir(join(root, "docs", "es"), { recursive: true });
   await mkdir(join(root, "docs", "en"), { recursive: true });
+  await writeFile(join(root, "docs", "README.md"), "# Documentation index\n");
 
   const esPath = "docs/es/00-resumen.md";
   const enPath = "docs/en/00-summary.md";
@@ -64,4 +65,8 @@ test("rejects a missing required error code", async () => {
 
 test("rejects a missing documented agent", async () => {
   await expect(verifyDocumentation(await fixture({ omitAgent: "cursor" }))).rejects.toThrow("Missing documented agent: cursor");
+});
+
+test("accepts the complete local documentation index", async () => {
+  await expect(verifyDocumentation(process.cwd())).resolves.toMatchObject({ documents: 16, productVersion: "1.3.0" });
 });

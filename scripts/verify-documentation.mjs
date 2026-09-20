@@ -33,6 +33,7 @@ function commandTerms(text) {
 }
 
 export async function verifyDocumentation(root) {
+  if (!existsSync(join(root, "docs", "README.md"))) throw new Error("Missing documentation index");
   const mapPath = join(root, "docs", "notion-map.json");
   const map = JSON.parse(await readFile(mapPath, "utf8"));
   const documents = map.documents ?? [];
@@ -58,6 +59,9 @@ export async function verifyDocumentation(root) {
   for (const [number, languages] of seenByNumber) {
     if (!languages.has("es")) throw new Error(`Missing Spanish pair: ${number}`);
     if (!languages.has("en")) throw new Error(`Missing English pair: ${number}`);
+  }
+  for (const number of map.requiredNumbers ?? []) {
+    if (!seenByNumber.has(number)) throw new Error(`Missing documentation pair: ${number}`);
   }
 
   const allText = texts.join("\n");

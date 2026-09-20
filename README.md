@@ -26,6 +26,7 @@ Then call it directly — `~/.forge614/engines/bin/forge614-engines` on macOS/Li
 
 ## Docs
 
+- [Bilingual product documentation / Documentación bilingüe del producto](docs/README.md)
 - Spec: `docs/superpowers/specs/2026-09-19-forge614-engines-design.md`
 - Plan: `docs/superpowers/plans/2026-09-19-forge614-engines-mvp.md`
 - Handoff: `docs/superpowers/handoffs/2026-09-19-forge614-engines-mvp.md`
