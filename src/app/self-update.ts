@@ -29,7 +29,13 @@ interface GithubRelease {
 }
 
 export function enginesRoot(home: string): string {
-  return join(home, ".forge614", "engines");
+  // install.sh/install.ps1 both let FORGE614_HOME override where Engines'
+  // own storage lives (used to sandbox tests without touching a real user's
+  // home directory), pointing it directly at the ".forge614"-equivalent
+  // root. This must resolve the same way, or `update` silently manages a
+  // different directory than the one actually installed to.
+  const forgeHome = process.env.FORGE614_HOME ?? join(home, ".forge614");
+  return join(forgeHome, "engines");
 }
 
 export function platformArch(
