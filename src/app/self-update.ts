@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFileSync, spawn } from "node:child_process";
-import { closeSync, existsSync, openSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, rm, symlink, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import pkg from "../../package.json";
@@ -110,26 +110,31 @@ for ($i = 0; $i -lt 40; $i++) {
 // undiagnosed for several CI runs.
 const WINDOWS_SHELL_CANDIDATES = ["pwsh", "powershell.exe"];
 
+function quoteForCmd(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
 async function spawnDetached(command: string, args: string[], outputLogPath: string): Promise<ReturnType<typeof spawn>> {
-  // Redirect the child's own stdout/stderr to a file at the OS level, not
-  // just relying on the PowerShell script's internal Out-File logging: a
-  // parameter-binding error, execution-policy block, or any other failure
-  // pwsh hits before reaching the script body would otherwise be completely
-  // invisible — Node only sees "a process was created," never what it
-  // actually printed. This is cheap enough to keep permanently, not just for
-  // this diagnostic round: a real user hitting a self-update failure on
-  // Windows deserves the same visibility.
-  const fd = openSync(outputLogPath, "a");
-  try {
-    const child = spawn(command, args, { detached: true, stdio: ["ignore", fd, fd], windowsHide: true });
-    await new Promise<void>((resolve, reject) => {
-      child.once("spawn", () => resolve());
-      child.once("error", (error) => reject(error));
-    });
-    return child;
-  } finally {
-    closeSync(fd);
-  }
+  // Route through cmd.exe's own `>`/`2>&1` redirection rather than passing a
+  // raw file descriptor into spawn()'s stdio array. Several real Windows CI
+  // runs showed a detached child spawn cleanly (a genuine "spawn" event, no
+  // thrown error) yet produce literally zero output anywhere — including
+  // through fd-based redirection — which points at how Bun's Windows
+  // child_process implementation inherits file descriptors into a detached
+  // grandchild, not at PowerShell itself. cmd.exe redirection is the
+  // classic, battle-tested way to background a process with file-redirected
+  // output on Windows, independent of that fd-inheritance path.
+  const commandLine = `${quoteForCmd(command)} ${args.map(quoteForCmd).join(" ")} > ${quoteForCmd(outputLogPath)} 2>&1`;
+  const child = spawn("cmd.exe", ["/d", "/s", "/c", commandLine], {
+    detached: true,
+    stdio: "ignore",
+    windowsHide: true,
+  });
+  await new Promise<void>((resolve, reject) => {
+    child.once("spawn", () => resolve());
+    child.once("error", (error) => reject(error));
+  });
+  return child;
 }
 
 async function scheduleWindowsSwap(
