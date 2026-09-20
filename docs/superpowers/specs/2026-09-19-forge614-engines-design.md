@@ -1,7 +1,7 @@
 # forge614-engines — Design Spec
 
 **Date:** 2026-09-19
-**Status:** Approved by product owner (chat-based brainstorming), pending self-review + final read-through.
+**Status:** Approved product direction; MVP implementation plan exists. Distribution/bootstrap remains a separate follow-up after the CLI contract ships.
 **Governs:** `/Users/jorgeetrejoo/Desktop/forge614-engines`
 **Constrained by:** [`FORGE614_ECOSYSTEM_CONTRACT.md`](../../../FORGE614_ECOSYSTEM_CONTRACT.md) (root of this repo). This spec is the technical design that satisfies the contract's Section 5 ("Forge614 Engines") and Section 10 (public contracts Engines↔Shell, Engines↔Atlas). Where the two disagree, the contract wins and this spec must be updated.
 
@@ -21,7 +21,7 @@ It replaces three divergent, duplicated implementations found in the existing ec
 
 ## 2. Non-goals (explicitly out of scope)
 
-- **No TUI, no interactive prompts.** Per the ecosystem contract, `forge614-shell` is the only human-facing surface. Engines never asks the user anything directly.
+- **No TUI, no interactive prompts.** Per the ecosystem contract, `forge614-shell` is the only Forge614-owned visual interface (required for setup/config flows, optional for day-to-day agent use). Engines never asks the user anything directly, regardless of which client — Shell, ADE Orca, a native terminal — is driving it.
 - **No autonomous writes.** Engines never modifies a config file without an explicit, separately-confirmed `apply` call referencing a previously-computed plan.
 - **No subscription/auth/quota status.** That capability already lives in `forge614-shell` (`src/engines/claude/auth.ts`, `catalog.ts`, etc.) and stays there. Engines only answers "is X installed and where does its config live," not "is the user logged in / what's their plan."
 - **No cross-node update orchestration.** A future `forge614 update` that updates every installed Forge614 product is `forge614-ai`'s job once it exists. Engines does not enumerate or update sibling products.
@@ -117,7 +117,7 @@ No `state.json`/cache in v1, per Section 4 (detection is always live). Owns only
 
 ## 8. Distribution & bootstrap
 
-- Distributed the same way as `forge614-shell` and `forge614-engram`: a compiled standalone binary via GitHub Releases, `install.sh`/`install.ps1`, SHA-256 checksum verification, symlink into `~/.forge614/bin/`. Not published as an npm package (no `bin` field reliance), since it must be installable with zero Node/Bun runtime assumptions on the end-user machine, matching the other two products.
+- Distributed as a compiled standalone binary via GitHub Releases, `install.sh`/`install.ps1`, and SHA-256 checksum verification. Every installed version belongs under `~/.forge614/engines/<version>/`; the only stable launcher is `~/.forge614/engines/bin/forge614-engines`. Engines never creates `~/.forge614/bin/`, edits a user's `PATH`, or owns a global user-facing command. Consumers call its launcher by this owned path. It is not published as an npm package (no `bin` field reliance), since it must be installable with zero Node/Bun runtime assumptions on the end-user machine.
 - **Bootstrap:** any product that depends on Engines (Shell, Engram, Atlas — see contract Section 8 table) checks for `~/.forge614/engines/bin/forge614-engines` during its own install/init. If missing, it downloads and installs the matching compatible release of Engines first (checksum-verified), then proceeds. This mirrors the existing pattern where `forge614-engram` already shells out to `forge614-atlas`'s own binary for coordinated uninstall — delegation to the sibling's own installer/binary, never reimplementing its install logic.
 
 ## 9. Tech stack

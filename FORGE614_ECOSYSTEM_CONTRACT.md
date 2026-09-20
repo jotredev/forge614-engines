@@ -22,19 +22,21 @@ The projects are separate products with separate repositories. They must communi
 | Product | Can work on its own? | Has a visual interface? | Owns |
 |---|---:|---:|---|
 | `forge614-ai` | Not until its core is released | It coordinates the experience | Global orchestration, lifecycle, routing, state, workflows and the future `forge614` command |
-| `forge614-shell` | Yes | Yes | Chat, terminal workspace, human-facing setup, confirmations and visible status |
+| `forge614-shell` | Yes | Yes | Optional chat and terminal workspace, guided installation, initialization, configuration, confirmations, repair, and visible status. Not required for day-to-day AI work once integrations are configured. |
 | `forge614-engines` | No | No | Detecting available AI engines and providing safe adapters for them |
 | `forge614-engram` | Yes, as a CLI/MCP/memory engine | No | Persistent memory, SQLite, FTS5, project identity, search and optional synchronization |
 | `forge614-atlas` | Not completely; it needs Engram and Engines | No | Deeply contextualizing repositories and depositing validated knowledge in Engram |
 
 ## 3. One visual experience
 
-Forge614 Shell is the only human-facing visual experience in the ecosystem.
+Forge614 Shell is the only visual interface owned and maintained by Forge614. It is required for human-guided installation, initialization, configuration, repair, and sensitive confirmation flows. It is optional for day-to-day AI work after integrations are configured.
 
-- Other products must not maintain their own TUI.
-- Shell presents questions, choices, previews, confirmations, progress, warnings and results.
+- Other Forge614 products must not maintain their own TUI.
+- Shell presents questions, choices, previews, confirmations, progress, warnings and results during its own setup and lifecycle flows.
+- Shell configures approved integrations through public product contracts.
+- After setup, people may work directly in external environments and native AI clients, such as ADE Orca, Claude Code, Codex, or a normal terminal. Those environments use their own UI; Forge614 does not duplicate it.
+- External clients consume configured MCP, CLI, SDK, hooks or skills through explicit public contracts, never deep imports into private product folders.
 - Shell can work without Engram or Atlas.
-- A product may expose a non-interactive CLI or SDK for automation, but it must not duplicate Shell's setup interface.
 
 ## 4. The future global initialization flow
 
