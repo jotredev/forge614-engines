@@ -1,22 +1,11 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REQUIRED_AGENTS = ["claude code", "codex", "cursor"];
-const REQUIRED_ERROR_CODES = [
-  "CONFLICT",
-  "STALE_PLAN",
-  "UNRECOGNIZED_ENTRY",
-  "PLAN_NOT_FOUND",
-  "UPDATE_ASSET_MISSING",
-  "HEADLESS_UNSUPPORTED",
-  "UNKNOWN_COMMAND",
-  "UNKNOWN_AGENT",
-  "INTERNAL_ERROR",
-];
-const PUBLIC_COMMANDS = new Set(["detect", "plan mcp-install", "plan mcp-remove", "apply", "capabilities", "update", "headless"]);
+const NON_ERROR_CODES = new Set(["CLI", "JSON", "MCP", "PATH", "SHA", "TOML", "FORGE614_HOME"]);
 
 function fingerprint(text) {
   return createHash("sha256").update(text).digest("hex");
@@ -32,11 +21,45 @@ function commandTerms(text) {
   );
 }
 
+async function localDocumentationPaths(root) {
+  const paths = [];
+  for (const language of ["es", "en"]) {
+    const directory = join(root, "docs", language);
+    for (const entry of await readdir(directory)) {
+      if (entry.endsWith(".md")) paths.push(`docs/${language}/${entry}`);
+    }
+  }
+  return paths.sort();
+}
+
+async function publicCliContract(root) {
+  const source = await readFile(join(root, "src", "interfaces", "cli", "main.ts"), "utf8");
+  const commands = new Set([...source.matchAll(/command === "([a-z]+)"/g)].map((match) => match[1]));
+  for (const subcommand of source.matchAll(/command === "plan" && subcommand === "(mcp-(?:install|remove))"/g)) {
+    commands.add(`plan ${subcommand[1]}`);
+  }
+  const errorCodes = new Set([...source.matchAll(/return "([A-Z][A-Z_]+)"/g)].map((match) => match[1]));
+  return { commands, errorCodes };
+}
+
+function documentedErrorCodes(text) {
+  return new Set(
+    [...text.matchAll(/`([A-Z][A-Z_]{2,})`/g)]
+      .map((match) => match[1])
+      .filter((code) => !NON_ERROR_CODES.has(code)),
+  );
+}
+
 export async function verifyDocumentation(root) {
   if (!existsSync(join(root, "docs", "README.md"))) throw new Error("Missing documentation index");
   const mapPath = join(root, "docs", "notion-map.json");
   const map = JSON.parse(await readFile(mapPath, "utf8"));
   const documents = map.documents ?? [];
+  const localPaths = await localDocumentationPaths(root);
+  const mappedPaths = new Set(documents.map((document) => document.localPath));
+  for (const localPath of localPaths) {
+    if (!mappedPaths.has(localPath)) throw new Error(`Unmapped local documentation file: ${localPath}`);
+  }
   const seenByNumber = new Map();
   const texts = [];
 
@@ -69,11 +92,15 @@ export async function verifyDocumentation(root) {
   for (const agent of REQUIRED_AGENTS) {
     if (!lowerText.includes(agent)) throw new Error(`Missing documented agent: ${agent === "claude code" ? "claude-code" : agent}`);
   }
-  for (const code of REQUIRED_ERROR_CODES) {
+  const { commands, errorCodes } = await publicCliContract(root);
+  for (const code of errorCodes) {
     if (!allText.includes(code)) throw new Error(`Missing required error code: ${code}`);
   }
+  for (const code of documentedErrorCodes(allText)) {
+    if (!errorCodes.has(code)) throw new Error(`Unknown error code: ${code}`);
+  }
   for (const term of commandTerms(allText)) {
-    if (!PUBLIC_COMMANDS.has(term)) throw new Error(`Unknown CLI term: ${term}`);
+    if (!commands.has(term)) throw new Error(`Unknown CLI term: ${term}`);
   }
 
   return { documents: documents.length, productVersion: map.productVersion };

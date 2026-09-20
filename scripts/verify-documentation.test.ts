@@ -12,13 +12,36 @@ afterEach(async () => {
 });
 
 async function fixture(
-  options: { omitEnglish?: boolean; staleHash?: boolean; cliTerm?: string; omitError?: string; omitAgent?: string } = {},
+  options: {
+    omitEnglish?: boolean;
+    staleHash?: boolean;
+    cliTerm?: string;
+    omitError?: string;
+    omitAgent?: string;
+    extraSpanishFile?: boolean;
+  } = {},
 ) {
   const root = await mkdtemp(join(tmpdir(), "forge614-engines-docs-"));
   roots.push(root);
   await mkdir(join(root, "docs", "es"), { recursive: true });
   await mkdir(join(root, "docs", "en"), { recursive: true });
+  await mkdir(join(root, "src", "interfaces", "cli"), { recursive: true });
   await writeFile(join(root, "docs", "README.md"), "# Documentation index\n");
+  await writeFile(
+    join(root, "src", "interfaces", "cli", "main.ts"),
+    [
+      'if (command === "detect") return;',
+      'if (command === "apply") return;',
+      'if (command === "capabilities") return;',
+      'if (command === "update") return;',
+      'if (command === "headless") return;',
+      'if (command === "plan" && subcommand === "mcp-install") return;',
+      'if (command === "plan" && subcommand === "mcp-remove") return;',
+      'return "CONFLICT"; return "STALE_PLAN"; return "UNRECOGNIZED_ENTRY"; return "PLAN_NOT_FOUND";',
+      'return "UPDATE_ASSET_MISSING"; return "HEADLESS_UNSUPPORTED"; return "UNKNOWN_COMMAND";',
+      'return "UNKNOWN_AGENT"; return "INTERNAL_ERROR";',
+    ].join("\n"),
+  );
 
   const esPath = "docs/es/00-resumen.md";
   const enPath = "docs/en/00-summary.md";
@@ -32,6 +55,7 @@ async function fixture(
     .replace(options.omitError ?? "__no_error_to_remove__", "");
 
   await writeFile(join(root, esPath), text);
+  if (options.extraSpanishFile) await writeFile(join(root, "docs", "es", "08-sin-mapa.md"), text);
   if (!options.omitEnglish) await writeFile(join(root, enPath), text);
   const sha256 = createHash("sha256").update(text).digest("hex");
   await writeFile(
@@ -69,4 +93,16 @@ test("rejects a missing documented agent", async () => {
 
 test("accepts the complete local documentation index", async () => {
   await expect(verifyDocumentation(process.cwd())).resolves.toMatchObject({ documents: 16, productVersion: "1.3.0" });
+});
+
+test("rejects a local documentation page that is absent from the map", async () => {
+  await expect(verifyDocumentation(await fixture({ extraSpanishFile: true }))).rejects.toThrow(
+    "Unmapped local documentation file: docs/es/08-sin-mapa.md",
+  );
+});
+
+test("rejects an unknown documented error code", async () => {
+  await expect(verifyDocumentation(await fixture({ cliTerm: "`NOT_A_REAL_ERROR`" }))).rejects.toThrow(
+    "Unknown error code: NOT_A_REAL_ERROR",
+  );
 });
