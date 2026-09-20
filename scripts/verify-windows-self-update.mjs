@@ -18,9 +18,29 @@
 // sidesteps networking (and that flakiness) entirely.
 import { createHash } from "node:crypto";
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+
+// GH Actions killed a previous run of this script via its step-level
+// timeout without ANY of its console.log output reaching the captured log —
+// on Windows, a non-TTY stdout pipe can stay buffered until either the
+// buffer fills or the process exits cleanly, so a hard-killed process can
+// lose everything it "printed." Logging to a file (with a real write, not a
+// buffered stream) survives that; a companion `if: always()` step in
+// verify.yml prints this file's content even if this script is killed.
+const diagLogPath = process.env.FORGE614_DIAG_LOG ?? join(process.env.RUNNER_TEMP ?? ".", "self-update-diag.log");
+function diag(message) {
+  const line = `${new Date().toISOString()} ${message}`;
+  console.log(line);
+  try {
+    appendFileSync(diagLogPath, `${line}\n`);
+  } catch {
+    // Best-effort — never let logging itself break the check.
+  }
+}
+
+diag(`verify-windows-self-update.mjs starting, diag log at ${diagLogPath}`);
 
 const launcherPath = process.env.FORGE614_LAUNCHER_PATH;
 const forgeHome = process.env.FORGE614_HOME;
@@ -42,9 +62,12 @@ const releaseRoot = join(workDir, `forge614-engines-${fakeVersion}-windows-x64`)
 mkdirSync(releaseRoot, { recursive: true });
 writeFileSync(join(releaseRoot, "forge614-engines.exe"), `fake binary content for ${fakeVersion}\n`);
 writeFileSync(join(releaseRoot, "package.json"), JSON.stringify({ version: fakeVersion }));
+diag("fixture release directory staged");
 
 const archivePath = join(workDir, assetName);
+diag(`about to build archive via execFileSync("tar", ...): ${archivePath}`);
 execFileSync("tar", ["-czf", archivePath, "-C", workDir, `forge614-engines-${fakeVersion}-windows-x64`]);
+diag("archive built");
 const checksum = createHash("sha256").update(readFileSync(archivePath)).digest("hex");
 const checksumPath = `${archivePath}.sha256`;
 writeFileSync(checksumPath, `${checksum}  ${assetName}\n`);
@@ -62,30 +85,31 @@ writeFileSync(
 );
 const releaseApiUrl = pathToFileURL(releaseJsonPath).href;
 
-console.log(`Fixture release at ${releaseApiUrl}, spawning the real launcher: ${launcherPath}`);
+diag(`fixture release ready at ${releaseApiUrl}, about to spawn launcher: ${launcherPath}`);
 
 const child = spawn(launcherPath, ["update"], {
   env: { ...process.env, FORGE614_HOME: forgeHome, FORGE614_RELEASE_API_URL: releaseApiUrl },
   stdio: ["ignore", "pipe", "inherit"],
 });
+diag(`spawn() returned, launcher pid=${child.pid}`);
 
 let stdout = "";
 child.stdout.on("data", (chunk) => {
   stdout += chunk;
-  process.stdout.write(chunk);
+  diag(`launcher stdout chunk: ${chunk.toString().trim()}`);
 });
 
 const exitCode = await Promise.race([
   new Promise((resolve) => child.on("exit", (code) => resolve(code ?? 1))),
   new Promise((resolve) =>
     setTimeout(() => {
-      console.error("Launcher process did not exit within 60s — killing it and failing fast.");
+      diag("Launcher process did not exit within 60s — killing it and failing fast.");
       child.kill();
       resolve(1);
     }, 60_000),
   ),
 ]);
-console.log(`Launcher process exited with code ${exitCode}`);
+diag(`Launcher process settled with code ${exitCode}`);
 if (exitCode !== 0) {
   process.exit(1);
 }

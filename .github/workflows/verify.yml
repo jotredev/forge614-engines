@@ -89,7 +89,14 @@ jobs:
         env:
           FORGE614_HOME: ${{ github.workspace }}\.forge614-test-home
           FORGE614_LAUNCHER_PATH: ${{ github.workspace }}\.forge614-test-home\engines\bin\forge614-engines.exe
+          FORGE614_DIAG_LOG: ${{ runner.temp }}\self-update-diag.log
         run: bun run scripts/verify-windows-self-update.mjs
+      - name: Print self-update diagnostics (always, even if the check above timed out or failed)
+        if: always()
+        shell: pwsh
+        run: |
+          $log = "${{ runner.temp }}\self-update-diag.log"
+          if (Test-Path $log) { Get-Content $log } else { Write-Host "No diagnostic log at $log" }
       - name: Run install.ps1 -Uninstall
         shell: pwsh
         env:
