@@ -41,13 +41,47 @@ A working `forge614-engines` CLI covering Claude Code, Codex and Cursor:
 ## v1.0.0 release (2026-09-20)
 
 Published at https://github.com/jotredev/forge614-engines/releases/tag/v1.0.0 — standalone binaries
-for macOS/Linux (arm64 + x64), each with a checksum, plus `install.sh` (`scripts/install.sh`, no
-PATH/profile changes — installs to `~/.forge614/engines/<version>/` with a stable
-`~/.forge614/engines/bin/forge614-engines` launcher). Cut with `bun run release:cut <version>`
-(`scripts/release-cut.mjs`: bump, test, typecheck, bundle all 4 targets, commit, tag, push, publish
-via `gh release create`). Verified end to end: installed the published `v1.0.0` from a clean
-`$HOME` via `curl | bash` and ran the installed binary's `detect`/`capabilities` commands
-successfully.
+for macOS/Linux (arm64 + x64), each with a checksum, plus `install.sh`. Cut by running
+`release-bundle.mjs`/`gh release create` locally on one developer machine. Verified end to end
+(installed the published release via `curl | bash`, ran `detect`/`capabilities`), but a stale-build
+bug (old 0.1.0 assets leaked into the release alongside the 1.0.0 ones, from a prior local test run
+that `release-bundle.mjs` didn't clear) was caught and fixed after the fact — see the v1.1.0 entry
+below for why the release process changed.
+
+## v1.1.0 release (2026-09-20): Windows support + CI-driven releases
+
+Published at https://github.com/jotredev/forge614-engines/releases/tag/v1.1.0. Two things changed:
+
+**Windows (x64) is now a supported platform**, alongside macOS and Linux (arm64 + x64 each; Bun has
+no `windows-arm64` `--compile` target yet, confirmed by trying it):
+- `scripts/install.ps1` mirrors `install.sh`'s contract (download-latest or `-Archive` for local
+  testing, SHA256 verification, install to `%USERPROFILE%\.forge614\engines\<version>\`, no PATH
+  changes) but copies the binary to its stable launcher path instead of symlinking it, since Windows
+  file symlinks often need elevated privileges.
+- Cursor's Windows install path (`%LOCALAPPDATA%\Programs\cursor\Cursor.exe`) was added; Claude
+  Code's and Codex's config paths needed no changes at all — both already resolve to
+  `%USERPROFILE%\.claude`/`.codex` on Windows via the same `home`-relative logic used on macOS/Linux
+  (confirmed against each project's own docs, not assumed).
+- A real Windows CI run caught bugs no amount of local macOS/Linux testing could: several tests
+  hardcoded POSIX-separator path strings against `path.join()`'s host-native output, and two more
+  hardcoded a `"darwin"` platform argument while creating real host-native temp paths, corrupting
+  PATH-list splitting once those paths were real Windows paths containing `C:` and backslashes. All
+  fixed; see the commit history around 2026-09-20 for details. One test's premise doesn't hold on
+  Windows at all (`fs.access`'s `X_OK` is a no-op there) and is skipped on `win32` with an
+  explanation rather than "fixed."
+
+**Releases are now built and published entirely by GitHub Actions** (`.github/workflows/release.yml`,
+copied from `forge614-engram`'s structure and adapted for 5 platform targets instead of 4), triggered
+by pushing a `v*` tag. Each platform's binary is compiled and smoke-tested on its own native runner —
+including a real `windows-latest` machine — instead of cross-compiled and trusted from one developer's
+machine. This closes the exact bug class that leaked stale assets into v1.0.0: CI always starts from a
+clean checkout. `scripts/release-cut.mjs` now only bumps the version, tests, commits, tags, and
+pushes; a `.github/workflows/verify.yml` (also copied from Engram, with an added Windows job) runs
+the same checks on every push/PR across Linux, macOS, and Windows.
+
+Verified end to end on the real v1.1.0 release: watched the full Actions run build and smoke-test all
+5 targets natively, downloaded and ran the published `install.sh` on a clean `$HOME`, and confirmed
+`detect` reports all three agents correctly.
 
 ## Follow-up plans needed
 

@@ -6,13 +6,23 @@ Internal dependency of the Forge614 ecosystem — see `FORGE614_ECOSYSTEM_CONTRA
 
 ## For other Forge614 products
 
+Supported platforms: macOS (arm64/x64), Linux (arm64/x64), Windows (x64).
+
 Install (no PATH/profile changes — places a binary at a known path):
 
 ```bash
+# macOS / Linux
 curl -fsSL https://github.com/jotredev/forge614-engines/releases/latest/download/install.sh | bash
 ```
 
-Then call it directly at `~/.forge614/engines/bin/forge614-engines` (macOS/Linux, arm64 or x64).
+```powershell
+# Windows
+irm https://github.com/jotredev/forge614-engines/releases/latest/download/install.ps1 -OutFile install.ps1
+./install.ps1
+```
+
+Then call it directly — `~/.forge614/engines/bin/forge614-engines` on macOS/Linux, or
+`%USERPROFILE%\.forge614\engines\bin\forge614-engines.exe` on Windows.
 
 ## Docs
 
@@ -23,7 +33,12 @@ Then call it directly at `~/.forge614/engines/bin/forge614-engines` (macOS/Linux
 ## Releasing
 
 ```bash
-bun run release:cut <version>   # e.g. bun run release:cut 1.1.0
+bun run release:cut <version>   # e.g. bun run release:cut 1.2.0
 ```
 
-Bumps `package.json`, runs tests/typecheck, builds standalone binaries for macOS/Linux (arm64 + x64), commits, tags, pushes, and publishes the GitHub release with all assets.
+Bumps `package.json`, runs tests/typecheck, commits, tags, and pushes. The tag push triggers
+`.github/workflows/release.yml`, which builds and smoke-tests each platform's binary on its own
+native GitHub Actions runner (including a real Windows machine) and publishes the GitHub release
+with all assets. `bun run release:bundle` (`scripts/release-bundle.mjs`) is also available for
+building all targets locally, e.g. to test `install.sh`/`install.ps1` against a local archive before
+cutting a real release.
