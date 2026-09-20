@@ -50,3 +50,13 @@ export async function atomicWrite(targetPath: string, content: string): Promise<
 
   return { changed: true };
 }
+
+export async function atomicDelete(targetPath: string): Promise<AtomicWriteResult> {
+  try {
+    await unlink(targetPath);
+    return { changed: true };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { changed: false };
+    throw error;
+  }
+}

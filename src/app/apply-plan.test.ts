@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
@@ -62,5 +62,39 @@ describe("applyPlan", () => {
 
     await expect(applyPlan(home, "plan-3")).rejects.toThrow(StalePlanError);
     expect(readFileSync(configPath, "utf8")).toBe('{"other":true}');
+  });
+
+  test("deletes a file when the write is marked delete", async () => {
+    const deletedPath = join(home, "to-delete.md");
+    writeFileSync(deletedPath, "old content");
+    const plan: Plan = {
+      planId: "plan-delete-1",
+      agentId: "claude-code",
+      action: "mcp-remove",
+      noop: false,
+      writes: [{ path: deletedPath, beforeHash: hashOf("old content"), afterContent: "", delete: true }],
+    };
+    await savePlan(home, plan);
+
+    const result = await applyPlan(home, "plan-delete-1");
+
+    expect(result.changedFiles).toEqual([deletedPath]);
+    expect(existsSync(deletedPath)).toBe(false);
+  });
+
+  test("refuses to delete when the file changed since the plan was computed", async () => {
+    const deletedPath = join(home, "stale-delete.md");
+    writeFileSync(deletedPath, "changed content");
+    const plan: Plan = {
+      planId: "plan-delete-2",
+      agentId: "claude-code",
+      action: "mcp-remove",
+      noop: false,
+      writes: [{ path: deletedPath, beforeHash: hashOf("original content"), afterContent: "", delete: true }],
+    };
+    await savePlan(home, plan);
+
+    await expect(applyPlan(home, "plan-delete-2")).rejects.toThrow(StalePlanError);
+    expect(existsSync(deletedPath)).toBe(true);
   });
 });

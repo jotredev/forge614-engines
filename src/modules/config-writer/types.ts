@@ -2,6 +2,8 @@ export interface PlanWrite {
   path: string;
   beforeHash: string;
   afterContent: string;
+  /** When true, apply removes the file instead of writing `afterContent` (which is then ignored, but kept as "" by convention). */
+  delete?: boolean;
 }
 
 export interface Plan {

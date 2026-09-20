@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { atomicWrite } from "../infrastructure/config-io/atomic-write";
+import { atomicDelete, atomicWrite } from "../infrastructure/config-io/atomic-write";
 import { createSnapshot } from "../infrastructure/snapshot/snapshot";
 import { loadPlan } from "../infrastructure/plan-store";
 
@@ -42,7 +42,7 @@ export async function applyPlan(home: string, planId: string): Promise<ApplyResu
 
   const changedFiles: string[] = [];
   for (const write of plan.writes) {
-    const result = await atomicWrite(write.path, write.afterContent);
+    const result = write.delete ? await atomicDelete(write.path) : await atomicWrite(write.path, write.afterContent);
     if (result.changed) changedFiles.push(write.path);
   }
 

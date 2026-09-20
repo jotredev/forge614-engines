@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { atomicWrite } from "./atomic-write";
+import { atomicDelete, atomicWrite } from "./atomic-write";
 
 let dir: string;
 
@@ -36,5 +36,29 @@ describe("atomicWrite", () => {
     const result = await atomicWrite(target, '{"a":2}');
     expect(result.changed).toBe(true);
     expect(readFileSync(target, "utf8")).toBe('{"a":2}');
+  });
+});
+
+describe("atomicDelete", () => {
+  test("deletes an existing file and reports changed", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "engines-atomicdelete-"));
+    const target = join(dir, "file.txt");
+    writeFileSync(target, "content");
+
+    const result = await atomicDelete(target);
+
+    expect(result.changed).toBe(true);
+    expect(existsSync(target)).toBe(false);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("is a noop when the file does not exist", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "engines-atomicdelete-noop-"));
+    const target = join(dir, "missing.txt");
+
+    const result = await atomicDelete(target);
+
+    expect(result.changed).toBe(false);
+    rmSync(dir, { recursive: true, force: true });
   });
 });
