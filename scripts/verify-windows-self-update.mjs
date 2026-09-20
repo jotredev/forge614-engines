@@ -126,14 +126,34 @@ try {
 diag("starting to poll for the launcher file to be swapped (up to 15s)");
 const deadline = Date.now() + 15_000;
 let content = "";
+let iteration = 0;
+// Per-iteration, per-syscall logging: a prior run showed this whole loop
+// hang for ~4.5 minutes with NO further diag output at all, well past its
+// own 15s deadline and the step's 3-minute GH Actions timeout. Since
+// existsSync/readFileSync are synchronous, a real hang inside one of them
+// blocks the event loop entirely (no JS-level timeout can rescue it) — the
+// only way to see which exact syscall stalls is to log immediately before
+// and after each one, so whatever line last appears in the log is the
+// culprit (e.g. Defender re-scanning the just-executed .exe on repeated
+// reads, a sharing-violation retry, etc).
 while (Date.now() < deadline) {
-  if (existsSync(launcherPath)) {
-    content = readFileSync(launcherPath, "utf8");
+  iteration++;
+  diag(`poll iteration ${iteration}: about to call existsSync`);
+  const exists = existsSync(launcherPath);
+  diag(`poll iteration ${iteration}: existsSync returned ${exists}`);
+  if (exists) {
+    diag(`poll iteration ${iteration}: about to call readFileSync`);
+    try {
+      content = readFileSync(launcherPath, "utf8");
+      diag(`poll iteration ${iteration}: readFileSync returned ${content.length} bytes`);
+    } catch (error) {
+      diag(`poll iteration ${iteration}: readFileSync threw: ${error}`);
+    }
     if (content === `fake binary content for ${fakeVersion}\n`) break;
   }
   await new Promise((resolve) => setTimeout(resolve, 200));
 }
-diag(`polling finished, launcher content is now: ${JSON.stringify(content)}`);
+diag(`polling finished after ${iteration} iterations, launcher content is now: ${JSON.stringify(content)}`);
 
 if (content !== `fake binary content for ${fakeVersion}\n`) {
   diag(`Launcher was not swapped to the new version within the timeout. Current content: ${JSON.stringify(content)}`);

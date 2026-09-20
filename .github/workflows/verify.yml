@@ -102,7 +102,11 @@ jobs:
           # The orchestrator only prints the PowerShell swap-helper's own log
           # on its failure path — read directly from outside instead, so this
           # shows up even if the orchestrator itself is what's stuck.
-          $helperLogs = Get-ChildItem -Path "$env:USERPROFILE\.forge614\engines" -Filter "swap-helper-*.log" -ErrorAction SilentlyContinue
+          # -Exclude is required alongside -Filter here: "swap-helper-*.log"
+          # on its own also matches "swap-helper-*.spawn.log" (the "*" is
+          # greedy and happily eats ".spawn"), which merged both logs into
+          # this section in an earlier run and hid the spawn-output log.
+          $helperLogs = Get-ChildItem -Path "$env:USERPROFILE\.forge614\engines" -Filter "swap-helper-*.log" -Exclude "*.spawn.log" -ErrorAction SilentlyContinue
           if ($helperLogs) {
             foreach ($helperLog in $helperLogs) {
               Write-Host "--- swap helper log ($($helperLog.FullName)) ---"
