@@ -21,9 +21,23 @@ export function withBlock(raw: string, blockId: string, content: string | undefi
 
   if (content === undefined) {
     if (!hasBlock) return raw;
-    const before = raw.slice(0, beginIndex).replace(/\n+$/, "\n");
-    const after = raw.slice(endIndex + end.length).replace(/^\n+/, "");
-    return before === "" && after === "" ? "" : `${before}${after}`;
+    const beforeRaw = raw.slice(0, beginIndex);
+    const afterRaw = raw.slice(endIndex + end.length);
+    // Insertion always adds exactly one trailing "\n" after the block, and exactly
+    // one leading "\n" before it when the surrounding content was non-empty (none
+    // when it was empty). Undo exactly that single, self-owned character on each
+    // side -- never collapse or otherwise touch any other pre-existing whitespace,
+    // so content outside the block's own markers survives byte-for-byte.
+    let before: string;
+    if (beforeRaw === "") {
+      before = "";
+    } else if (beforeRaw.endsWith("\n")) {
+      before = beforeRaw.slice(0, -1);
+    } else {
+      before = beforeRaw;
+    }
+    const after = afterRaw.startsWith("\n") ? afterRaw.slice(1) : afterRaw;
+    return `${before}${after}`;
   }
 
   const rendered = `${begin}\n${content}\n${end}`;
@@ -31,6 +45,5 @@ export function withBlock(raw: string, blockId: string, content: string | undefi
     return `${raw.slice(0, beginIndex)}${rendered}${raw.slice(endIndex + end.length)}`;
   }
   if (raw.length === 0) return `${rendered}\n`;
-  const separator = raw.endsWith("\n") ? "" : "\n";
-  return `${raw}${separator}\n${rendered}\n`;
+  return `${raw}\n${rendered}\n`;
 }

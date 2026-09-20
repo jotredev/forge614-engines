@@ -52,4 +52,21 @@ describe("withBlock", () => {
     const withoutFirst = withBlock(withBoth, "a", undefined);
     expect(extractBlock(withoutFirst, "b")).toBe("two");
   });
+
+  test("removing a block does not delete unrelated blank lines that were already there", () => {
+    const original = "content\n\n\n";
+    const withHello = withBlock(original, "x", "hello");
+    expect(withBlock(withHello, "x", undefined)).toBe(original);
+  });
+
+  test("removing a block preserves normal blank-line spacing before following content", () => {
+    const raw = "<!-- forge614-engines:begin x -->\nhello\n<!-- forge614-engines:end x -->\n\n\n## Next Section\nmore text\n";
+    expect(withBlock(raw, "x", undefined)).toBe("\n\n## Next Section\nmore text\n");
+  });
+
+  test("round trip preserves a raw string that does not end in a newline", () => {
+    const original = "existing content";
+    const withHello = withBlock(original, "x", "hello");
+    expect(withBlock(withHello, "x", undefined)).toBe(original);
+  });
 });
