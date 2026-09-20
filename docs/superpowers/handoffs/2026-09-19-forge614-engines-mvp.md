@@ -34,13 +34,25 @@ A working `forge614-engines` CLI covering Claude Code, Codex and Cursor:
 
 - Snapshots are plain file copies + a checksum manifest, not a compressed archive (Task 10 note).
 - TOML writes re-serialize the whole document; comments/ordering are not preserved (Task 15 note).
-- No GitHub Releases / install.sh / checksum-verified distribution yet — only the compiled binary (Task 17 note). Needed before other Forge614 products can auto-bootstrap this one per the ecosystem contract §5/§8.
 - `apply --plan-id <id> --revert` (restoring from a snapshot) is not wired up — `restoreSnapshot()` exists and is tested in isolation but is not reachable from any CLI command yet.
 - `configFile(home, scope)` was reduced to `configFile(home)` — workspace-scoped config (as opposed to user-scoped) is not supported by any adapter yet.
 - Snapshot and plan file retention/pruning was never implemented — `~/.forge614/engines/plans/` and `~/.forge614/engines/snapshots/` grow unbounded; nothing prunes old entries.
 
+## v1.0.0 release (2026-09-20)
+
+Published at https://github.com/jotredev/forge614-engines/releases/tag/v1.0.0 — standalone binaries
+for macOS/Linux (arm64 + x64), each with a checksum, plus `install.sh` (`scripts/install.sh`, no
+PATH/profile changes — installs to `~/.forge614/engines/<version>/` with a stable
+`~/.forge614/engines/bin/forge614-engines` launcher). Cut with `bun run release:cut <version>`
+(`scripts/release-cut.mjs`: bump, test, typecheck, bundle all 4 targets, commit, tag, push, publish
+via `gh release create`). Verified end to end: installed the published `v1.0.0` from a clean
+`$HOME` via `curl | bash` and ran the installed binary's `detect`/`capabilities` commands
+successfully.
+
 ## Follow-up plans needed
 
-1. Release automation + install script + auto-bootstrap from forge614-shell/forge614-engram.
+1. `forge614-shell`, `forge614-engram`, and `forge614-atlas` bootstrapping this binary from their
+   own installers and migrating their local detection/assistant-configuration logic to call it —
+   out of scope for this repo; owned by each product's own agent per the ecosystem contract.
 2. Hook installation (`hookEntryShape`) — this plan only covers MCP servers, not native hooks, even though the spec's adapter interface anticipates them.
-3. Migrate `forge614-engram`'s own MCP self-installation to call this CLI instead of its own writer (ecosystem contract §11, item 4).
+3. Migrate `forge614-engram`'s own MCP self-installation to call this CLI instead of its own writer (ecosystem contract §11, item 4) — same ownership note as above.
