@@ -77,6 +77,39 @@ describe("forge614-engines CLI", () => {
     expect(parsed.error.code).toBe("PLAN_NOT_FOUND");
   });
 
+  test("headless outputs the adapter's headless command as JSON", async () => {
+    const { stdout, exitCode } = await runCli([
+      "headless",
+      "--agent",
+      "claude-code",
+      "--executable",
+      "/bin/claude",
+      "--prompt",
+      "hello",
+    ]);
+
+    expect(exitCode).toBe(0);
+    const parsed = JSON.parse(stdout);
+    expect(parsed.schemaVersion).toBe(1);
+    expect(parsed.headless).toEqual({ command: "/bin/claude", args: ["-p", "hello"] });
+  });
+
+  test("headless for an agent without headless support reports HEADLESS_UNSUPPORTED", async () => {
+    const { stdout, exitCode } = await runCli([
+      "headless",
+      "--agent",
+      "cursor",
+      "--executable",
+      "/bin/cursor",
+      "--prompt",
+      "hello",
+    ]);
+
+    expect(exitCode).toBe(1);
+    const parsed = JSON.parse(stdout);
+    expect(parsed.error.code).toBe("HEADLESS_UNSUPPORTED");
+  });
+
   test("an unknown command reports UNKNOWN_COMMAND as JSON", async () => {
     const { stdout, exitCode } = await runCli(["nonsense"]);
 

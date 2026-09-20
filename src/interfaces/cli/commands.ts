@@ -3,6 +3,7 @@ import { applyPlan } from "../../app/apply-plan";
 import { buildDefaultRegistry } from "../../app/default-registry";
 import { capabilitiesFor } from "../../app/capabilities";
 import { detectAgents } from "../../app/detect";
+import { headlessCommandFor } from "../../app/headless-command";
 import { planMcpInstall } from "../../app/plan-mcp-install";
 import { planMcpRemove } from "../../app/plan-mcp-remove";
 import { performUpdate } from "../../app/self-update";
@@ -45,4 +46,15 @@ export async function runCapabilities(agentId: AgentId): Promise<void> {
 export async function runUpdate(): Promise<void> {
   const result = await performUpdate(homedir());
   printJson({ result });
+}
+
+export async function runHeadlessCommand(
+  agentId: AgentId,
+  executable: string,
+  prompt: string,
+  timeoutMs?: number,
+): Promise<void> {
+  const registry = buildDefaultRegistry();
+  const result = headlessCommandFor(registry, agentId, executable, prompt, timeoutMs);
+  printJson({ headless: result });
 }

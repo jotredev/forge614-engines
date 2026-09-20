@@ -1,6 +1,15 @@
 #!/usr/bin/env bun
-import { runApply, runCapabilities, runDetect, runPlanMcpInstall, runPlanMcpRemove, runUpdate } from "./commands";
+import {
+  runApply,
+  runCapabilities,
+  runDetect,
+  runHeadlessCommand,
+  runPlanMcpInstall,
+  runPlanMcpRemove,
+  runUpdate,
+} from "./commands";
 import { StalePlanError } from "../../app/apply-plan";
+import { HeadlessUnsupportedError } from "../../app/headless-command";
 import { UnrecognizedEntryError } from "../../app/plan-mcp-remove";
 import { UpdateAssetMissingError } from "../../app/self-update";
 import { PlanNotFoundError } from "../../infrastructure/plan-store";
@@ -45,6 +54,7 @@ export function errorCodeFor(error: unknown): string {
   if (error instanceof UnrecognizedEntryError) return "UNRECOGNIZED_ENTRY";
   if (error instanceof PlanNotFoundError) return "PLAN_NOT_FOUND";
   if (error instanceof UpdateAssetMissingError) return "UPDATE_ASSET_MISSING";
+  if (error instanceof HeadlessUnsupportedError) return "HEADLESS_UNSUPPORTED";
   if (error instanceof UnknownCommandError) return "UNKNOWN_COMMAND";
   if (error instanceof Error && error.message.startsWith("Unknown agent:")) return "UNKNOWN_AGENT";
   return "INTERNAL_ERROR";
@@ -79,6 +89,16 @@ async function main(): Promise<void> {
 
   if (command === "update") {
     return runUpdate();
+  }
+
+  if (command === "headless") {
+    const headlessArgs = process.argv.slice(3);
+    const agentId = flag(headlessArgs, "--agent") as AgentId;
+    const executable = flag(headlessArgs, "--executable")!;
+    const prompt = flag(headlessArgs, "--prompt")!;
+    const timeoutMsRaw = flag(headlessArgs, "--timeout-ms");
+    const timeoutMs = timeoutMsRaw === undefined ? undefined : Number(timeoutMsRaw);
+    return runHeadlessCommand(agentId, executable, prompt, timeoutMs);
   }
 
   throw new UnknownCommandError(process.argv.slice(2).join(" "));
