@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { runApply, runDetect, runPlanMcpInstall, runPlanMcpRemove } from "./commands";
+import { runApply, runCapabilities, runDetect, runPlanMcpInstall, runPlanMcpRemove } from "./commands";
 import type { AgentId } from "../../modules/agents/types";
 
 function flag(args: string[], name: string): string | undefined {
@@ -32,6 +32,10 @@ async function main(): Promise<void> {
 
   if (command === "apply") {
     return runApply(flag(process.argv.slice(3), "--plan-id")!);
+  }
+
+  if (command === "capabilities") {
+    return runCapabilities(flag(process.argv.slice(3), "--agent") as AgentId);
   }
 
   console.error(`Unknown command: ${process.argv.slice(2).join(" ")}`);

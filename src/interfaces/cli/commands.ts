@@ -1,6 +1,7 @@
 import { homedir } from "node:os";
 import { applyPlan } from "../../app/apply-plan";
 import { buildDefaultRegistry } from "../../app/default-registry";
+import { capabilitiesFor } from "../../app/capabilities";
 import { detectAgents } from "../../app/detect";
 import { planMcpInstall } from "../../app/plan-mcp-install";
 import { planMcpRemove } from "../../app/plan-mcp-remove";
@@ -33,4 +34,9 @@ export async function runPlanMcpRemove(agentId: AgentId, name: string, command: 
 export async function runApply(planId: string): Promise<void> {
   const result = await applyPlan(homedir(), planId);
   printJson({ result });
+}
+
+export async function runCapabilities(agentId: AgentId): Promise<void> {
+  const registry = buildDefaultRegistry();
+  printJson({ ...capabilitiesFor(registry, agentId) });
 }
