@@ -51,19 +51,22 @@ jobs:
       - name: Build a windows-x64 artifact for install.ps1 to install
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path dist/release-test/forge614-engines-0.0.0-test-windows-x64 | Out-Null
-          bun build ./src/interfaces/cli/main.ts --compile --target=bun-windows-x64 --outfile dist/release-test/forge614-engines-0.0.0-test-windows-x64/forge614-engines.exe
-          Copy-Item package.json dist/release-test/forge614-engines-0.0.0-test-windows-x64/package.json
-          $pkg = Get-Content dist/release-test/forge614-engines-0.0.0-test-windows-x64/package.json -Raw | ConvertFrom-Json
-          $pkg.version = "0.0.0-test"
-          $pkg | ConvertTo-Json | Set-Content dist/release-test/forge614-engines-0.0.0-test-windows-x64/package.json
-          tar -czf dist/release-test/forge614-engines-0.0.0-test-windows-x64.tar.gz -C dist/release-test forge614-engines-0.0.0-test-windows-x64
+          # Version must satisfy install.ps1's strict X.Y.Z check (no
+          # pre-release suffix) — same rule install.sh and release-cut.mjs
+          # enforce, so a fake test version has to look like a real one.
+          New-Item -ItemType Directory -Force -Path dist/release-test/forge614-engines-0.0.0-windows-x64 | Out-Null
+          bun build ./src/interfaces/cli/main.ts --compile --target=bun-windows-x64 --outfile dist/release-test/forge614-engines-0.0.0-windows-x64/forge614-engines.exe
+          Copy-Item package.json dist/release-test/forge614-engines-0.0.0-windows-x64/package.json
+          $pkg = Get-Content dist/release-test/forge614-engines-0.0.0-windows-x64/package.json -Raw | ConvertFrom-Json
+          $pkg.version = "0.0.0"
+          $pkg | ConvertTo-Json | Set-Content dist/release-test/forge614-engines-0.0.0-windows-x64/package.json
+          tar -czf dist/release-test/forge614-engines-0.0.0-windows-x64.tar.gz -C dist/release-test forge614-engines-0.0.0-windows-x64
       - name: Run install.ps1 against the local archive
         shell: pwsh
         env:
           FORGE614_HOME: ${{ github.workspace }}\.forge614-test-home
         run: |
-          ./scripts/install.ps1 -Archive dist/release-test/forge614-engines-0.0.0-test-windows-x64.tar.gz
+          ./scripts/install.ps1 -Archive dist/release-test/forge614-engines-0.0.0-windows-x64.tar.gz
           $installed = "$env:FORGE614_HOME\engines\bin\forge614-engines.exe"
           if (-not (Test-Path $installed)) { throw "install.ps1 did not produce $installed" }
           $output = & $installed detect | ConvertFrom-Json
