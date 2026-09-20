@@ -1,4 +1,5 @@
 import { homedir } from "node:os";
+import { applyPlan } from "../../app/apply-plan";
 import { buildDefaultRegistry } from "../../app/default-registry";
 import { detectAgents } from "../../app/detect";
 import { planMcpInstall } from "../../app/plan-mcp-install";
@@ -20,4 +21,9 @@ export async function runPlanMcpInstall(agentId: AgentId, name: string, command:
   const registry = buildDefaultRegistry();
   const plan = await planMcpInstall(registry, { agentId, home: homedir(), server: { name, command, args } });
   printJson({ plan });
+}
+
+export async function runApply(planId: string): Promise<void> {
+  const result = await applyPlan(homedir(), planId);
+  printJson({ result });
 }
