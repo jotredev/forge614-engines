@@ -1,0 +1,18 @@
+import { describe, expect, test } from "bun:test";
+import { cursorAdapter } from "./cursor";
+
+describe("cursorAdapter", () => {
+  test("has no headless support and a dedicated mcp.json", () => {
+    expect(cursorAdapter.capabilities.supportsHeadlessExec).toBe(false);
+    expect(cursorAdapter.headlessCommand).toBeUndefined();
+    expect(cursorAdapter.configFile("/home/u")).toBe("/home/u/.cursor/mcp.json");
+  });
+
+  test("has no PATH-scannable binary, only known install paths on darwin", () => {
+    expect(cursorAdapter.candidateExecutableNames("darwin")).toEqual([]);
+    expect(cursorAdapter.knownInstallPaths("darwin", "/home/u")).toContain(
+      "/Applications/Cursor.app/Contents/MacOS/Cursor",
+    );
+    expect(cursorAdapter.knownInstallPaths("linux", "/home/u")).toEqual([]);
+  });
+});
