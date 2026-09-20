@@ -29,7 +29,7 @@ forge614-engines headless --agent codex --executable codex --prompt "Summarize t
 forge614-engines plan mcp-install --agent claude-code --name engram --command forge614-engram --args mcp
 ```
 
-`headless` output does not run Codex or Claude Code: it produces the safe order that Atlas may decide to start. For Codex the order is `codex exec <prompt>`; for Claude Code it is `claude -p <prompt>`.
+`headless` output does not run Codex or Claude Code: it produces the safe order that Atlas may decide to start. For Codex the order is `codex exec <prompt>`; for Claude Code it is `claude -p <prompt>`. Optional `--model <model-id>` and `--reasoning-level <low|medium|high>` are additive: each adapter decides how to fold them into its own order, and Claude Code rejects `--reasoning-level` with `REASONING_LEVEL_UNSUPPORTED` (see 06).
 
 `plan memory-install` reads the protocol fresh from `forge614-engram memory-protocol --json` every time, decides the MCP entry and the instructions file(s) for the given agent, and returns one plan that already contains every write `apply` needs — install and remove for the memory integration share the same `apply --plan-id <id>` command as any other plan. `verify memory-integration` never touches Engram; it only inspects the files Engines itself manages.
 
@@ -45,6 +45,7 @@ Every error is JSON with `error.code` and `error.message`.
 | `PLAN_NOT_FOUND` | the plan was not found |
 | `UPDATE_ASSET_MISSING` | no download exists for the platform and architecture |
 | `HEADLESS_UNSUPPORTED` | the agent cannot build a command without a screen |
+| `REASONING_LEVEL_UNSUPPORTED` | the agent's headless adapter has no way to select a reasoning level |
 | `UNKNOWN_COMMAND` | the word combination is not a public command |
 | `UNKNOWN_AGENT` | the identifier is not registered |
 | `INTERNAL_ERROR` | an unclassified problem occurred |

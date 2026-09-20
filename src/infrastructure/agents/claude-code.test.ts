@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
+import { ReasoningLevelUnsupportedError } from "../../modules/agents/types";
 import { claudeCodeAdapter } from "./claude-code";
 
 describe("claudeCodeAdapter", () => {
@@ -25,6 +26,17 @@ describe("claudeCodeAdapter", () => {
   test("builds a headless invocation with -p", () => {
     const headless = claudeCodeAdapter.headlessCommand?.("/bin/claude", { prompt: "hello" });
     expect(headless).toEqual({ command: "/bin/claude", args: ["-p", "hello"] });
+  });
+
+  test("adds --model to the headless invocation when a model is requested", () => {
+    const headless = claudeCodeAdapter.headlessCommand?.("/bin/claude", { prompt: "hello", model: "claude-opus-5" });
+    expect(headless).toEqual({ command: "/bin/claude", args: ["-p", "hello", "--model", "claude-opus-5"] });
+  });
+
+  test("throws ReasoningLevelUnsupportedError when a reasoning level is requested", () => {
+    expect(() =>
+      claudeCodeAdapter.headlessCommand?.("/bin/claude", { prompt: "hello", reasoningLevel: "medium" }),
+    ).toThrow(ReasoningLevelUnsupportedError);
   });
 
   test("uses claude.exe as the candidate name on windows", () => {

@@ -2,6 +2,14 @@ export type AgentId = "claude-code" | "codex" | "cursor";
 
 export type ConfigFormat = "json" | "toml";
 
+export type ReasoningLevel = "low" | "medium" | "high";
+
+export class ReasoningLevelUnsupportedError extends Error {
+  constructor(agentId: AgentId) {
+    super(`${agentId} does not support selecting a reasoning level for headless execution`);
+  }
+}
+
 export interface McpServerDefinition {
   name: string;
   command: string;
@@ -11,6 +19,8 @@ export interface McpServerDefinition {
 export interface HeadlessOptions {
   prompt: string;
   timeoutMs?: number;
+  model?: string;
+  reasoningLevel?: ReasoningLevel;
 }
 
 export interface HeadlessCommand {

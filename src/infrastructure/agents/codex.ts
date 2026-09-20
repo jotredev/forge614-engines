@@ -31,6 +31,10 @@ export const codexAdapter: AgentAdapter = {
     },
   },
   headlessCommand(executable, opts) {
-    return { command: executable, args: ["exec", opts.prompt] };
+    const args = ["exec"];
+    if (opts.model) args.push("--model", opts.model);
+    if (opts.reasoningLevel) args.push("-c", `model_reasoning_effort=${opts.reasoningLevel}`);
+    args.push(opts.prompt);
+    return { command: executable, args };
   },
 };

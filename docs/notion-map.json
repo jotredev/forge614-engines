@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "productVersion": "1.3.0",
+  "productVersion": "1.5.0",
   "requiredNumbers": [
     "00",
     "01",
@@ -76,25 +76,25 @@
       "localPath": "docs/es/05-referencia-del-cli-publico.md",
       "language": "es",
       "notionUrl": "https://app.notion.com/p/3e121943d1298178b133f109e29a742f",
-      "sha256": "cba7ee074d9796525468b644d519c211d49d4946582064dcdec4eb0322065535"
+      "sha256": "f8917075427ed3c7233aab51892462ed889cb0eac3b2565dabadf99dfe647987"
     },
     {
       "localPath": "docs/en/05-public-cli-reference.md",
       "language": "en",
       "notionUrl": "https://app.notion.com/p/3e121943d12981c097f7ff61185f3454",
-      "sha256": "5a04f0e9032dd32ec4af4c93c556e0c14d56e28bef7e9c35e5c06b1e83bf5588"
+      "sha256": "119d753db1d1e388d5e2e7962ef5b3cc5679ab49534d3ef9d67da38239f9be72"
     },
     {
       "localPath": "docs/es/06-ejecucion-automatica-e-integraciones.md",
       "language": "es",
       "notionUrl": "https://app.notion.com/p/3e121943d1298120af7dd162a421c1b4",
-      "sha256": "ec3fe3b5f1c16977919057808586c80192e09718410c364e0f93f8ad1d572b87"
+      "sha256": "425f07058c7ba9fc262f28e52af46d4fce8109d7857a9d3a9b6767a06e92bcc5"
     },
     {
       "localPath": "docs/en/06-headless-execution-and-integrations.md",
       "language": "en",
       "notionUrl": "https://app.notion.com/p/3e121943d12981ca81e8fdd255a086c3",
-      "sha256": "9c17621d32868fe127b9049c6d2210c34d90320e2562c5b10295e042f093dee6"
+      "sha256": "5932b2f4bde7def38efe4f06080e09b0301a593df9596f00f1b11d571db9e8c9"
     },
     {
       "localPath": "docs/es/07-arquitectura-y-mapa-del-codigo.md",

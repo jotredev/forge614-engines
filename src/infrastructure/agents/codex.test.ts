@@ -20,6 +20,29 @@ describe("codexAdapter", () => {
     });
   });
 
+  test("adds --model to the headless invocation when a model is requested", () => {
+    expect(codexAdapter.headlessCommand?.("/bin/codex", { prompt: "hello", model: "gpt-5-codex" })).toEqual({
+      command: "/bin/codex",
+      args: ["exec", "--model", "gpt-5-codex", "hello"],
+    });
+  });
+
+  test("adds a model_reasoning_effort config override when a reasoning level is requested", () => {
+    expect(codexAdapter.headlessCommand?.("/bin/codex", { prompt: "hello", reasoningLevel: "medium" })).toEqual({
+      command: "/bin/codex",
+      args: ["exec", "-c", "model_reasoning_effort=medium", "hello"],
+    });
+  });
+
+  test("combines --model and the reasoning override in the same invocation", () => {
+    expect(
+      codexAdapter.headlessCommand?.("/bin/codex", { prompt: "hello", model: "gpt-5-codex", reasoningLevel: "low" }),
+    ).toEqual({
+      command: "/bin/codex",
+      args: ["exec", "--model", "gpt-5-codex", "-c", "model_reasoning_effort=low", "hello"],
+    });
+  });
+
   test("manages global instructions through AGENTS.md, embedded, watching for AGENTS.override.md", () => {
     const target = codexAdapter.instructions;
     expect(target).toBeDefined();

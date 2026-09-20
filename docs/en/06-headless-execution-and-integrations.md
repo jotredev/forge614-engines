@@ -11,6 +11,7 @@ Atlas sometimes needs to request an analysis without opening a visible conversat
 ```text
 forge614-engines headless --agent claude-code --executable claude --prompt "Explain the structure"
 forge614-engines headless --agent codex --executable codex --prompt "Explain the structure"
+forge614-engines headless --agent codex --executable codex --prompt "Explain the structure" --model gpt-5-codex --reasoning-level medium
 ```
 
 | Agent | Returned order | Support |
@@ -20,6 +21,13 @@ forge614-engines headless --agent codex --executable codex --prompt "Explain the
 | Cursor | — | No; returns `HEADLESS_UNSUPPORTED` |
 
 `--timeout-ms` accepts a duration in milliseconds (one thousandths of a second) so the consumer can include it in its own control. The current adapter constructs the order and does not add that value to Claude Code or Codex arguments.
+
+`--model <model-id>` and `--reasoning-level <low|medium|high>` are optional and additive: omitting both keeps the exact command each adapter always built. Each adapter decides for itself how (or whether) to honor them, the same way each adapter already owns its own headless command shape:
+
+| Agent | `--model` | `--reasoning-level` |
+| --- | --- | --- |
+| Claude Code | Appends `--model <model-id>` | Not supported — throws `REASONING_LEVEL_UNSUPPORTED`. Claude Code's CLI has no public, stable flag to select a reasoning/thinking level, so the adapter rejects it explicitly instead of silently building a command that would ignore it. |
+| Codex | Appends `--model <model-id>` | Appends `-c model_reasoning_effort=<level>` |
 
 ## Relationship with Atlas
 

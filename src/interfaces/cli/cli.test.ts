@@ -94,6 +94,63 @@ describe("forge614-engines CLI", () => {
     expect(parsed.headless).toEqual({ command: "/bin/claude", args: ["-p", "hello"] });
   });
 
+  test("headless forwards --model to the adapter's args", async () => {
+    const { stdout, exitCode } = await runCli([
+      "headless",
+      "--agent",
+      "claude-code",
+      "--executable",
+      "/bin/claude",
+      "--prompt",
+      "hello",
+      "--model",
+      "claude-haiku-4-5",
+    ]);
+
+    expect(exitCode).toBe(0);
+    const parsed = JSON.parse(stdout);
+    expect(parsed.headless).toEqual({ command: "/bin/claude", args: ["-p", "hello", "--model", "claude-haiku-4-5"] });
+  });
+
+  test("headless forwards --reasoning-level as a codex config override", async () => {
+    const { stdout, exitCode } = await runCli([
+      "headless",
+      "--agent",
+      "codex",
+      "--executable",
+      "/bin/codex",
+      "--prompt",
+      "hello",
+      "--reasoning-level",
+      "medium",
+    ]);
+
+    expect(exitCode).toBe(0);
+    const parsed = JSON.parse(stdout);
+    expect(parsed.headless).toEqual({
+      command: "/bin/codex",
+      args: ["exec", "-c", "model_reasoning_effort=medium", "hello"],
+    });
+  });
+
+  test("headless --reasoning-level for claude-code reports REASONING_LEVEL_UNSUPPORTED", async () => {
+    const { stdout, exitCode } = await runCli([
+      "headless",
+      "--agent",
+      "claude-code",
+      "--executable",
+      "/bin/claude",
+      "--prompt",
+      "hello",
+      "--reasoning-level",
+      "high",
+    ]);
+
+    expect(exitCode).toBe(1);
+    const parsed = JSON.parse(stdout);
+    expect(parsed.error.code).toBe("REASONING_LEVEL_UNSUPPORTED");
+  });
+
   test("headless for an agent without headless support reports HEADLESS_UNSUPPORTED", async () => {
     const { stdout, exitCode } = await runCli([
       "headless",

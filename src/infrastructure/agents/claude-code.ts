@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import type { AgentAdapter, McpServerDefinition } from "../../modules/agents/types";
+import { ReasoningLevelUnsupportedError, type AgentAdapter, type McpServerDefinition } from "../../modules/agents/types";
 
 export const claudeCodeAdapter: AgentAdapter = {
   id: "claude-code",
@@ -34,6 +34,14 @@ export const claudeCodeAdapter: AgentAdapter = {
     },
   },
   headlessCommand(executable, opts) {
-    return { command: executable, args: ["-p", opts.prompt] };
+    if (opts.reasoningLevel) {
+      // Claude Code's CLI has no public, stable flag to select a reasoning/thinking
+      // level (unlike --model). Rejecting explicitly avoids silently building a command
+      // that ignores the caller's requested reasoning level.
+      throw new ReasoningLevelUnsupportedError("claude-code");
+    }
+    const args = ["-p", opts.prompt];
+    if (opts.model) args.push("--model", opts.model);
+    return { command: executable, args };
   },
 };

@@ -18,7 +18,8 @@ import { UnrecognizedEntryError } from "../../app/plan-mcp-remove";
 import { UpdateAssetMissingError } from "../../app/self-update";
 import { PlanNotFoundError } from "../../infrastructure/plan-store";
 import { ConfigConflictError } from "../../modules/config-writer/types";
-import type { AgentId } from "../../modules/agents/types";
+import type { AgentId, ReasoningLevel } from "../../modules/agents/types";
+import { ReasoningLevelUnsupportedError } from "../../modules/agents/types";
 
 const SCHEMA_VERSION = 1;
 
@@ -60,6 +61,7 @@ export function errorCodeFor(error: unknown): string {
   if (error instanceof PlanNotFoundError) return "PLAN_NOT_FOUND";
   if (error instanceof UpdateAssetMissingError) return "UPDATE_ASSET_MISSING";
   if (error instanceof HeadlessUnsupportedError) return "HEADLESS_UNSUPPORTED";
+  if (error instanceof ReasoningLevelUnsupportedError) return "REASONING_LEVEL_UNSUPPORTED";
   if (error instanceof UnknownCommandError) return "UNKNOWN_COMMAND";
   if (error instanceof Error && error.message.startsWith("Unknown agent:")) return "UNKNOWN_AGENT";
   return "INTERNAL_ERROR";
@@ -118,7 +120,9 @@ async function main(): Promise<void> {
     const prompt = flag(headlessArgs, "--prompt")!;
     const timeoutMsRaw = flag(headlessArgs, "--timeout-ms");
     const timeoutMs = timeoutMsRaw === undefined ? undefined : Number(timeoutMsRaw);
-    return runHeadlessCommand(agentId, executable, prompt, timeoutMs);
+    const model = flag(headlessArgs, "--model");
+    const reasoningLevel = flag(headlessArgs, "--reasoning-level") as ReasoningLevel | undefined;
+    return runHeadlessCommand(agentId, executable, prompt, timeoutMs, model, reasoningLevel);
   }
 
   throw new UnknownCommandError(process.argv.slice(2).join(" "));

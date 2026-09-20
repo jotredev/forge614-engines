@@ -10,7 +10,7 @@ import { planMemoryInstall } from "../../app/plan-memory-install";
 import { planMemoryRemove } from "../../app/plan-memory-remove";
 import { performUpdate } from "../../app/self-update";
 import { verifyMemoryIntegration } from "../../app/verify-memory-integration";
-import type { AgentId } from "../../modules/agents/types";
+import type { AgentId, ReasoningLevel } from "../../modules/agents/types";
 
 const SCHEMA_VERSION = 1;
 
@@ -56,9 +56,11 @@ export async function runHeadlessCommand(
   executable: string,
   prompt: string,
   timeoutMs?: number,
+  model?: string,
+  reasoningLevel?: ReasoningLevel,
 ): Promise<void> {
   const registry = buildDefaultRegistry();
-  const result = headlessCommandFor(registry, agentId, executable, prompt, timeoutMs);
+  const result = headlessCommandFor(registry, agentId, executable, prompt, timeoutMs, model, reasoningLevel);
   printJson({ headless: result });
 }
 
