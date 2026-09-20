@@ -1,6 +1,6 @@
 export type AgentId = "claude-code" | "codex" | "cursor";
 
-export type ConfigFormat = "json";
+export type ConfigFormat = "json" | "toml";
 
 export interface McpServerDefinition {
   name: string;
