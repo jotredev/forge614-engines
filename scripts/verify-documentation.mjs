@@ -16,8 +16,8 @@ function numberFor(path) {
 }
 
 function commandTerms(text) {
-  return [...text.matchAll(/forge614-engines\s+(detect|apply|capabilities|update|headless|plan\s+mcp-(?:install|remove)|[a-z][\w-]*)/g)].map(
-    (match) => match[1].replace(/\s+/g, " "),
+  return [...text.matchAll(/forge614-engines\s+(?:(plan)\s+([a-z][\w-]*)|(detect|apply|capabilities|update|headless|[a-z][\w-]*))/g)].map(
+    (match) => (match[1] ? `plan ${match[2]}` : match[3]),
   );
 }
 

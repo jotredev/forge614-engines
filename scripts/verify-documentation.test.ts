@@ -83,6 +83,12 @@ test("rejects a documented unknown public command", async () => {
   await expect(verifyDocumentation(await fixture({ cliTerm: "forge614-engines invented-command" }))).rejects.toThrow("Unknown CLI term: invented-command");
 });
 
+test("rejects a documented unknown plan subcommand", async () => {
+  await expect(verifyDocumentation(await fixture({ cliTerm: "forge614-engines plan mcp-invented" }))).rejects.toThrow(
+    "Unknown CLI term: plan mcp-invented",
+  );
+});
+
 test("rejects a missing required error code", async () => {
   await expect(verifyDocumentation(await fixture({ omitError: "HEADLESS_UNSUPPORTED" }))).rejects.toThrow("Missing required error code: HEADLESS_UNSUPPORTED");
 });
