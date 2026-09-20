@@ -18,7 +18,7 @@
 // sidesteps networking (and that flakiness) entirely.
 import { createHash } from "node:crypto";
 import { execFileSync, spawn } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -55,6 +55,26 @@ if (!existsSync(launcherPath)) {
 
 const fakeVersion = "9999.0.0";
 const assetName = `forge614-engines-${fakeVersion}-windows-x64.tar.gz`;
+const expectedContent = `fake binary content for ${fakeVersion}\n`;
+// Before the swap, launcherPath is the REAL ~100MB+ bun-compiled binary, not
+// the tiny fixture content — a prior run showed reading that whole file as
+// "utf8" (and later JSON.stringify-ing the result for a diagnostic message)
+// took ~1s per poll iteration and produced a 100MB+ diag log line, which is
+// almost certainly what made the polling loop look "hung" until the step's
+// 3-minute timeout. Only the first few bytes are ever needed to detect the
+// swap, so read just a small prefix instead of the whole file.
+const PREFIX_BYTES = Math.max(expectedContent.length, 64);
+
+function readLauncherPrefix() {
+  const fd = openSync(launcherPath, "r");
+  try {
+    const buffer = Buffer.alloc(PREFIX_BYTES);
+    const bytesRead = readSync(fd, buffer, 0, PREFIX_BYTES, 0);
+    return buffer.toString("utf8", 0, bytesRead);
+  } finally {
+    closeSync(fd);
+  }
+}
 
 const workDir = join(forgeHome, "..", "self-update-fixture");
 mkdirSync(workDir, { recursive: true });
@@ -127,49 +147,40 @@ diag("starting to poll for the launcher file to be swapped (up to 15s)");
 const deadline = Date.now() + 15_000;
 let content = "";
 let iteration = 0;
-// Per-iteration, per-syscall logging: a prior run showed this whole loop
-// hang for ~4.5 minutes with NO further diag output at all, well past its
-// own 15s deadline and the step's 3-minute GH Actions timeout. Since
-// existsSync/readFileSync are synchronous, a real hang inside one of them
-// blocks the event loop entirely (no JS-level timeout can rescue it) — the
-// only way to see which exact syscall stalls is to log immediately before
-// and after each one, so whatever line last appears in the log is the
-// culprit (e.g. Defender re-scanning the just-executed .exe on repeated
-// reads, a sharing-violation retry, etc).
+// Per-iteration logging kept intentionally verbose: an earlier version of
+// this loop read the launcher's FULL content as utf8 every iteration, which
+// before the swap is the real 100MB+ bun-compiled binary, not the tiny
+// fixture text — decoding that repeatedly, then JSON.stringify-ing the
+// result for a diagnostic message, made the loop look "hung" until the
+// step's 3-minute timeout. Reading only a small prefix (readLauncherPrefix)
+// fixed that; this logging stays to catch any regression quickly.
 while (Date.now() < deadline) {
   iteration++;
   diag(`poll iteration ${iteration}: about to call existsSync`);
   const exists = existsSync(launcherPath);
   diag(`poll iteration ${iteration}: existsSync returned ${exists}`);
   if (exists) {
-    diag(`poll iteration ${iteration}: about to call readFileSync`);
+    diag(`poll iteration ${iteration}: about to read launcher prefix`);
     try {
-      content = readFileSync(launcherPath, "utf8");
-      diag(`poll iteration ${iteration}: readFileSync returned ${content.length} bytes`);
+      content = readLauncherPrefix();
+      diag(`poll iteration ${iteration}: read prefix ${JSON.stringify(content)}`);
     } catch (error) {
-      diag(`poll iteration ${iteration}: readFileSync threw: ${error}`);
+      diag(`poll iteration ${iteration}: reading prefix threw: ${error}`);
     }
-    if (content === `fake binary content for ${fakeVersion}\n`) break;
+    if (content === expectedContent) break;
   }
   await new Promise((resolve) => setTimeout(resolve, 200));
 }
-diag(`polling finished after ${iteration} iterations, launcher content is now: ${JSON.stringify(content)}`);
+diag(`polling finished after ${iteration} iterations, launcher prefix is now: ${JSON.stringify(content)}`);
 
-if (content !== `fake binary content for ${fakeVersion}\n`) {
-  diag(`Launcher was not swapped to the new version within the timeout. Current content: ${JSON.stringify(content)}`);
+if (content !== expectedContent) {
+  diag(`Launcher was not swapped to the new version within the timeout. Current prefix: ${JSON.stringify(content)}`);
   if (logPath && existsSync(logPath)) {
     diag(`--- swap helper log (${logPath}) ---`);
     diag(readFileSync(logPath, "utf8"));
   } else {
     diag(`No helper log found at ${logPath ?? "(unknown path)"}.`);
   }
-  // Explicit exit, not a natural event-loop drain: the same class of
-  // "process should have nothing left keeping it alive but doesn't exit
-  // promptly on Windows" issue fixed in src/interfaces/cli/main.ts turned
-  // out to affect this orchestrator script too — it, not the launcher, was
-  // the actual source of the multi-minute hangs in earlier runs (the
-  // launcher itself already exits in well under a second, per the "Launcher
-  // process settled" log line above).
   process.exit(1);
 }
 
