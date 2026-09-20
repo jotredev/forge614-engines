@@ -147,8 +147,13 @@ async function scheduleWindowsSwap(
   const args = [
     "-NoProfile",
     "-NonInteractive",
-    "-WindowStyle",
-    "Hidden",
+    // No -WindowStyle here: it's a classic-powershell.exe-only parameter —
+    // pwsh (PowerShell 7, tried first) doesn't recognize it, which would
+    // make it fail parameter binding and exit before ever reaching -File,
+    // with nothing visible (the failure happens before its own stdout is
+    // set up). `windowsHide: true` on the spawn() call below already hides
+    // the console window at the OS level for both pwsh and powershell.exe,
+    // making this parameter redundant even where it is supported.
     "-ExecutionPolicy",
     "Bypass",
     "-File",
