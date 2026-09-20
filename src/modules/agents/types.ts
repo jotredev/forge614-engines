@@ -18,6 +18,15 @@ export interface HeadlessCommand {
   args: string[];
 }
 
+export interface InstructionsTarget {
+  /** File the agent reads automatically at the start of every new session. */
+  primaryFile(home: string): string;
+  /** Files that, if present, would take priority over `primaryFile` and silently shadow it. */
+  shadowingFiles(home: string): string[];
+  /** When present, `primaryFile` holds only a one-line import pointing at this file (same directory), which holds the full rendered content. When absent, the full content is embedded directly inside `primaryFile`'s managed block. */
+  contentFile?(home: string): string;
+}
+
 export interface AgentCapabilities {
   supportsMcp: boolean;
   supportsHooks: boolean;
@@ -37,4 +46,6 @@ export interface AgentAdapter {
   configFile(home: string): string;
   mcpEntryShape(server: McpServerDefinition): unknown;
   headlessCommand?(executable: string, opts: HeadlessOptions): HeadlessCommand;
+  /** Absent when this agent has no officially supported, stable, file-based mechanism to auto-load global instructions in new sessions. */
+  instructions?: InstructionsTarget;
 }
