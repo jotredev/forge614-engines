@@ -28,6 +28,7 @@ const stagingRoot = await mkdtemp(join(tmpdir(), "forge614-engines-release-"));
 const bun = process.execPath.endsWith("bun") ? process.execPath : "bun";
 
 try {
+  await rm(output, { recursive: true, force: true });
   await mkdir(output, { recursive: true });
 
   for (const target of targets) {
