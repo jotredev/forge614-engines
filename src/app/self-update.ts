@@ -97,44 +97,84 @@ for ($i = 0; $i -lt 40; $i++) {
 "$(Get-Date -Format o) swap did not succeed after all retries" | Out-File -FilePath $LogFile -Append
 `;
 
-// A real Windows CI run showed `spawn("powershell.exe", ...)` silently never
-// launch anything at all (no log file, no process, no error surfaced) — this
-// GH-hosted Windows runner's default shell is PowerShell 7 (`pwsh`); classic
-// Windows PowerShell (`powershell.exe`) may not be reliably on PATH for a
-// spawned child the way it is for a shell-interpreted step. Try `pwsh` first
-// (guaranteed present — it's what runs this project's own CI steps), then
-// `powershell.exe` as a fallback for machines without PowerShell 7. Either
-// way, wait for a real "spawn" or "error" event before returning: a spawn
-// failure is otherwise silent (Node only reports it via an event, not a
-// thrown exception), which is exactly how the earlier failure went
-// undiagnosed for several CI runs.
+// Try `pwsh` (PowerShell 7 — guaranteed present, it's what runs this
+// project's own CI steps) first, then classic `powershell.exe` as a
+// fallback for machines without it.
 const WINDOWS_SHELL_CANDIDATES = ["pwsh", "powershell.exe"];
 
-function quoteForCmd(value: string): string {
+function quoteWindowsArg(value: string): string {
   return `"${value.replace(/"/g, '""')}"`;
 }
 
-async function spawnDetached(command: string, args: string[], outputLogPath: string): Promise<ReturnType<typeof spawn>> {
-  // Route through cmd.exe's own `>`/`2>&1` redirection rather than passing a
-  // raw file descriptor into spawn()'s stdio array. Several real Windows CI
-  // runs showed a detached child spawn cleanly (a genuine "spawn" event, no
-  // thrown error) yet produce literally zero output anywhere — including
-  // through fd-based redirection — which points at how Bun's Windows
-  // child_process implementation inherits file descriptors into a detached
-  // grandchild, not at PowerShell itself. cmd.exe redirection is the
-  // classic, battle-tested way to background a process with file-redirected
-  // output on Windows, independent of that fd-inheritance path.
-  const commandLine = `${quoteForCmd(command)} ${args.map(quoteForCmd).join(" ")} > ${quoteForCmd(outputLogPath)} 2>&1`;
-  const child = spawn("cmd.exe", ["/d", "/s", "/c", commandLine], {
-    detached: true,
-    stdio: "ignore",
-    windowsHide: true,
-  });
+// A `spawn(..., { detached: true })` child on Windows is NOT actually freed
+// from its ancestors' Job Object — Windows only lets a child escape a Job
+// Object when it's created with the CREATE_BREAKAWAY_FROM_JOB flag (and the
+// job permits breakaway), a flag neither Node's nor Bun's child_process API
+// exposes. GitHub Actions' Windows runners wrap every step's process tree in
+// exactly such a Job Object. Across several real CI runs, every variation of
+// `spawn(..., { detached: true, ... })` here reported a clean "spawn" event
+// (a real process was created) yet produced ZERO output anywhere — no
+// script-internal log, no captured stdout/stderr, regardless of shell
+// (pwsh/powershell.exe) or stdio strategy (raw fd, cmd.exe redirection) —
+// consistent with the child being killed the instant the job tore down,
+// before it could do anything at all.
+//
+// Win32_Process.Create (via WMI/CIM) sidesteps this entirely: it spawns the
+// target process from the WMI provider host (a Windows system service), not
+// from our own process tree, so the result is never a member of our Job
+// Object in the first place. This wrapper script only has to live long
+// enough to make that one WMI call, so it runs as an ordinary (non-detached,
+// awaited) child — the real, long-lived work happens in the process WMI
+// creates, independently of this one's lifetime.
+const WINDOWS_WMI_LAUNCH_SCRIPT = `
+param(
+  [string]$CommandLine,
+  [string]$SpawnLogPath
+)
+try {
+  $result = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $CommandLine }
+  if ($result.ReturnValue -ne 0) {
+    "$(Get-Date -Format o) Win32_Process.Create failed with ReturnValue=$($result.ReturnValue) for: $CommandLine" | Out-File -FilePath $SpawnLogPath -Append
+    exit 1
+  }
+  "$(Get-Date -Format o) Win32_Process.Create succeeded, ProcessId=$($result.ProcessId) for: $CommandLine" | Out-File -FilePath $SpawnLogPath -Append
+} catch {
+  "$(Get-Date -Format o) Win32_Process.Create threw: $_" | Out-File -FilePath $SpawnLogPath -Append
+  exit 1
+}
+`;
+
+async function launchViaWmi(shell: string, wmiLaunchPath: string, targetCommandLine: string, spawnLogPath: string): Promise<void> {
   await new Promise<void>((resolve, reject) => {
-    child.once("spawn", () => resolve());
-    child.once("error", (error) => reject(error));
+    const wrapper = spawn(
+      shell,
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        wmiLaunchPath,
+        "-CommandLine",
+        targetCommandLine,
+        "-SpawnLogPath",
+        spawnLogPath,
+      ],
+      { windowsHide: true },
+    );
+    let settled = false;
+    wrapper.once("error", (error) => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    });
+    wrapper.once("exit", (code) => {
+      if (settled) return;
+      settled = true;
+      if (code === 0) resolve();
+      else reject(new Error(`WMI launch wrapper (${shell}) exited with code ${code}`));
+    });
   });
-  return child;
 }
 
 async function scheduleWindowsSwap(
@@ -148,38 +188,34 @@ async function scheduleWindowsSwap(
   const helperPath = join(helperDir, `swap-helper-${stamp}.ps1`);
   const logPath = join(helperDir, `swap-helper-${stamp}.log`);
   const spawnLogPath = join(helperDir, `swap-helper-${stamp}.spawn.log`);
+  const wmiLaunchPath = join(helperDir, `swap-helper-${stamp}.wmi-launch.ps1`);
   await writeFile(helperPath, WINDOWS_SWAP_HELPER_SCRIPT, "utf8");
-  const args = [
-    "-NoProfile",
-    "-NonInteractive",
-    // No -WindowStyle here: it's a classic-powershell.exe-only parameter —
-    // pwsh (PowerShell 7, tried first) doesn't recognize it, which would
-    // make it fail parameter binding and exit before ever reaching -File,
-    // with nothing visible (the failure happens before its own stdout is
-    // set up). `windowsHide: true` on the spawn() call below already hides
-    // the console window at the OS level for both pwsh and powershell.exe,
-    // making this parameter redundant even where it is supported.
-    "-ExecutionPolicy",
-    "Bypass",
-    "-File",
-    helperPath,
-    "-NewBinary",
-    newBinary,
-    "-ActiveLauncher",
-    activeLauncher,
-    "-ActiveVersionFile",
-    activeVersionFile,
-    "-Version",
-    version,
-    "-LogFile",
-    logPath,
-  ];
+  await writeFile(wmiLaunchPath, WINDOWS_WMI_LAUNCH_SCRIPT, "utf8");
 
   let lastError: unknown;
   for (const command of WINDOWS_SHELL_CANDIDATES) {
+    const helperArgs = [
+      command,
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      helperPath,
+      "-NewBinary",
+      newBinary,
+      "-ActiveLauncher",
+      activeLauncher,
+      "-ActiveVersionFile",
+      activeVersionFile,
+      "-Version",
+      version,
+      "-LogFile",
+      logPath,
+    ];
+    const targetCommandLine = helperArgs.map(quoteWindowsArg).join(" ");
     try {
-      const child = await spawnDetached(command, args, spawnLogPath);
-      child.unref();
+      await launchViaWmi(command, wmiLaunchPath, targetCommandLine, spawnLogPath);
       return logPath;
     } catch (error) {
       lastError = error;
