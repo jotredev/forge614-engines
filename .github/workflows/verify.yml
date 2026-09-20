@@ -76,5 +76,5 @@ jobs:
         env:
           FORGE614_HOME: ${{ github.workspace }}\.forge614-test-home
         run: |
-          "y" | ./scripts/install.ps1 -Uninstall
+          ./scripts/install.ps1 -Uninstall -Yes
           if (Test-Path "$env:FORGE614_HOME\engines") { throw "uninstall left files behind" }

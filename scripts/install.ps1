@@ -7,6 +7,9 @@ param(
     [Parameter(ParameterSetName = "Uninstall")]
     [switch]$Uninstall,
 
+    [Parameter(ParameterSetName = "Uninstall")]
+    [switch]$Yes,
+
     [Parameter(ParameterSetName = "Archive", Mandatory = $true)]
     [string]$Archive
 )
@@ -28,10 +31,12 @@ $enginesRoot = Join-Path $forgeHome "engines"
 if ($PSCmdlet.ParameterSetName -eq "Uninstall") {
     Write-Host "This removes Forge614 Engines from $enginesRoot."
     Write-Host "Shell, Engram, Atlas, and other Forge614 tools are unchanged."
-    $answer = Read-Host "Continue? [y/N]"
-    if ($answer -notin @("y", "Y")) {
-        Write-Host "Uninstall cancelled."
-        exit 0
+    if (-not $Yes) {
+        $answer = Read-Host "Continue? [y/N]"
+        if ($answer -notin @("y", "Y")) {
+            Write-Host "Uninstall cancelled."
+            exit 0
+        }
     }
     if (Test-Path $enginesRoot) { Remove-Item -Recurse -Force $enginesRoot }
     Write-Host "Forge614 Engines was uninstalled. Other Forge614 tools are unchanged."
