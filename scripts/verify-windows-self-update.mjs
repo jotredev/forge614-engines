@@ -75,7 +75,16 @@ child.stdout.on("data", (chunk) => {
   process.stdout.write(chunk);
 });
 
-const exitCode = await new Promise((resolve) => child.on("exit", (code) => resolve(code ?? 1)));
+const exitCode = await Promise.race([
+  new Promise((resolve) => child.on("exit", (code) => resolve(code ?? 1))),
+  new Promise((resolve) =>
+    setTimeout(() => {
+      console.error("Launcher process did not exit within 60s — killing it and failing fast.");
+      child.kill();
+      resolve(1);
+    }, 60_000),
+  ),
+]);
 console.log(`Launcher process exited with code ${exitCode}`);
 if (exitCode !== 0) {
   process.exit(1);

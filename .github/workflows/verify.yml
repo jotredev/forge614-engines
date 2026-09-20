@@ -40,6 +40,17 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun test
       - run: bun run typecheck
+      - name: Disable Windows Defender real-time scanning for this job
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          # Best-effort: a freshly-compiled, unsigned .exe that reads/writes
+          # files, makes network calls, and spawns a child process (exactly
+          # what forge614-engines update/self-update does) is the profile
+          # Defender's cloud-delivered protection scrutinizes hardest, and a
+          # real run here hung for several minutes on it. This is CI-only,
+          # never done by the real install/update scripts a user runs.
+          Set-MpPreference -DisableRealtimeMonitoring $true
       - name: PowerShell syntax check
         shell: pwsh
         run: |
@@ -74,6 +85,7 @@ jobs:
           if ($output.schemaVersion -ne 1) { throw "unexpected schemaVersion from installed binary" }
       - name: Verify self-update while the launcher is the currently-running process
         shell: pwsh
+        timeout-minutes: 3
         env:
           FORGE614_HOME: ${{ github.workspace }}\.forge614-test-home
           FORGE614_LAUNCHER_PATH: ${{ github.workspace }}\.forge614-test-home\engines\bin\forge614-engines.exe

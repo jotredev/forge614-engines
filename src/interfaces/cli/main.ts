@@ -84,10 +84,23 @@ async function main(): Promise<void> {
   throw new UnknownCommandError(process.argv.slice(2).join(" "));
 }
 
-main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : String(error);
-  console.log(
-    JSON.stringify({ schemaVersion: SCHEMA_VERSION, error: { code: errorCodeFor(error), message } }, null, 2),
-  );
-  process.exitCode = 1;
-});
+main()
+  .catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(
+      JSON.stringify({ schemaVersion: SCHEMA_VERSION, error: { code: errorCodeFor(error), message } }, null, 2),
+    );
+    process.exitCode = 1;
+  })
+  .then(() => {
+    // `update` spawns a detached helper process on Windows (see
+    // scheduleWindowsSwap in self-update.ts) and .unref()s it so it doesn't
+    // keep this process alive — but explicitly exit anyway rather than
+    // trust the event loop to drain on its own: a real Windows CI run
+    // showed this process hang for several minutes after printing its
+    // result, which an unref()'d handle should never do. Whether that's a
+    // Bun-on-Windows quirk or something else, forcing the exit here is
+    // strictly correct regardless — nothing meaningful happens after this
+    // point on any command or platform.
+    process.exit(process.exitCode ?? 0);
+  });
