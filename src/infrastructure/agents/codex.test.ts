@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { join } from "node:path";
 import { codexAdapter } from "./codex";
 
 describe("codexAdapter", () => {
@@ -9,7 +10,7 @@ describe("codexAdapter", () => {
   });
 
   test("points at ~/.codex/config.toml", () => {
-    expect(codexAdapter.configFile("/home/u")).toBe("/home/u/.codex/config.toml");
+    expect(codexAdapter.configFile("/home/u")).toBe(join("/home/u", ".codex", "config.toml"));
   });
 
   test("builds a headless invocation with exec", () => {

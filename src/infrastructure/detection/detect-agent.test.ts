@@ -36,7 +36,7 @@ function fakeAdapter(overrides: Partial<AgentAdapter> = {}): AgentAdapter {
 
 describe("detectAgent", () => {
   test("reports installed:false, configFound:false when nothing exists", async () => {
-    const result = await detectAgent(fakeAdapter(), home, { PATH: dir }, "darwin");
+    const result = await detectAgent(fakeAdapter(), home, { PATH: dir }, process.platform);
     expect(result).toEqual({
       id: "claude-code",
       label: "Fake",
@@ -53,7 +53,7 @@ describe("detectAgent", () => {
     chmodSync(binPath, 0o755);
     mkdirSync(join(home, ".fake"));
 
-    const result = await detectAgent(fakeAdapter(), home, { PATH: dir }, "darwin");
+    const result = await detectAgent(fakeAdapter(), home, { PATH: dir }, process.platform);
     expect(result.installed).toBe(true);
     expect(result.executable).toBe(binPath);
     expect(result.configFound).toBe(true);
@@ -69,7 +69,7 @@ describe("detectAgent", () => {
       knownInstallPaths: () => [join(dir, "Missing.app", "Contents", "MacOS", "Missing"), appPath],
     });
 
-    const result = await detectAgent(adapter, home, { PATH: dir }, "darwin");
+    const result = await detectAgent(adapter, home, { PATH: dir }, process.platform);
     expect(result.installed).toBe(true);
     expect(result.executable).toBe(appPath);
     expect(result.configFound).toBe(false);

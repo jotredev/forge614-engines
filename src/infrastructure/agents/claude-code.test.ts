@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { join } from "node:path";
 import { claudeCodeAdapter } from "./claude-code";
 
 describe("claudeCodeAdapter", () => {
@@ -12,8 +13,8 @@ describe("claudeCodeAdapter", () => {
   });
 
   test("points at ~/.claude.json for config", () => {
-    expect(claudeCodeAdapter.configFile("/home/u")).toBe("/home/u/.claude.json");
-    expect(claudeCodeAdapter.configDir("/home/u")).toBe("/home/u/.claude");
+    expect(claudeCodeAdapter.configFile("/home/u")).toBe(join("/home/u", ".claude.json"));
+    expect(claudeCodeAdapter.configDir("/home/u")).toBe(join("/home/u", ".claude"));
   });
 
   test("builds the {command,args} MCP entry shape", () => {
