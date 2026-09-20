@@ -4,6 +4,8 @@ Forge614 Engines is Forge614's internal inspector and safe configuration adapter
 
 Forge614 Engines es el inspector interno y adaptador de configuración segura de Forge614 para herramientas locales de programación con IA. No tiene pantalla propia ni está pensado para que una persona lo instale o ejecute directamente.
 
+Notion mirror / Espejo en Notion: [Forge614 Engines — Detección y Adaptadores Seguros de IA](https://app.notion.com/p/3e121943d12981c3a613e7db21aa25e1).
+
 ## Reading order / Orden de lectura
 
 | No. | Español | English |
