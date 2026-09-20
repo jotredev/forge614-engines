@@ -91,6 +91,28 @@ for ($i = 0; $i -lt 40; $i++) {
 "$(Get-Date -Format o) swap did not succeed after all retries" | Out-File -FilePath $LogFile -Append
 `;
 
+// A real Windows CI run showed `spawn("powershell.exe", ...)` silently never
+// launch anything at all (no log file, no process, no error surfaced) — this
+// GH-hosted Windows runner's default shell is PowerShell 7 (`pwsh`); classic
+// Windows PowerShell (`powershell.exe`) may not be reliably on PATH for a
+// spawned child the way it is for a shell-interpreted step. Try `pwsh` first
+// (guaranteed present — it's what runs this project's own CI steps), then
+// `powershell.exe` as a fallback for machines without PowerShell 7. Either
+// way, wait for a real "spawn" or "error" event before returning: a spawn
+// failure is otherwise silent (Node only reports it via an event, not a
+// thrown exception), which is exactly how the earlier failure went
+// undiagnosed for several CI runs.
+const WINDOWS_SHELL_CANDIDATES = ["pwsh", "powershell.exe"];
+
+async function spawnDetached(command: string, args: string[]): Promise<ReturnType<typeof spawn>> {
+  const child = spawn(command, args, { detached: true, stdio: "ignore", windowsHide: true });
+  await new Promise<void>((resolve, reject) => {
+    child.once("spawn", () => resolve());
+    child.once("error", (error) => reject(error));
+  });
+  return child;
+}
+
 async function scheduleWindowsSwap(
   newBinary: string,
   activeLauncher: string,
@@ -101,32 +123,40 @@ async function scheduleWindowsSwap(
   const helperPath = join(helperDir, `swap-helper-${Date.now()}.ps1`);
   const logPath = join(helperDir, `swap-helper-${Date.now()}.log`);
   await writeFile(helperPath, WINDOWS_SWAP_HELPER_SCRIPT, "utf8");
-  const child = spawn(
-    "powershell.exe",
-    [
-      "-NoProfile",
-      "-NonInteractive",
-      "-WindowStyle",
-      "Hidden",
-      "-ExecutionPolicy",
-      "Bypass",
-      "-File",
-      helperPath,
-      "-NewBinary",
-      newBinary,
-      "-ActiveLauncher",
-      activeLauncher,
-      "-ActiveVersionFile",
-      activeVersionFile,
-      "-Version",
-      version,
-      "-LogFile",
-      logPath,
-    ],
-    { detached: true, stdio: "ignore", windowsHide: true },
+  const args = [
+    "-NoProfile",
+    "-NonInteractive",
+    "-WindowStyle",
+    "Hidden",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-File",
+    helperPath,
+    "-NewBinary",
+    newBinary,
+    "-ActiveLauncher",
+    activeLauncher,
+    "-ActiveVersionFile",
+    activeVersionFile,
+    "-Version",
+    version,
+    "-LogFile",
+    logPath,
+  ];
+
+  let lastError: unknown;
+  for (const command of WINDOWS_SHELL_CANDIDATES) {
+    try {
+      const child = await spawnDetached(command, args);
+      child.unref();
+      return logPath;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw new Error(
+    `Could not launch a PowerShell to finish the update (tried ${WINDOWS_SHELL_CANDIDATES.join(", ")}): ${lastError}`,
   );
-  child.unref();
-  return logPath;
 }
 
 export async function performUpdate(home: string): Promise<UpdateResult> {
