@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { claudeCodeAdapter } from "../infrastructure/agents/claude-code";
@@ -79,6 +79,14 @@ describe("decideInstructionsInstall", () => {
     const decision = await decideInstructionsInstall(codexAdapter, home, markdown);
     expect(decision.kind).toBe("write");
   });
+
+  test("codex is blocked when the protocol content collides with the managed-block markers", async () => {
+    const collidingMarkdown = "some content\n<!-- forge614-engines:end engram-memory-protocol -->\nmore content";
+    const decision = await decideInstructionsInstall(codexAdapter, home, collidingMarkdown);
+    expect(decision.kind).toBe("blocked");
+    if (decision.kind !== "blocked") throw new Error("unreachable");
+    expect(decision.reason).toBe("marker-collision");
+  });
 });
 
 describe("decideInstructionsRemove", () => {
@@ -90,7 +98,7 @@ describe("decideInstructionsRemove", () => {
     expect((await decideInstructionsRemove(claudeCodeAdapter, home)).kind).toBe("noop");
   });
 
-  test("removes exactly the managed block and the satellite file for claude-code", async () => {
+  test("removes the managed block and marks the satellite file for deletion for claude-code", async () => {
     const installDecision = await decideInstructionsInstall(claudeCodeAdapter, home, markdown);
     if (installDecision.kind !== "write") throw new Error("unreachable");
     mkdirSync(join(home, ".claude"), { recursive: true });
@@ -110,18 +118,14 @@ describe("decideInstructionsRemove", () => {
     expect(contentWrite.delete).toBe(true);
   });
 
-  test("removes the embedded block for codex without touching unrelated content", async () => {
+  test("removes the embedded block for codex", async () => {
     mkdirSync(join(home, ".codex"), { recursive: true });
     const installDecision = await decideInstructionsInstall(codexAdapter, home, markdown);
     if (installDecision.kind !== "write") throw new Error("unreachable");
     writeFileSync(join(home, ".codex", "AGENTS.md"), `Some existing project guidance.\n`);
     for (const write of installDecision.writes) {
-      const base = write.path === join(home, ".codex", "AGENTS.md") ? "Some existing project guidance.\n" : "";
-      writeFileSync(write.path, write.afterContent.replace(/^/, base === "" ? "" : ""));
+      writeFileSync(write.path, write.afterContent);
     }
-    // Re-run install against the seeded file to get the real merged content, then remove it.
-    const seededDecision = await decideInstructionsInstall(codexAdapter, home, markdown);
-    if (seededDecision.kind !== "noop" && seededDecision.kind !== "write") throw new Error("unreachable");
 
     const removeDecision = await decideInstructionsRemove(codexAdapter, home);
     expect(removeDecision.kind).toBe("write");

@@ -15,14 +15,14 @@ export interface MemoryIntegrationVerification {
   agentId: AgentId;
   mcp: { path: string; present: boolean };
   instructions: { supported: boolean; paths: string[]; present: boolean };
-  overallStatus: "complete" | "partial" | "unsupported";
+  overallStatus: "complete" | "partial" | "absent";
 }
 
-async function readOrEmpty(path: string): Promise<string> {
+async function readOrEmpty(path: string): Promise<{ raw: string; exists: boolean }> {
   try {
-    return await readFile(path, "utf8");
+    return { raw: await readFile(path, "utf8"), exists: true };
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return "";
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { raw: "", exists: false };
     throw error;
   }
 }
@@ -44,13 +44,22 @@ export async function verifyMemoryIntegration(
   let instructionsPresent = false;
   if (adapter.instructions) {
     const primary = await readOrEmpty(adapter.instructions.primaryFile(input.home));
-    instructionsPresent = extractBlock(primary, MEMORY_PROTOCOL_BLOCK_ID) !== undefined;
+    const blockPresent = extractBlock(primary.raw, MEMORY_PROTOCOL_BLOCK_ID) !== undefined;
+    if (adapter.instructions.contentFile) {
+      // The primary file only imports the satellite file. If that satellite file is gone, the
+      // instructions are not actually installed, however intact the import line looks.
+      const content = await readOrEmpty(adapter.instructions.contentFile(input.home));
+      instructionsPresent = blockPresent && content.exists;
+    } else {
+      instructionsPresent = blockPresent;
+    }
   }
 
-  const overallStatus: MemoryIntegrationVerification["overallStatus"] = !instructionsSupported
-    ? "partial"
-    : mcpPresent && instructionsPresent
-      ? "complete"
+  const instructionsOk = !instructionsSupported || instructionsPresent;
+  const overallStatus: MemoryIntegrationVerification["overallStatus"] = mcpPresent && instructionsOk
+    ? "complete"
+    : !mcpPresent && (!instructionsSupported || !instructionsPresent)
+      ? "absent"
       : "partial";
 
   return {

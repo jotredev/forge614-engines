@@ -36,7 +36,7 @@ const VALID_PROTOCOL = {
 };
 
 describe("fetchMemoryProtocol", () => {
-  test("returns the protocol, raw stdout, and a stable fingerprint on success", async () => {
+  test("returns the protocol and a stable fingerprint on success", async () => {
     const script = fixture("ok.js", `console.log(${JSON.stringify(JSON.stringify(VALID_PROTOCOL))});`);
 
     const result = await fetchMemoryProtocol({ command: process.execPath, args: [script] });

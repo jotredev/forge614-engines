@@ -168,7 +168,7 @@ test("deletes a file when the write is marked delete", async () => {
   const plan: Plan = {
     planId: "plan-delete-1",
     agentId: "claude-code",
-    action: "memory-remove",
+    action: "mcp-remove",
     noop: false,
     writes: [{ path: deletedPath, beforeHash: hashOf("old content"), afterContent: "", delete: true }],
   };
@@ -186,7 +186,7 @@ test("refuses to delete when the file changed since the plan was computed", asyn
   const plan: Plan = {
     planId: "plan-delete-2",
     agentId: "claude-code",
-    action: "memory-remove",
+    action: "mcp-remove",
     noop: false,
     writes: [{ path: deletedPath, beforeHash: hashOf("original content"), afterContent: "", delete: true }],
   };

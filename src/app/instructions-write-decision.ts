@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { basename } from "node:path";
 import { readFile } from "node:fs/promises";
 import type { AgentAdapter } from "../modules/agents/types";
-import { extractBlock, withBlock } from "../modules/instructions-writer/block";
+import { blockMarkers, extractBlock, withBlock } from "../modules/instructions-writer/block";
 import { MEMORY_PROTOCOL_BLOCK_ID } from "../modules/memory-protocol/constants";
 import type { PlanWrite } from "../modules/config-writer/types";
 
@@ -74,6 +74,17 @@ export async function decideInstructionsInstall(
     }
   } else {
     const desiredBlock = `${MANAGED_HEADER}\n\n${protocolMarkdown}`.trim();
+    // The block is embedded directly between markers in the primary file. If the content itself
+    // contained either marker, block.ts's indexOf-based lookup would terminate the block early and
+    // strand the remainder outside any marker — permanently unremovable. Refuse to write instead.
+    const { begin, end } = blockMarkers(MEMORY_PROTOCOL_BLOCK_ID);
+    if (desiredBlock.includes(begin) || desiredBlock.includes(end)) {
+      return {
+        kind: "blocked",
+        reason: "marker-collision",
+        details: `The memory protocol's content contains a string that collides with ${adapter.label}'s managed-block markers, so it cannot be safely embedded in ${primaryPath}`,
+      };
+    }
     if (extractBlock(primary.raw, MEMORY_PROTOCOL_BLOCK_ID) !== desiredBlock) {
       writes.push({
         path: primaryPath,

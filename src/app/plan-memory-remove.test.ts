@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { AgentRegistry } from "../modules/agents/registry";
@@ -82,5 +82,7 @@ describe("planMemoryRemove", () => {
 
     expect(plan.metadata?.instructions.status.kind).toBe("unsupported");
     expect(plan.writes.some((w) => w.path === join(home, ".cursor", "mcp.json"))).toBe(true);
+    // Cursor structurally has no instructions to remove, so removing its MCP entry is the whole job.
+    expect(plan.metadata?.overallStatus).toBe("complete");
   });
 });

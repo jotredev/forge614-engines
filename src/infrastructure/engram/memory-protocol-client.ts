@@ -22,7 +22,6 @@ export interface MemoryProtocolFetchOptions {
 
 export interface MemoryProtocolFetchResult {
   protocol: MemoryProtocol;
-  raw: string;
   fingerprint: string;
 }
 
@@ -48,5 +47,5 @@ export async function fetchMemoryProtocol(
 
   if (!isMemoryProtocol(parsed)) throw new EngramProtocolUnavailableError("invalid-schema");
 
-  return { protocol: parsed, raw: stdout, fingerprint: createHash("sha256").update(stdout).digest("hex") };
+  return { protocol: parsed, fingerprint: createHash("sha256").update(stdout).digest("hex") };
 }

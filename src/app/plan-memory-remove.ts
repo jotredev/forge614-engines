@@ -2,7 +2,7 @@ import type { AgentRegistry } from "../modules/agents/registry";
 import type { AgentId } from "../modules/agents/types";
 import type { MemoryIntegrationComponentStatus, Plan, PlanWrite } from "../modules/config-writer/types";
 import { ENGRAM_MCP_SERVER } from "../modules/memory-protocol/constants";
-import { computeOverallStatus } from "../modules/memory-protocol/status";
+import { computeRemovalStatus } from "../modules/memory-protocol/status";
 import { newPlanId, savePlan } from "../infrastructure/plan-store";
 import { decideMcpRemove } from "./mcp-write-decision";
 import { decideInstructionsRemove, type InstructionsDecision } from "./instructions-write-decision";
@@ -54,7 +54,7 @@ export async function planMemoryRemove(registry: AgentRegistry, input: PlanMemor
     metadata: {
       mcp: { path: mcpDecision.configPath, status: mcpStatus },
       instructions: { paths: instructionsPaths, status: instructionsStatus },
-      overallStatus: computeOverallStatus(mcpStatus, instructionsStatus),
+      overallStatus: computeRemovalStatus(mcpStatus, instructionsStatus),
     },
   };
 

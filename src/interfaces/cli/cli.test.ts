@@ -119,7 +119,18 @@ describe("forge614-engines CLI", () => {
   });
 
   test("plan memory-install for an agent without Engram installed reports ENGRAM_PROTOCOL_UNAVAILABLE", async () => {
-    const { stdout, exitCode } = await runCli(["plan", "memory-install", "--agent", "claude-code"]);
+    // Deliberately does not use runCli: this case must be deterministic on a maintainer's machine
+    // that *does* have forge614-engram installed, so PATH is scrubbed to an empty directory and the
+    // runtime is invoked by absolute path (process.execPath needs no PATH lookup).
+    const emptyPathDir = mkdtempSync(join(tmpdir(), "engines-emptypath-"));
+    const proc = Bun.spawn([process.execPath, ENTRY, "plan", "memory-install", "--agent", "claude-code"], {
+      stdout: "pipe",
+      stderr: "pipe",
+      env: { ...process.env, HOME: home, PATH: emptyPathDir },
+    });
+    const stdout = await new Response(proc.stdout).text();
+    const exitCode = await proc.exited;
+    rmSync(emptyPathDir, { recursive: true, force: true });
 
     expect(exitCode).toBe(1);
     const parsed = JSON.parse(stdout);
