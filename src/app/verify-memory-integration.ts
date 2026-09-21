@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import type { AgentRegistry } from "../modules/agents/registry";
 import type { AgentId } from "../modules/agents/types";
-import { ENGRAM_MCP_SERVER } from "../modules/memory-protocol/constants";
+import { resolveEngramMcpServer } from "../modules/memory-protocol/constants";
 import { extractBlock } from "../modules/instructions-writer/block";
 import { MEMORY_PROTOCOL_BLOCK_ID } from "../modules/memory-protocol/constants";
 import { decideMcpRemove } from "./mcp-write-decision";
@@ -34,7 +34,7 @@ export async function verifyMemoryIntegration(
   const adapter = registry.get(input.agentId);
   if (!adapter) throw new Error(`Unknown agent: ${input.agentId}`);
 
-  const mcpDecision = await decideMcpRemove(adapter, input.home, ENGRAM_MCP_SERVER);
+  const mcpDecision = await decideMcpRemove(adapter, input.home, resolveEngramMcpServer(input.home));
   const mcpPresent = mcpDecision.decision.kind === "write";
 
   const instructionsSupported = Boolean(adapter.instructions);

@@ -21,9 +21,9 @@ An architecture test checks relative imports. An inner layer cannot import an ou
 - Adapters in `infrastructure/agents/` translate each agent into paths, formats, and safe orders.
 - `detect-agent.ts` combines PATH scanning, known locations, and configuration-directory presence.
 - `config-io/` reads and changes JSON/TOML; JSON preserves edits through `jsonc-parser`, while TOML serializes the document again through `smol-toml`.
-- `memory-protocol/` defines and validates the Engram protocol shape, renders it into instructions markdown, and combines the MCP and instructions component statuses into one overall result.
+- `memory-protocol/` defines and validates the Engram protocol shape, resolves the canonical `forge614-engram` executable from `FORGE614_HOME` or `~/.forge614/engram/bin/forge614-engram`, renders the protocol into instructions markdown, and combines the MCP and instructions component statuses into one overall result.
 - `instructions-writer/` inserts, extracts, and removes the delimited managed block inside an agent's existing instructions file without disturbing the rest of it.
-- `infrastructure/engram/` shells out to `forge614-engram memory-protocol --json`, validates the response, and returns it together with a content fingerprint.
+- `infrastructure/engram/` invokes the canonical absolute `forge614-engram memory-protocol --json` path without relying on `PATH`, validates the response, and returns it together with a content fingerprint; it never reads Engram internals.
 - `plan-store.ts` persists proposals with private permissions; `snapshot.ts` backs up files; `atomic-write.ts` performs verified writes.
 - `main.ts` accepts only public commands and translates errors into stable codes.
 

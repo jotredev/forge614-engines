@@ -37,6 +37,12 @@ forge614-engines plan memory-remove --agent codex
 
 `plan memory-install` y `plan memory-remove` agrupan dos decisiones —la entrada MCP `forge614-engram` y el o los archivos de instrucciones del agente— en un solo plan, con un único `planId` que cubre ambas. Un conflicto en un solo componente no aborta ese plan: una entrada MCP `forge614-engram` diferente, o un `AGENTS.override.md` no vacío que eclipsa el `AGENTS.md` de Codex, se reporta como `blocked` solo para ese componente, mientras el otro componente sigue su curso normal. El componente de instrucciones de Cursor siempre se reporta como `unsupported`, porque Cursor no tiene un mecanismo global basado en archivos oficialmente documentado para cargar instrucciones automáticamente en cada sesión nueva.
 
+## Resolver Engram sin depender de PATH
+
+Forge614 Shell instala el MCP con la ruta pública canónica del binario en `~/.forge614/engram/bin/forge614-engram`. Engines resuelve directamente esa misma ruta: usa `FORGE614_HOME` cuando existe esa variable de entorno; de lo contrario, usa la carpeta personal del usuario más `.forge614`; en Windows el ejecutable termina en `.exe`. Esta resolución se usa para la entrada MCP y para `forge614-engram memory-protocol --json`, de modo que una instalación válida de Shell se reconoce como la misma entrada y `plan memory-install` puede devolver `noop` en vez de un `CONFLICT` falso.
+
+El resolvedor solo construye la ruta pública del ejecutable. No lee el `.env`, SQLite, memoria ni archivos de código internos de Engram, y no depende de `PATH`. Una entrada llamada `forge614-engram` con un comando diferente sigue siendo un conflicto real y permanece bloqueada; Engines nunca la sobrescribe en silencio.
+
 ## Ciclo correcto
 
 1. Shell solicita el plan.

@@ -1,7 +1,7 @@
 import type { AgentRegistry } from "../modules/agents/registry";
 import type { AgentId } from "../modules/agents/types";
 import type { MemoryIntegrationComponentStatus, Plan, PlanWrite } from "../modules/config-writer/types";
-import { ENGRAM_MCP_SERVER } from "../modules/memory-protocol/constants";
+import { resolveEngramMcpServer } from "../modules/memory-protocol/constants";
 import { computeRemovalStatus } from "../modules/memory-protocol/status";
 import { newPlanId, savePlan } from "../infrastructure/plan-store";
 import { decideMcpRemove } from "./mcp-write-decision";
@@ -21,7 +21,8 @@ export async function planMemoryRemove(registry: AgentRegistry, input: PlanMemor
   if (!adapter) throw new Error(`Unknown agent: ${input.agentId}`);
   if (!adapter.capabilities.supportsMcp) throw new Error(`${input.agentId} does not support MCP servers`);
 
-  const mcpDecision = await decideMcpRemove(adapter, input.home, ENGRAM_MCP_SERVER);
+  const engramServer = resolveEngramMcpServer(input.home);
+  const mcpDecision = await decideMcpRemove(adapter, input.home, engramServer);
   const instructionsDecision = await decideInstructionsRemove(adapter, input.home);
 
   const writes: PlanWrite[] = [];
@@ -33,7 +34,7 @@ export async function planMemoryRemove(registry: AgentRegistry, input: PlanMemor
       ? {
           kind: "blocked",
           reason: "mcp-unrecognized",
-          details: `The "${ENGRAM_MCP_SERVER.name}" MCP entry at ${mcpDecision.configPath} does not match what Forge614 would have installed`,
+          details: `The "${engramServer.name}" MCP entry at ${mcpDecision.configPath} does not match what Forge614 would have installed`,
         }
       : mcpDecision.decision.kind === "noop"
         ? { kind: "noop" }

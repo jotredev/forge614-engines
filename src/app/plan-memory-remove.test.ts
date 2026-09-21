@@ -5,11 +5,13 @@ import { dirname, join } from "node:path";
 import { AgentRegistry } from "../modules/agents/registry";
 import { claudeCodeAdapter } from "../infrastructure/agents/claude-code";
 import { cursorAdapter } from "../infrastructure/agents/cursor";
+import { resolveEngramMcpServer } from "../modules/memory-protocol/constants";
 import { planMemoryInstall } from "./plan-memory-install";
 import { planMemoryRemove } from "./plan-memory-remove";
 
 let home: string;
 let registry: AgentRegistry;
+let previousForgeHome: string | undefined;
 
 const PROTOCOL_SCRIPT_CONTENT = `console.log(${JSON.stringify(
   JSON.stringify({
@@ -23,6 +25,8 @@ const PROTOCOL_SCRIPT_CONTENT = `console.log(${JSON.stringify(
 )});`;
 
 beforeEach(() => {
+  previousForgeHome = process.env.FORGE614_HOME;
+  delete process.env.FORGE614_HOME;
   home = mkdtempSync(join(tmpdir(), "engines-planmemoryremove-"));
   registry = new AgentRegistry();
   registry.register(claudeCodeAdapter);
@@ -31,6 +35,8 @@ beforeEach(() => {
 
 afterEach(() => {
   rmSync(home, { recursive: true, force: true });
+  if (previousForgeHome === undefined) delete process.env.FORGE614_HOME;
+  else process.env.FORGE614_HOME = previousForgeHome;
 });
 
 describe("planMemoryRemove", () => {
@@ -81,7 +87,7 @@ describe("planMemoryRemove", () => {
     mkdirSync(join(home, ".cursor"), { recursive: true });
     writeFileSync(
       join(home, ".cursor", "mcp.json"),
-      JSON.stringify({ mcpServers: { "forge614-engram": { command: "forge614-engram", args: ["mcp"] } } }),
+      JSON.stringify({ mcpServers: { "forge614-engram": { command: resolveEngramMcpServer(home).command, args: ["mcp"] } } }),
     );
 
     const plan = await planMemoryRemove(registry, { agentId: "cursor", home });

@@ -52,13 +52,13 @@
       "localPath": "docs/es/03-plan-seguro-de-mcp.md",
       "language": "es",
       "notionUrl": "https://app.notion.com/p/3e121943d12981f79fd1e4fd43e2587c",
-      "sha256": "4bfc15bd7bf88aa22bcc6717a3a2f9fd36dd4a7bc4b21597ea465692a6a08948"
+      "sha256": "8ffd44bc35e0ad06fec2ae254f06faa72e0740f3c24701f2548506df6a030fe3"
     },
     {
       "localPath": "docs/en/03-safe-mcp-planning.md",
       "language": "en",
       "notionUrl": "https://app.notion.com/p/3e121943d129811a822eec896be4b4dc",
-      "sha256": "37702302906eeecc908ca2842fd197ed70cf86e1471db3ef11ad683aa0ce544a"
+      "sha256": "4fe2ce1802fb30bbdfda2d1305f99ad0e01c32dc3769137979bffcfafb21695f"
     },
     {
       "localPath": "docs/es/04-aplicacion-segura-y-recuperacion.md",
@@ -76,13 +76,13 @@
       "localPath": "docs/es/05-referencia-del-cli-publico.md",
       "language": "es",
       "notionUrl": "https://app.notion.com/p/3e121943d1298178b133f109e29a742f",
-      "sha256": "22ffaa70f4a25d2d4cb950f248dc2615a1586d2d56f34249565ae420e73301c9"
+      "sha256": "808e33ead0a7875d3936aed72fd0bbd180a558e8d0b942a488406a5b3d754730"
     },
     {
       "localPath": "docs/en/05-public-cli-reference.md",
       "language": "en",
       "notionUrl": "https://app.notion.com/p/3e121943d12981c097f7ff61185f3454",
-      "sha256": "f12cda04c14fd24a73a9a26055ce917e048444c9f13f9c5faf565607242c2081"
+      "sha256": "721933b8fea90b0a48fa9d960c0c604a51a80625c9f78087fd1a33412670ff80"
     },
     {
       "localPath": "docs/es/06-ejecucion-automatica-e-integraciones.md",
@@ -100,13 +100,13 @@
       "localPath": "docs/es/07-arquitectura-y-mapa-del-codigo.md",
       "language": "es",
       "notionUrl": "https://app.notion.com/p/3e121943d1298111ac2dfc6ec005122c",
-      "sha256": "a09668c3871e3a853ed2a69b3a0d096f66d9c2ab514049d154d8582faaacf005"
+      "sha256": "ab32143328ddab98e9be286f2534a6e3a7ccea02e2a79f4fdad6748ef81fe3b3"
     },
     {
       "localPath": "docs/en/07-architecture-and-code-map.md",
       "language": "en",
       "notionUrl": "https://app.notion.com/p/3e121943d1298141af4dc49853c508e7",
-      "sha256": "7b53a0334b5b8672005231feec005e25c7fa0cfaaff6c415c58d8b422b64e0bd"
+      "sha256": "461750ccbd815fc01d4b20d0cdbd2d62f9fd15541d2bb168ffbec3eb9d8dcc98"
     }
   ]
 }

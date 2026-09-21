@@ -5,13 +5,17 @@ import { dirname, join } from "node:path";
 import { AgentRegistry } from "../modules/agents/registry";
 import { claudeCodeAdapter } from "../infrastructure/agents/claude-code";
 import { cursorAdapter } from "../infrastructure/agents/cursor";
+import { resolveEngramMcpServer } from "../modules/memory-protocol/constants";
 import { planMemoryInstall } from "./plan-memory-install";
 import { verifyMemoryIntegration } from "./verify-memory-integration";
 
 let home: string;
 let registry: AgentRegistry;
+let previousForgeHome: string | undefined;
 
 beforeEach(() => {
+  previousForgeHome = process.env.FORGE614_HOME;
+  delete process.env.FORGE614_HOME;
   home = mkdtempSync(join(tmpdir(), "engines-verifymemory-"));
   registry = new AgentRegistry();
   registry.register(claudeCodeAdapter);
@@ -20,6 +24,8 @@ beforeEach(() => {
 
 afterEach(() => {
   rmSync(home, { recursive: true, force: true });
+  if (previousForgeHome === undefined) delete process.env.FORGE614_HOME;
+  else process.env.FORGE614_HOME = previousForgeHome;
 });
 
 describe("verifyMemoryIntegration", () => {
@@ -69,7 +75,7 @@ describe("verifyMemoryIntegration", () => {
     mkdirSync(join(home, ".cursor"), { recursive: true });
     writeFileSync(
       join(home, ".cursor", "mcp.json"),
-      JSON.stringify({ mcpServers: { "forge614-engram": { command: "forge614-engram", args: ["mcp"] } } }),
+      JSON.stringify({ mcpServers: { "forge614-engram": { command: resolveEngramMcpServer(home).command, args: ["mcp"] } } }),
     );
 
     const result = await verifyMemoryIntegration(registry, { agentId: "cursor", home });

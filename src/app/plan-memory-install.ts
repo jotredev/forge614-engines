@@ -1,7 +1,7 @@
 import type { AgentRegistry } from "../modules/agents/registry";
 import type { AgentId } from "../modules/agents/types";
 import type { MemoryIntegrationComponentStatus, Plan, PlanWrite } from "../modules/config-writer/types";
-import { ENGRAM_MCP_SERVER } from "../modules/memory-protocol/constants";
+import { resolveEngramMcpServer } from "../modules/memory-protocol/constants";
 import { renderProtocolMarkdown } from "../modules/memory-protocol/render";
 import { computeOverallStatus } from "../modules/memory-protocol/status";
 import { fetchMemoryProtocol, type MemoryProtocolFetchOptions } from "../infrastructure/engram/memory-protocol-client";
@@ -25,10 +25,11 @@ export async function planMemoryInstall(registry: AgentRegistry, input: PlanMemo
   if (!adapter) throw new Error(`Unknown agent: ${input.agentId}`);
   if (!adapter.capabilities.supportsMcp) throw new Error(`${input.agentId} does not support MCP servers`);
 
-  const { protocol, fingerprint } = await fetchMemoryProtocol(input.protocolOptions);
+  const { protocol, fingerprint } = await fetchMemoryProtocol(input.home, input.protocolOptions);
   const protocolMarkdown = renderProtocolMarkdown(protocol);
 
-  const mcpDecision = await decideMcpInstall(adapter, input.home, ENGRAM_MCP_SERVER);
+  const engramServer = resolveEngramMcpServer(input.home);
+  const mcpDecision = await decideMcpInstall(adapter, input.home, engramServer);
   const instructionsDecision = await decideInstructionsInstall(adapter, input.home, protocolMarkdown);
 
   const writes: PlanWrite[] = [];
@@ -40,7 +41,7 @@ export async function planMemoryInstall(registry: AgentRegistry, input: PlanMemo
       ? {
           kind: "blocked",
           reason: "mcp-conflict",
-          details: `An existing "${ENGRAM_MCP_SERVER.name}" MCP entry with different content is already present at ${mcpDecision.configPath}`,
+          details: `An existing "${engramServer.name}" MCP entry with different content is already present at ${mcpDecision.configPath}`,
         }
       : mcpDecision.decision.kind === "noop"
         ? { kind: "noop" }

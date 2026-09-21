@@ -37,6 +37,8 @@ La salida de `headless` no ejecuta Codex ni Claude Code: produce la orden segura
 
 `plan memory-install` lee el protocolo directamente desde `forge614-engram memory-protocol --json` cada vez, decide la entrada MCP y el o los archivos de instrucciones para el agente indicado, y devuelve un solo plan que ya contiene cada escritura que `apply` necesita — instalar y retirar la integración de memoria comparten el mismo comando `apply --plan-id <id>` que cualquier otro plan. `verify memory-integration` nunca toca Engram; solo inspecciona los archivos que Engines mismo administra.
 
+Para los comandos de memoria, Engines resuelve `forge614-engram` en la ruta canónica `~/.forge614/engram/bin/forge614-engram`, o bajo `FORGE614_HOME` cuando esa variable existe; no busca en `PATH` ni lee archivos internos de Engram. Un comando diferente para el mismo nombre MCP `forge614-engram` sigue siendo un `CONFLICT` real.
+
 ## Errores públicos
 
 Todos los errores salen como JSON y tienen `error.code` y `error.message`.

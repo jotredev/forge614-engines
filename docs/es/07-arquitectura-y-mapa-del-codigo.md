@@ -21,9 +21,9 @@ Una prueba de arquitectura revisa importaciones relativas. Una capa interna no p
 - Los adaptadores de `infrastructure/agents/` traducen cada agente a rutas, formato y órdenes seguras.
 - `detect-agent.ts` combina búsqueda en PATH, rutas conocidas y presencia de la carpeta de configuración.
 - `config-io/` lee y modifica JSON/TOML; JSON conserva ediciones mediante `jsonc-parser` y TOML vuelve a serializar el documento mediante `smol-toml`.
-- `memory-protocol/` define y valida la forma del protocolo de Engram, lo convierte en Markdown de instrucciones y combina el estado del componente MCP y del componente de instrucciones en un solo resultado general.
+- `memory-protocol/` define y valida la forma del protocolo de Engram, resuelve el ejecutable canónico `forge614-engram` desde `FORGE614_HOME` o `~/.forge614/engram/bin/forge614-engram`, lo convierte en Markdown de instrucciones y combina el estado del componente MCP y del componente de instrucciones en un solo resultado general.
 - `instructions-writer/` inserta, extrae y retira el bloque administrado delimitado dentro del archivo de instrucciones existente de un agente sin alterar el resto.
-- `infrastructure/engram/` ejecuta `forge614-engram memory-protocol --json`, valida la respuesta y la devuelve junto con una huella del contenido.
+- `infrastructure/engram/` ejecuta la ruta absoluta canónica de `forge614-engram memory-protocol --json` sin depender de `PATH`, valida la respuesta y la devuelve junto con una huella del contenido; nunca lee archivos internos de Engram.
 - `plan-store.ts` persiste propuestas con permisos privados; `snapshot.ts` respalda archivos; `atomic-write.ts` realiza escrituras verificadas.
 - `main.ts` acepta solo los comandos públicos y convierte errores a códigos estables.
 
