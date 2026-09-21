@@ -18,7 +18,8 @@ El CLI (interfaz de línea de comandos) es el mostrador de Engines. Cada pedido 
 | `forge614-engines apply --plan-id <id>` | `result` de aplicación | Sí, solo el plan confirmado |
 | `forge614-engines headless ...` | `headless` con comando y argumentos | No |
 | `forge614-engines update` | `result` de actualización | Gestiona solamente Engines |
-| `forge614-engines verify memory-integration --agent <id>` | `verification` actual de MCP/instrucciones | No |
+| `forge614-engines verify memory-integration --agent <id>` | `verification` actual de MCP/instrucciones/hook | No |
+| `forge614-engines memory-hook-run --agent <id>` | texto plano (Claude Code) o JSON `hookSpecificOutput.additionalContext` (Codex) por stdout | No |
 | `forge614-engines plan mcp-repair --agent <id>` | `plan` de reparación con estado (`not-installed`/`already-correct`/`repairable-conflict`/`blocked`) | Solo guarda el plan |
 | `forge614-engines apply mcp-repair --plan-id <id> [--confirm]` | `result` de aplicación confirmada | Sí, y solo con `--confirm` |
 | `forge614-engines verify mcp-repair --agent <id> --plan-id <id>` | `verification` de esa reparación puntual | No |
@@ -41,6 +42,14 @@ La salida de `headless` no ejecuta Codex ni Claude Code: produce la orden segura
 `plan memory-install` lee el protocolo directamente desde `forge614-engram memory-protocol --json` cada vez, decide la entrada MCP y el o los archivos de instrucciones para el agente indicado, y devuelve un solo plan que ya contiene cada escritura que `apply` necesita — instalar y retirar la integración de memoria comparten el mismo comando `apply --plan-id <id>` que cualquier otro plan. `verify memory-integration` nunca toca Engram; solo inspecciona los archivos que Engines mismo administra.
 
 Para los comandos de memoria, Engines resuelve `forge614-engram` en la ruta canónica `~/.forge614/engram/bin/forge614-engram`, o bajo `FORGE614_HOME` cuando esa variable existe; no busca en `PATH` ni lee archivos internos de Engram. Un comando diferente para el mismo nombre MCP `forge614-engram` sigue siendo un `CONFLICT` real.
+
+## El hook de `SessionStart`
+
+Desde esta versión, `plan memory-install` también instala un hook `SessionStart` para Claude Code y Codex, además del servidor MCP y las instrucciones estáticas — sin depender de que el modelo decida llamar a `memory_context` por su cuenta. El hook, en ambos agentes, apunta siempre al mismo comando fijo: `forge614-engines memory-hook-run --agent <id>`. Ese comando lee el `cwd` real de la sesión desde el propio stdin del hook, lo pasa a `forge614-engram startup-context --directory <cwd> --json` (el único comando de Engram que el hook puede invocar — nunca SQLite ni archivos privados), y devuelve el resultado ya saneado, enmarcado como memoria recuperada y acotado en tamaño. Claude Code recibe texto plano por stdout; Codex recibe `{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"..."}}`, nunca `systemMessage`. Si Engram falla o no está instalado, el hook sigue devolviendo una respuesta clara de "memoria no disponible" y la sesión continúa — nunca finge haber cargado memoria.
+
+**`needs-user-trust`.** Codex exige revisar y confiar cada hook no administrado una vez, de forma interactiva, con su propio comando `/hooks`, antes de ejecutarlo — Engines no tiene ninguna forma documentada y estable de otorgar o verificar esa confianza, y nunca usa `--dangerously-bypass-hook-trust` para saltarla. Por eso, para Codex, el componente `hook` de `plan memory-install`/`verify memory-integration` reporta `needs-user-trust` en vez de "correcto", y `overallStatus` nunca llega a `"complete"` para Codex — solo a `"partial"`. Engines no abre Codex ni pregunta nada: solo reporta ese estado para que Shell decida cómo lanzarlo. Claude Code no tiene esta restricción y sí puede llegar a `"complete"`.
+
+**Verificación real, no solo presencia.** `verify memory-integration` no se conforma con comprobar que la entrada del hook existe en el archivo de configuración: además ejecuta el mismo código que correría el hook real, de punta a punta, contra el binario real de Engram (o uno de prueba), y solo cuenta el componente `hook` como correcto si esa ejecución de verificación produce contexto bien formado. Eso es lo máximo que Engines puede verificar honestamente sin una sesión de agente real en curso.
 
 ## Errores públicos
 

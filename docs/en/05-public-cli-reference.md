@@ -18,7 +18,8 @@ The CLI (command-line interface) is the Engines counter. Every request returns a
 | `forge614-engines apply --plan-id <id>` | application `result` | Yes, only for confirmed plan |
 | `forge614-engines headless ...` | `headless` command and arguments | No |
 | `forge614-engines update` | update `result` | Manages Engines only |
-| `forge614-engines verify memory-integration --agent <id>` | current MCP/instructions `verification` | No |
+| `forge614-engines verify memory-integration --agent <id>` | current MCP/instructions/hook `verification` | No |
+| `forge614-engines memory-hook-run --agent <id>` | plain text (Claude Code) or `hookSpecificOutput.additionalContext` JSON (Codex) on stdout | No |
 | `forge614-engines plan mcp-repair --agent <id>` | repair `plan` with status (`not-installed`/`already-correct`/`repairable-conflict`/`blocked`) | Stores the plan only |
 | `forge614-engines apply mcp-repair --plan-id <id> [--confirm]` | confirmed application `result` | Yes, and only with `--confirm` |
 | `forge614-engines verify mcp-repair --agent <id> --plan-id <id>` | `verification` for that one repair | No |
@@ -41,6 +42,14 @@ forge614-engines plan mcp-install --agent claude-code --name engram --command fo
 `plan memory-install` reads the protocol fresh from `forge614-engram memory-protocol --json` every time, decides the MCP entry and the instructions file(s) for the given agent, and returns one plan that already contains every write `apply` needs — install and remove for the memory integration share the same `apply --plan-id <id>` command as any other plan. `verify memory-integration` never touches Engram; it only inspects the files Engines itself manages.
 
 For memory commands, Engines resolves `forge614-engram` at the canonical `~/.forge614/engram/bin/forge614-engram` path, or under `FORGE614_HOME` when that variable is set; it does not search `PATH` or read Engram internals. A different command for the same `forge614-engram` MCP name remains a real `CONFLICT`.
+
+## The `SessionStart` hook
+
+As of this version, `plan memory-install` also installs a `SessionStart` hook for Claude Code and Codex, alongside the MCP server and the static instructions — without depending on the model choosing to call `memory_context` on its own. The hook, for both agents, always points at the same fixed command: `forge614-engines memory-hook-run --agent <id>`. That command reads the real session `cwd` from the hook's own stdin, passes it to `forge614-engram startup-context --directory <cwd> --json` (the only Engram command the hook may invoke — never SQLite or private files), and returns the result already sanitized, framed as retrieved memory, and size-bounded. Claude Code gets plain text on stdout; Codex gets `{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"..."}}`, never `systemMessage`. If Engram fails or is not installed, the hook still returns a clear "memory not available" response and the session continues — it never pretends memory loaded.
+
+**`needs-user-trust`.** Codex requires reviewing and trusting each non-managed hook once, interactively, through its own `/hooks` command, before running it — Engines has no stable, documented way to grant or verify that trust, and never uses `--dangerously-bypass-hook-trust` to skip it. So for Codex, the `hook` component of `plan memory-install`/`verify memory-integration` reports `needs-user-trust` instead of "ok", and `overallStatus` never reaches `"complete"` for Codex — only `"partial"`. Engines does not open Codex or ask anything: it only reports that state so Shell can decide how to launch it. Claude Code has no such gate and can reach `"complete"`.
+
+**Real verification, not just presence.** `verify memory-integration` does not stop at checking that the hook entry exists in the config file: it also runs the exact code the real hook would run, end to end, against the real Engram binary (or a test fixture), and only counts the `hook` component as ok when that verification run actually produces well-formed context. That is the honest limit of what Engines can verify without a live agent session in progress.
 
 ## Public errors
 
