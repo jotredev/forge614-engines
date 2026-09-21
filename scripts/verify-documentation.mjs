@@ -34,7 +34,7 @@ async function localDocumentationPaths(root) {
 
 async function publicCliContract(root) {
   const source = await readFile(join(root, "src", "interfaces", "cli", "main.ts"), "utf8");
-  const commands = new Set([...source.matchAll(/command === "([a-z]+)"/g)].map((match) => match[1]));
+  const commands = new Set([...source.matchAll(/command === "([a-z][\w-]*)"/g)].map((match) => match[1]));
   for (const subcommand of source.matchAll(
     /command === "(plan|verify|apply)" && subcommand === "((?:mcp|memory)-(?:install|remove)|memory-integration|mcp-repair)"/g,
   )) {

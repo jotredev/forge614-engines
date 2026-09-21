@@ -35,6 +35,7 @@ async function fixture(
       'if (command === "capabilities") return;',
       'if (command === "update") return;',
       'if (command === "headless") return;',
+      'if (command === "memory-hook-run") return;',
       'if (command === "plan" && subcommand === "mcp-install") return;',
       'if (command === "plan" && subcommand === "mcp-remove") return;',
       'return "CONFLICT"; return "STALE_PLAN"; return "UNRECOGNIZED_ENTRY"; return "PLAN_NOT_FOUND";',
@@ -77,6 +78,10 @@ test("rejects a Spanish document without its English pair", async () => {
 
 test("rejects a mapped file whose fingerprint is stale", async () => {
   await expect(verifyDocumentation(await fixture({ staleHash: true }))).rejects.toThrow("Fingerprint mismatch");
+});
+
+test("accepts a documented hyphenated top-level command (regression: the command regex must allow hyphens, not just [a-z]+)", async () => {
+  await expect(verifyDocumentation(await fixture({ cliTerm: "forge614-engines memory-hook-run" }))).resolves.toBeDefined();
 });
 
 test("rejects a documented unknown public command", async () => {
