@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AgentRegistry } from "../modules/agents/registry";
@@ -74,6 +74,28 @@ describe("verifyMcpRepair", () => {
     const verification = await verifyMcpRepair(registry, { agentId: "claude-code", home, planId: plan.planId });
     expect(verification.status).toBe("mismatch");
     expect(verification.commandCanonical).toBe(false);
+  });
+
+  test("reports foreignPreserved false when foreign content was mutated after the repair", async () => {
+    writeFileSync(
+      join(home, ".claude.json"),
+      JSON.stringify({ other: true, mcpServers: { "forge614-engram": { command: "/old/path", args: ["serve"] }, keep: { command: "y", args: [] } } }),
+    );
+    const plan = await planMcpRepair(registry, { agentId: "claude-code", home });
+    await applyMcpRepair(home, plan.planId, true);
+
+    // Independently mutate the current config after the repair: keep the now-canonical
+    // forge614-engram entry intact, but change the unrelated "keep" entry — this simulates
+    // foreign content that should have been preserved but wasn't.
+    const configPath = join(home, ".claude.json");
+    const current = JSON.parse(readFileSync(configPath, "utf8"));
+    current.mcpServers.keep = { command: "mutated", args: ["changed"] };
+    writeFileSync(configPath, JSON.stringify(current));
+
+    const verification = await verifyMcpRepair(registry, { agentId: "claude-code", home, planId: plan.planId });
+    expect(verification.commandCanonical).toBe(true);
+    expect(verification.argsCanonical).toBe(true);
+    expect(verification.foreignPreserved).toBe(false);
   });
 
   test("throws NotRepairableError for a non-repair plan", async () => {
