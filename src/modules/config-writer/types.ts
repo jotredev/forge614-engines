@@ -6,13 +6,26 @@ export interface PlanWrite {
   delete?: boolean;
 }
 
+export type McpRepairStatus = "not-installed" | "already-correct" | "repairable-conflict" | "blocked";
+
+export interface McpRepairPreview {
+  agentId: string;
+  configPath: string;
+  status: McpRepairStatus;
+  canonical: { name: string; command: string; args: string[] };
+  /** Redacted preview of the conflicting entry (see redactMcpEntry). Present only for repairable-conflict and blocked/not-writable. */
+  existing?: unknown;
+  blockedReason?: "unparsable-config" | "not-writable";
+}
+
 export interface Plan {
   planId: string;
   agentId: string;
-  action: "mcp-install" | "mcp-remove" | "memory-install" | "memory-remove";
+  action: "mcp-install" | "mcp-remove" | "memory-install" | "memory-remove" | "mcp-repair";
   noop: boolean;
   writes: PlanWrite[];
   metadata?: MemoryIntegrationMetadata;
+  repair?: McpRepairPreview;
 }
 
 export type MemoryIntegrationComponentStatus =
