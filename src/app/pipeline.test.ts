@@ -83,9 +83,22 @@ describe("memory-install → apply → verify → memory-remove → apply → ve
       const registry = buildDefaultRegistry();
       const script = writeProtocolFixtureScript(home);
       const protocolOptions = { command: process.execPath, args: [script] };
+      const startupContextScript = join(home, "startup-context-fixture.js");
+      writeFileSync(
+        startupContextScript,
+        `console.log(${JSON.stringify(
+          JSON.stringify({
+            format: 1,
+            shared: { pinned: [], recent: [], sessions: [], truncated: false },
+            project: { status: "unbound", projectId: null, context: null },
+          }),
+        )});`,
+      );
+      const startupContextOptions = { command: process.execPath, args: [startupContextScript] };
 
-      const before = await verifyMemoryIntegration(registry, { agentId, home });
+      const before = await verifyMemoryIntegration(registry, { agentId, home, startupContextOptions });
       expect(before.mcp.present).toBe(false);
+      expect(before.hook.present).toBe(false);
 
       const installPlan = await planMemoryInstall(registry, { agentId, home, protocolOptions });
       expect(installPlan.noop).toBe(false);
@@ -98,9 +111,16 @@ describe("memory-install → apply → verify → memory-remove → apply → ve
       const installResult = await applyPlan(home, installPlan.planId);
       expect(installResult.changedFiles.length).toBeGreaterThan(0);
 
-      const afterInstall = await verifyMemoryIntegration(registry, { agentId, home });
+      const afterInstall = await verifyMemoryIntegration(registry, { agentId, home, startupContextOptions });
       expect(afterInstall.mcp.present).toBe(true);
       expect(afterInstall.instructions.present).toBe(true);
+      expect(afterInstall.hook.present).toBe(true);
+      expect(afterInstall.hook.dryRunOk).toBe(true);
+      // Same split as the plan-time check: Claude Code reaches "complete", Codex
+      // never does because trustPending stays true until a stable, documented way
+      // to verify Codex's own hook trust exists — which it does not today.
+      expect(afterInstall.hook.trustPending).toBe(agentId === "codex");
+      expect(afterInstall.overallStatus).toBe(agentId === "codex" ? "partial" : "complete");
 
       const reinstallPlan = await planMemoryInstall(registry, { agentId, home, protocolOptions });
       expect(reinstallPlan.noop).toBe(true);
@@ -111,9 +131,10 @@ describe("memory-install → apply → verify → memory-remove → apply → ve
       const removeResult = await applyPlan(home, removePlan.planId);
       expect(removeResult.changedFiles.length).toBeGreaterThan(0);
 
-      const afterRemove = await verifyMemoryIntegration(registry, { agentId, home });
+      const afterRemove = await verifyMemoryIntegration(registry, { agentId, home, startupContextOptions });
       expect(afterRemove.mcp.present).toBe(false);
       expect(afterRemove.instructions.present).toBe(false);
+      expect(afterRemove.hook.present).toBe(false);
 
       const reremovePlan = await planMemoryRemove(registry, { agentId, home });
       expect(reremovePlan.noop).toBe(true);
