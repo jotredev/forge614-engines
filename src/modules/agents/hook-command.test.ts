@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { resolveEnginesExecutable, resolveMemoryHookCommand } from "./hook-command";
+import { resolveEnginesExecutable, resolveHookEvidencePath, resolveMemoryHookCommand } from "./hook-command";
 
 describe("resolveEnginesExecutable", () => {
   test("resolves under FORGE614_HOME/engines/bin on posix, no .exe suffix", () => {
@@ -44,5 +44,29 @@ describe("resolveMemoryHookCommand", () => {
     expect(resolveMemoryHookCommand("/home/jorge", "claude-code", "darwin")).not.toBe(
       resolveMemoryHookCommand("/home/jorge", "codex", "darwin"),
     );
+  });
+});
+
+describe("resolveHookEvidencePath", () => {
+  test("resolves under FORGE614_HOME/engines/hook-evidence, one file per agent", () => {
+    expect(resolveHookEvidencePath("/home/jorge", "claude-code", "linux")).toBe(
+      "/home/jorge/.forge614/engines/hook-evidence/claude-code.json",
+    );
+    expect(resolveHookEvidencePath("/home/jorge", "codex", "linux")).toBe(
+      "/home/jorge/.forge614/engines/hook-evidence/codex.json",
+    );
+  });
+
+  test("respects FORGE614_HOME override", () => {
+    const previous = process.env.FORGE614_HOME;
+    process.env.FORGE614_HOME = "/custom/forge";
+    try {
+      expect(resolveHookEvidencePath("/home/jorge", "claude-code", "linux")).toBe(
+        "/custom/forge/engines/hook-evidence/claude-code.json",
+      );
+    } finally {
+      if (previous === undefined) delete process.env.FORGE614_HOME;
+      else process.env.FORGE614_HOME = previous;
+    }
   });
 });

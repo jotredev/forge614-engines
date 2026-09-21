@@ -56,6 +56,10 @@ export async function verifyDocumentation(root) {
   if (!existsSync(join(root, "docs", "README.md"))) throw new Error("Missing documentation index");
   const mapPath = join(root, "docs", "notion-map.json");
   const map = JSON.parse(await readFile(mapPath, "utf8"));
+  const pkg = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
+  if (map.productVersion !== pkg.version) {
+    throw new Error(`Documentation productVersion (${map.productVersion}) does not match package.json version (${pkg.version})`);
+  }
   const documents = map.documents ?? [];
   const localPaths = await localDocumentationPaths(root);
   const mappedPaths = new Set(documents.map((document) => document.localPath));

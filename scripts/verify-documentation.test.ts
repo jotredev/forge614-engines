@@ -19,6 +19,8 @@ async function fixture(
     omitError?: string;
     omitAgent?: string;
     extraSpanishFile?: boolean;
+    productVersion?: string;
+    packageVersion?: string;
   } = {},
 ) {
   const root = await mkdtemp(join(tmpdir(), "forge614-engines-docs-"));
@@ -27,6 +29,8 @@ async function fixture(
   await mkdir(join(root, "docs", "en"), { recursive: true });
   await mkdir(join(root, "src", "interfaces", "cli"), { recursive: true });
   await writeFile(join(root, "docs", "README.md"), "# Documentation index\n");
+  const productVersion = options.productVersion ?? "1.3.0";
+  await writeFile(join(root, "package.json"), JSON.stringify({ version: options.packageVersion ?? productVersion }));
   await writeFile(
     join(root, "src", "interfaces", "cli", "main.ts"),
     [
@@ -62,7 +66,7 @@ async function fixture(
   await writeFile(
     join(root, "docs", "notion-map.json"),
     JSON.stringify({
-      productVersion: "1.3.0",
+      productVersion,
       documents: [
         { localPath: esPath, language: "es", notionUrl: "https://notion.so/es", sha256: options.staleHash ? "0".repeat(64) : sha256 },
         ...(options.omitEnglish ? [] : [{ localPath: enPath, language: "en", notionUrl: "https://notion.so/en", sha256 }]),
@@ -78,6 +82,12 @@ test("rejects a Spanish document without its English pair", async () => {
 
 test("rejects a mapped file whose fingerprint is stale", async () => {
   await expect(verifyDocumentation(await fixture({ staleHash: true }))).rejects.toThrow("Fingerprint mismatch");
+});
+
+test("rejects when notion-map.json's productVersion doesn't match package.json's real version", async () => {
+  await expect(
+    verifyDocumentation(await fixture({ productVersion: "1.3.0", packageVersion: "1.4.0" })),
+  ).rejects.toThrow("productVersion (1.3.0) does not match package.json version (1.4.0)");
 });
 
 test("accepts a documented hyphenated top-level command (regression: the command regex must allow hyphens, not just [a-z]+)", async () => {
@@ -103,7 +113,7 @@ test("rejects a missing documented agent", async () => {
 });
 
 test("accepts the complete local documentation index", async () => {
-  await expect(verifyDocumentation(process.cwd())).resolves.toMatchObject({ documents: 16, productVersion: "1.7.0" });
+  await expect(verifyDocumentation(process.cwd())).resolves.toMatchObject({ documents: 16, productVersion: "1.8.0" });
 });
 
 test("rejects a local documentation page that is absent from the map", async () => {

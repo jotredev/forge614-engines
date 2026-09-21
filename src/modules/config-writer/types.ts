@@ -35,18 +35,44 @@ export type MemoryIntegrationComponentStatus =
   | { kind: "blocked"; reason: string; details: string };
 
 /**
- * The hook component's status is a superset of MemoryIntegrationComponentStatus:
- * a structurally correct hook is not necessarily one the host will actually run.
- * needs-user-trust reports Codex's real, un-bypassable interactive trust gate —
- * Engines has no stable, documented way to grant or verify that trust itself, so
- * it must never be folded into "noop"/"write" as if it were simply ok.
+ * Purely structural: describes whether Engines can/did write the hook's config
+ * entry, nothing about whether the hook has ever actually run. Used for the
+ * write decision itself (both install and remove) and for computeRemovalStatus,
+ * where "did we successfully remove the config" is the whole question — removal
+ * has no notion of runtime proof to satisfy.
  */
 export type HookComponentStatus =
   | { kind: "unsupported"; reason: string }
   | { kind: "noop" }
   | { kind: "write" }
-  | { kind: "blocked"; reason: string; details: string }
-  | { kind: "needs-user-trust"; agentId: "codex"; configPath: string; details: string };
+  | { kind: "blocked"; reason: string; details: string };
+
+/**
+ * Whether the hook actually, verifiably works — the only status that may ever
+ * contribute to overallStatus being "complete" for the hook component. A
+ * structurally-written config entry (HookComponentStatus "write"/"noop") is
+ * NOT enough on its own: Codex additionally requires interactive trust Engines
+ * cannot grant, and neither agent's hook has truly run until Engines observes
+ * runtime evidence of it (see hook-evidence.ts). `runtime-observed` means
+ * exactly "Engines' own memory-hook-run runtime was invoked with a
+ * SessionStart-shaped payload and Engram returned context" — not proof a
+ * specific client made that call, and not proof the host consumed the result.
+ */
+export type HookRuntimeStatus =
+  | { kind: "unsupported" }
+  | { kind: "absent" }
+  | { kind: "needs-user-trust" }
+  | {
+      kind: "pending-runtime-verification";
+      reason:
+        | "no-evidence"
+        | "evidence-corrupt"
+        | "evidence-wrong-agent"
+        | "evidence-fingerprint-mismatch"
+        | "evidence-context-not-received"
+        | "evidence-expired";
+    }
+  | { kind: "runtime-observed"; timestamp: string };
 
 export type MemoryIntegrationOverallStatus = "complete" | "partial" | "unsupported";
 
@@ -54,7 +80,12 @@ export interface MemoryIntegrationMetadata {
   protocol?: { source: string; id: string; version: number; fingerprint: string };
   mcp: { path: string; status: MemoryIntegrationComponentStatus };
   instructions: { paths: string[]; status: MemoryIntegrationComponentStatus };
-  hook: { path: string; status: HookComponentStatus };
+  hook: {
+    path: string;
+    status: HookComponentStatus;
+    /** Absent for memory-remove, where runtime proof is not the question — only memory-install populates this. */
+    runtimeStatus?: HookRuntimeStatus;
+  };
   overallStatus: MemoryIntegrationOverallStatus;
 }
 

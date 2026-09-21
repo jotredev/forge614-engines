@@ -5,10 +5,15 @@ import { resolveMemoryHookCommand } from "../modules/agents/hook-command";
 import { resolveEngramMcpServer } from "../modules/memory-protocol/constants";
 import { extractBlock } from "../modules/instructions-writer/block";
 import { MEMORY_PROTOCOL_BLOCK_ID } from "../modules/memory-protocol/constants";
+import type { HookRuntimeStatus } from "../modules/config-writer/types";
 import type { StartupContextFetchOptions } from "../infrastructure/engram/startup-context-client";
+import { readHookEvidence } from "./hook-evidence";
+import { computeHookRuntimeStatus } from "./hook-runtime-status";
 import { decideHookRemove } from "./hook-write-decision";
 import { decideMcpRemove } from "./mcp-write-decision";
 import { runMemoryHook } from "./run-memory-hook";
+
+export type { HookRuntimeStatus };
 
 export interface VerifyMemoryIntegrationInput {
   agentId: AgentId;
@@ -21,7 +26,14 @@ export interface MemoryIntegrationVerification {
   agentId: AgentId;
   mcp: { path: string; present: boolean };
   instructions: { supported: boolean; paths: string[]; present: boolean };
-  hook: { supported: boolean; path: string; present: boolean; dryRunOk: boolean; trustPending: boolean };
+  hook: {
+    supported: boolean;
+    path: string;
+    present: boolean;
+    /** Diagnostic only: proves the hook's own code path works. Never drives overallStatus — see runtimeStatus. */
+    dryRunOk: boolean;
+    runtimeStatus: HookRuntimeStatus;
+  };
   overallStatus: "complete" | "partial" | "absent";
 }
 
@@ -67,11 +79,10 @@ export async function verifyMemoryIntegration(
   const hookRemoveDecision = await decideHookRemove(adapter, input.home, hookCommand);
   const hookPresent = hookRemoveDecision.decision.kind === "write";
 
-  // Structural presence alone is not evidence the hook works. Actually run the
-  // exact code path the real hook would run, end to end through the real Engram
-  // binary (or a supplied fixture), proving it would genuinely produce context —
-  // this is the honest limit of what Engines can verify without a live agent
-  // session (see the spec's "Verification semantics").
+  // Diagnostic only: proves the hook's own code genuinely calls Engram and
+  // produces well-formed output. It is NOT evidence a real agent session ever
+  // ran it — Engines cannot observe that from here — so it never decides
+  // completeness. See computeHookRuntimeStatus, which uses real evidence instead.
   let dryRunOk = false;
   if (hookPresent) {
     const dryRun = await runMemoryHook({
@@ -82,13 +93,15 @@ export async function verifyMemoryIntegration(
     });
     dryRunOk = dryRun.available;
   }
-  const trustPending = hookPresent && dryRunOk && Boolean(adapter.hooks?.requiresUserTrust);
-  const hookOk = hookPresent && dryRunOk && !trustPending;
+
+  const evidence = hookPresent ? await readHookEvidence(input.home, input.agentId) : ({ kind: "absent" } as const);
+  const runtimeStatus = computeHookRuntimeStatus(adapter, hookPresent, evidence);
+  const hookOk = runtimeStatus.kind === "runtime-observed";
 
   const instructionsOk = !instructionsSupported || instructionsPresent;
   const overallStatus: MemoryIntegrationVerification["overallStatus"] = mcpPresent && instructionsOk && (!hookSupported || hookOk)
     ? "complete"
-    : !mcpPresent && (!instructionsSupported || !instructionsPresent) && (!hookSupported || !hookPresent)
+    : !mcpPresent && (!instructionsSupported || !instructionsPresent) && (!hookSupported || runtimeStatus.kind === "absent")
       ? "absent"
       : "partial";
 
@@ -96,7 +109,7 @@ export async function verifyMemoryIntegration(
     agentId: input.agentId,
     mcp: { path: mcpDecision.configPath, present: mcpPresent },
     instructions: { supported: instructionsSupported, paths: instructionsPaths, present: instructionsPresent },
-    hook: { supported: hookSupported, path: hookRemoveDecision.configPath, present: hookPresent, dryRunOk, trustPending },
+    hook: { supported: hookSupported, path: hookRemoveDecision.configPath, present: hookPresent, dryRunOk, runtimeStatus },
     overallStatus,
   };
 }

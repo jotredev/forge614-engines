@@ -9,6 +9,7 @@ import { cursorAdapter } from "../infrastructure/agents/cursor";
 import { tomlConfigFormat } from "../infrastructure/config-io/toml-format";
 import { EngramProtocolUnavailableError } from "../infrastructure/engram/memory-protocol-client";
 import { resolveEngramExecutable, resolveEngramMcpServer } from "../modules/memory-protocol/constants";
+import { recordHookEvidence } from "./hook-evidence";
 import { planMemoryInstall } from "./plan-memory-install";
 
 let home: string;
@@ -54,10 +55,12 @@ afterEach(() => {
 const protocolOptions = () => ({ command: process.execPath, args: [okScript] });
 
 describe("planMemoryInstall", () => {
-  test("is complete for claude-code: installs the MCP entry, instructions block, and the SessionStart hook", async () => {
+  test("is only partial for claude-code right after install — a structurally-correct, never-executed hook is not complete", async () => {
+    // This is the exact bug this test guards against: Shell must never see
+    // "complete" for a hook that has not actually run yet, even though the
+    // config write itself is entirely correct.
     const plan = await planMemoryInstall(registry, { agentId: "claude-code", home, protocolOptions: protocolOptions() });
 
-    expect(plan.metadata?.overallStatus).toBe("complete");
     expect(plan.writes.length).toBeGreaterThanOrEqual(4);
     const mcpWrite = plan.writes.find((w) => w.path === join(home, ".claude.json"))!;
     expect(JSON.parse(mcpWrite.afterContent).mcpServers["forge614-engram"]).toEqual({
@@ -70,16 +73,29 @@ describe("planMemoryInstall", () => {
     expect(written.hooks.SessionStart).toHaveLength(1);
     expect(written.hooks.SessionStart[0].hooks[0].type).toBe("command");
     expect(written.hooks.SessionStart[0].hooks[0].command).toContain("memory-hook-run --agent claude-code");
-    expect(plan.metadata?.hook.status.kind).toBe("write");
+
+    expect(plan.metadata?.hook.status.kind).toBe("write"); // structural: the config entry itself is correct
+    expect(plan.metadata?.hook.runtimeStatus?.kind).toBe("pending-runtime-verification"); // but not yet proven to run
+    if (plan.metadata?.hook.runtimeStatus?.kind === "pending-runtime-verification") {
+      expect(plan.metadata.hook.runtimeStatus.reason).toBe("no-evidence");
+    }
+    expect(plan.metadata?.overallStatus).toBe("partial");
+  });
+
+  test("claude-code reaches complete once a prior real hook execution left valid evidence", async () => {
+    await recordHookEvidence(home, "claude-code", true);
+
+    const plan = await planMemoryInstall(registry, { agentId: "claude-code", home, protocolOptions: protocolOptions() });
+
+    expect(plan.metadata?.hook.runtimeStatus?.kind).toBe("runtime-observed");
+    expect(plan.metadata?.overallStatus).toBe("complete");
   });
 
   test("is partial for codex — a structurally-correct hook still reports needs-user-trust, never complete", async () => {
     const plan = await planMemoryInstall(registry, { agentId: "codex", home, protocolOptions: protocolOptions() });
 
-    expect(plan.metadata?.hook.status.kind).toBe("needs-user-trust");
-    if (plan.metadata!.hook.status.kind === "needs-user-trust") {
-      expect(plan.metadata!.hook.status.agentId).toBe("codex");
-    }
+    expect(plan.metadata?.hook.status.kind).toBe("write"); // structural: the config entry itself is correct
+    expect(plan.metadata?.hook.runtimeStatus?.kind).toBe("needs-user-trust");
     expect(plan.metadata?.overallStatus).toBe("partial");
     const mcpWrite = plan.writes.find((w) => w.path === join(home, ".codex", "config.toml"))!;
     expect(tomlConfigFormat.getMcpEntry(mcpWrite.afterContent, ["mcp_servers"], "forge614-engram")).toEqual({
@@ -95,12 +111,22 @@ describe("planMemoryInstall", () => {
     ]);
   });
 
+  test("codex reaches complete once evidence proves the real, user-approved hook executed and received context", async () => {
+    await recordHookEvidence(home, "codex", true);
+
+    const plan = await planMemoryInstall(registry, { agentId: "codex", home, protocolOptions: protocolOptions() });
+
+    expect(plan.metadata?.hook.runtimeStatus?.kind).toBe("runtime-observed");
+    expect(plan.metadata?.overallStatus).toBe("complete");
+  });
+
   test("is still partial for cursor after this change: hook is unsupported same as instructions", async () => {
     const plan = await planMemoryInstall(registry, { agentId: "cursor", home, protocolOptions: protocolOptions() });
 
     expect(plan.metadata?.overallStatus).toBe("partial");
     expect(plan.metadata?.instructions.status.kind).toBe("unsupported");
     expect(plan.metadata?.hook.status.kind).toBe("unsupported");
+    expect(plan.metadata?.hook.runtimeStatus?.kind).toBe("unsupported");
     const mcpWrite = plan.writes.find((w) => w.path === join(home, ".cursor", "mcp.json"))!;
     expect(JSON.parse(mcpWrite.afterContent).mcpServers["forge614-engram"]).toEqual({
       command: resolveEngramMcpServer(home).command,
@@ -108,7 +134,7 @@ describe("planMemoryInstall", () => {
     });
   });
 
-  test("an install made before this feature existed (mcp + instructions only) picks up the hook on the next plan + apply", async () => {
+  test("an install made before this feature existed (mcp + instructions only) picks up the hook on the next plan + apply, but still needs a real run to reach complete", async () => {
     const firstPlan = await planMemoryInstall(registry, { agentId: "claude-code", home, protocolOptions: protocolOptions() });
     for (const write of firstPlan.writes) {
       if (write.path === join(home, ".claude", "settings.json")) continue; // simulate: hook never existed
@@ -120,10 +146,8 @@ describe("planMemoryInstall", () => {
     expect(secondPlan.metadata?.mcp.status.kind).toBe("noop");
     expect(secondPlan.metadata?.instructions.status.kind).toBe("noop");
     expect(secondPlan.metadata?.hook.status.kind).toBe("write");
-    // overallStatus describes what applying THIS plan would achieve, not the
-    // current on-disk state — the current on-disk state (hook missing) is what
-    // `verify` reports as partial; that's covered separately in Task 12's tests.
-    expect(secondPlan.metadata?.overallStatus).toBe("complete");
+    expect(secondPlan.metadata?.hook.runtimeStatus?.kind).toBe("pending-runtime-verification");
+    expect(secondPlan.metadata?.overallStatus).toBe("partial");
   });
 
   test("recognizes a forge614-engram entry Forge614 Shell already installed at the canonical path (no false conflict)", async () => {
@@ -152,7 +176,7 @@ describe("planMemoryInstall", () => {
     expect(plan.writes.some((w) => w.path === join(home, ".claude.json"))).toBe(false);
   });
 
-  test("is a noop end to end the second time nothing changed", async () => {
+  test("is a noop end to end the second time nothing changed, but still partial without runtime evidence", async () => {
     const first = await planMemoryInstall(registry, { agentId: "claude-code", home, protocolOptions: protocolOptions() });
     for (const write of first.writes) {
       // Mirror what applyPlan's atomicWrite does in production: ensure the parent
@@ -165,7 +189,12 @@ describe("planMemoryInstall", () => {
     const second = await planMemoryInstall(registry, { agentId: "claude-code", home, protocolOptions: protocolOptions() });
 
     expect(second.noop).toBe(true);
-    expect(second.metadata?.overallStatus).toBe("complete");
+    expect(second.metadata?.overallStatus).toBe("partial"); // nothing to write, but still no execution evidence
+
+    await recordHookEvidence(home, "claude-code", true);
+    const third = await planMemoryInstall(registry, { agentId: "claude-code", home, protocolOptions: protocolOptions() });
+    expect(third.noop).toBe(true);
+    expect(third.metadata?.overallStatus).toBe("complete");
   });
 
   test("throws EngramProtocolUnavailableError and writes nothing when Engram is not installed", async () => {
@@ -188,7 +217,11 @@ describe("planMemoryInstall", () => {
 
       const plan = await planMemoryInstall(registry, { agentId: "claude-code", home });
 
-      expect(plan.metadata?.overallStatus).toBe("complete");
+      // The point of this test is that the canonical-path Engram lookup works
+      // with no protocolOptions seam — not runtime evidence, which is covered
+      // elsewhere. Structural presence is enough to prove that part.
+      expect(plan.metadata?.hook.status.kind).toBe("write");
+      expect(plan.metadata?.overallStatus).toBe("partial");
     },
   );
 

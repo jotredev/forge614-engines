@@ -38,3 +38,20 @@ export function resolveMemoryHookCommand(
 ): string {
   return `"${resolveEnginesExecutable(home, platform)}" memory-hook-run --agent ${agentId}`;
 }
+
+/**
+ * Where Engines records that its own memory-hook-run runtime was invoked with a
+ * SessionStart-shaped payload for this agent, and what Engram returned when it
+ * called it — inside Engines' own storage, one file per agent, never inside
+ * Engram's or the host agent's own directories. See hook-evidence.ts for the
+ * exact, honest meaning of that record.
+ */
+export function resolveHookEvidencePath(
+  home: string,
+  agentId: AgentId,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  const path = platform === "win32" ? win32 : posix;
+  const forgeHome = process.env.FORGE614_HOME ?? path.join(home, ".forge614");
+  return path.join(forgeHome, "engines", "hook-evidence", `${agentId}.json`);
+}

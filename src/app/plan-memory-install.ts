@@ -7,6 +7,8 @@ import { renderProtocolMarkdown } from "../modules/memory-protocol/render";
 import { computeOverallStatus } from "../modules/memory-protocol/status";
 import { fetchMemoryProtocol, type MemoryProtocolFetchOptions } from "../infrastructure/engram/memory-protocol-client";
 import { newPlanId, savePlan } from "../infrastructure/plan-store";
+import { readHookEvidence } from "./hook-evidence";
+import { computeHookRuntimeStatus } from "./hook-runtime-status";
 import { decideHookInstall } from "./hook-write-decision";
 import { decideMcpInstall } from "./mcp-write-decision";
 import { decideInstructionsInstall, type InstructionsDecision } from "./instructions-write-decision";
@@ -74,7 +76,9 @@ export async function planMemoryInstall(registry: AgentRegistry, input: PlanMemo
     ? [adapter.instructions.primaryFile(input.home), ...(adapter.instructions.contentFile ? [adapter.instructions.contentFile(input.home)] : [])]
     : [];
 
-  const hookOutcomeStatus: HookComponentStatus = !adapter.hooks
+  // Purely structural: does this plan's write make the config entry correct.
+  // Never enough on its own to call the hook component "ok" — see below.
+  const hookStatus: HookComponentStatus = !adapter.hooks
     ? {
         kind: "unsupported",
         reason: `${adapter.label} has no officially supported, stable session-start hook mechanism this installer configures`,
@@ -89,19 +93,13 @@ export async function planMemoryInstall(registry: AgentRegistry, input: PlanMemo
         ? { kind: "noop" }
         : { kind: "write" };
 
-  // A hook that is (or would be) structurally present is not necessarily one Codex
-  // will actually run: non-managed Codex hooks require one-time interactive trust
-  // Engines has no stable, documented way to grant or verify. Report that
-  // explicitly instead of claiming ok — see the spec's "needs-user-trust" contract.
-  const hookStatus: HookComponentStatus =
-    adapter.hooks?.requiresUserTrust && (hookOutcomeStatus.kind === "noop" || hookOutcomeStatus.kind === "write")
-      ? {
-          kind: "needs-user-trust",
-          agentId: "codex",
-          configPath: hookDecision.configPath,
-          details: `Codex requires reviewing and trusting this hook once via its own interactive "/hooks" command before it will run it; Engines cannot verify or grant that trust.`,
-        }
-      : hookOutcomeStatus;
+  // Whether the hook actually works: a config entry that IS or WOULD BE correct
+  // is not proof anything ever ran it. Reuse the exact same evidence check
+  // `verify` uses, so a plan can never claim "complete" for a hook no real
+  // session has executed yet — that was a real bug this guards against.
+  const hookStructurallyOk = hookStatus.kind === "noop" || hookStatus.kind === "write";
+  const hookEvidence = hookStructurallyOk ? await readHookEvidence(input.home, input.agentId) : ({ kind: "absent" } as const);
+  const hookRuntimeStatus = computeHookRuntimeStatus(adapter, hookStructurallyOk, hookEvidence);
 
   const planId = newPlanId();
   const plan: Plan = {
@@ -114,8 +112,8 @@ export async function planMemoryInstall(registry: AgentRegistry, input: PlanMemo
       protocol: { source: "forge614-engram memory-protocol --json", id: protocol.id, version: protocol.version, fingerprint: fingerprint },
       mcp: { path: mcpDecision.configPath, status: mcpStatus },
       instructions: { paths: instructionsPaths, status: instructionsStatus },
-      hook: { path: hookDecision.configPath, status: hookStatus },
-      overallStatus: computeOverallStatus(mcpStatus, instructionsStatus, hookStatus),
+      hook: { path: hookDecision.configPath, status: hookStatus, runtimeStatus: hookRuntimeStatus },
+      overallStatus: computeOverallStatus(mcpStatus, instructionsStatus, hookRuntimeStatus),
     },
   };
 

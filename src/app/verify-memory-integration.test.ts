@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { AgentRegistry } from "../modules/agents/registry";
 import { claudeCodeAdapter } from "../infrastructure/agents/claude-code";
 import { codexAdapter } from "../infrastructure/agents/codex";
 import { cursorAdapter } from "../infrastructure/agents/cursor";
+import { resolveHookEvidencePath } from "../modules/agents/hook-command";
 import { resolveEngramMcpServer } from "../modules/memory-protocol/constants";
+import { recordHookEvidence } from "./hook-evidence";
 import { planMemoryInstall } from "./plan-memory-install";
 import { verifyMemoryIntegration } from "./verify-memory-integration";
 
@@ -20,6 +22,17 @@ const STARTUP_CONTEXT_RESULT = {
   shared: { pinned: [], recent: [], sessions: [], truncated: false },
   project: { status: "unbound", projectId: null, context: null },
 };
+
+const PROTOCOL_SCRIPT_CONTENT = `console.log(${JSON.stringify(
+  JSON.stringify({
+    id: "forge614-engram-memory",
+    version: 1,
+    instructions: "Call memory_context.",
+    lifecycle: { start: ["s"], save: ["s"], compact: ["s"], resume: ["s"], end: ["s"] },
+    scopes: { shared: "s", project: "p" },
+    security: { neverSave: ["passwords"] },
+  }),
+)});`;
 
 beforeEach(() => {
   previousForgeHome = process.env.FORGE614_HOME;
@@ -41,6 +54,16 @@ afterEach(() => {
 
 const startupContextOptions = () => ({ command: process.execPath, args: [startupContextScript] });
 
+async function installFor(agentId: "claude-code" | "codex") {
+  const script = join(home, "engram.js");
+  writeFileSync(script, PROTOCOL_SCRIPT_CONTENT);
+  const installed = await planMemoryInstall(registry, { agentId, home, protocolOptions: { command: process.execPath, args: [script] } });
+  for (const write of installed.writes) {
+    mkdirSync(dirname(write.path), { recursive: true });
+    writeFileSync(write.path, write.afterContent);
+  }
+}
+
 describe("verifyMemoryIntegration", () => {
   test("reports absent for both components when nothing is installed", async () => {
     const result = await verifyMemoryIntegration(registry, { agentId: "claude-code", home });
@@ -49,112 +72,146 @@ describe("verifyMemoryIntegration", () => {
     expect(result.overallStatus).toBe("absent");
   });
 
-  test("reports complete after a real install for claude-code", async () => {
-    const script = join(home, "engram.js");
-    writeFileSync(
-      script,
-      `console.log(${JSON.stringify(
-        JSON.stringify({
-          id: "forge614-engram-memory",
-          version: 1,
-          instructions: "Call memory_context.",
-          lifecycle: { start: ["s"], save: ["s"], compact: ["s"], resume: ["s"], end: ["s"] },
-          scopes: { shared: "s", project: "p" },
-          security: { neverSave: ["passwords"] },
-        }),
-      )});`,
-    );
-    const installed = await planMemoryInstall(registry, {
-      agentId: "claude-code",
-      home,
-      protocolOptions: { command: process.execPath, args: [script] },
-    });
-    for (const write of installed.writes) {
-      // Mirror what applyPlan's atomicWrite does in production: ensure the parent
-      // directory exists before writing (planMemoryInstall only plans, it never
-      // creates directories itself).
-      mkdirSync(dirname(write.path), { recursive: true });
-      writeFileSync(write.path, write.afterContent);
-    }
+  // Scenario 1: hook installed, no execution evidence yet -> never complete.
+  test("a structurally-correct, freshly-installed hook is never complete without real execution evidence", async () => {
+    await installFor("claude-code");
 
     const result = await verifyMemoryIntegration(registry, { agentId: "claude-code", home, startupContextOptions: startupContextOptions() });
 
-    expect(result.mcp.present).toBe(true);
-    expect(result.instructions.present).toBe(true);
     expect(result.hook.present).toBe(true);
-    expect(result.hook.dryRunOk).toBe(true);
-    expect(result.hook.trustPending).toBe(false);
-    expect(result.overallStatus).toBe("complete");
-  });
-
-  test("never reports complete when mcp and instructions are installed but the hook is missing", async () => {
-    const script = join(home, "engram.js");
-    writeFileSync(
-      script,
-      `console.log(${JSON.stringify(
-        JSON.stringify({
-          id: "forge614-engram-memory",
-          version: 1,
-          instructions: "Call memory_context.",
-          lifecycle: { start: ["s"], save: ["s"], compact: ["s"], resume: ["s"], end: ["s"] },
-          scopes: { shared: "s", project: "p" },
-          security: { neverSave: ["passwords"] },
-        }),
-      )});`,
-    );
-    const installed = await planMemoryInstall(registry, {
-      agentId: "claude-code",
-      home,
-      protocolOptions: { command: process.execPath, args: [script] },
-    });
-    for (const write of installed.writes) {
-      if (write.path === join(home, ".claude", "settings.json")) continue; // simulate a pre-hook-feature install
-      mkdirSync(dirname(write.path), { recursive: true });
-      writeFileSync(write.path, write.afterContent);
-    }
-
-    const result = await verifyMemoryIntegration(registry, { agentId: "claude-code", home, startupContextOptions: startupContextOptions() });
-
-    expect(result.hook.present).toBe(false);
+    expect(result.hook.dryRunOk).toBe(true); // the code path itself works — diagnostic only, does not drive completeness
+    expect(result.hook.runtimeStatus.kind).toBe("pending-runtime-verification");
     expect(result.overallStatus).toBe("partial");
   });
 
-  test("never reports complete for codex — a working, present hook still shows trustPending, so overall stays partial", async () => {
-    const script = join(home, "engram.js");
-    writeFileSync(
-      script,
-      `console.log(${JSON.stringify(
-        JSON.stringify({
-          id: "forge614-engram-memory",
-          version: 1,
-          instructions: "Call memory_context.",
-          lifecycle: { start: ["s"], save: ["s"], compact: ["s"], resume: ["s"], end: ["s"] },
-          scopes: { shared: "s", project: "p" },
-          security: { neverSave: ["passwords"] },
-        }),
-      )});`,
-    );
-    const installed = await planMemoryInstall(registry, {
-      agentId: "codex",
-      home,
-      protocolOptions: { command: process.execPath, args: [script] },
-    });
-    for (const write of installed.writes) {
-      mkdirSync(dirname(write.path), { recursive: true });
-      writeFileSync(write.path, write.afterContent);
+  // Scenario 2: Claude Code hook genuinely executed, with valid evidence -> complete.
+  test("claude-code reaches complete once a real hook execution left valid evidence", async () => {
+    await installFor("claude-code");
+    await recordHookEvidence(home, "claude-code", true);
+
+    const result = await verifyMemoryIntegration(registry, { agentId: "claude-code", home, startupContextOptions: startupContextOptions() });
+
+    expect(result.hook.runtimeStatus.kind).toBe("runtime-observed");
+    expect(result.overallStatus).toBe("complete");
+  });
+
+  test("claude-code reaching complete requires evidence to say Engram context was actually received, not just that the hook ran", async () => {
+    await installFor("claude-code");
+    await recordHookEvidence(home, "claude-code", false); // hook ran, but Engram itself failed that time
+
+    const result = await verifyMemoryIntegration(registry, { agentId: "claude-code", home, startupContextOptions: startupContextOptions() });
+
+    expect(result.hook.runtimeStatus.kind).toBe("pending-runtime-verification");
+    if (result.hook.runtimeStatus.kind === "pending-runtime-verification") {
+      expect(result.hook.runtimeStatus.reason).toBe("evidence-context-not-received");
     }
+    expect(result.overallStatus).toBe("partial");
+  });
+
+  // Scenario 3: Codex without evidence -> needs-user-trust, never complete.
+  test("codex without any execution evidence reports needs-user-trust, never complete", async () => {
+    await installFor("codex");
 
     const result = await verifyMemoryIntegration(registry, { agentId: "codex", home, startupContextOptions: startupContextOptions() });
 
     expect(result.hook.present).toBe(true);
-    expect(result.hook.dryRunOk).toBe(true);
-    expect(result.hook.trustPending).toBe(true);
+    expect(result.hook.runtimeStatus.kind).toBe("needs-user-trust");
     expect(result.overallStatus).toBe("partial");
+  });
+
+  // Scenario 4: Codex with valid evidence recorded after the user approved it natively -> complete.
+  test("codex reaches complete once evidence proves the real, user-approved hook executed and received context", async () => {
+    await installFor("codex");
+    await recordHookEvidence(home, "codex", true);
+
+    const result = await verifyMemoryIntegration(registry, { agentId: "codex", home, startupContextOptions: startupContextOptions() });
+
+    expect(result.hook.runtimeStatus.kind).toBe("runtime-observed");
+    expect(result.overallStatus).toBe("complete");
+  });
+
+  // Scenario 5: stale/corrupt/wrong-agent evidence never counts.
+  test("evidence whose fingerprint no longer matches the current hook config does not count, and codex falls back to needs-user-trust", async () => {
+    await installFor("codex");
+    await recordHookEvidence(home, "codex", true);
+    // Simulate the config identity changing (e.g. FORGE614_HOME relocated) after evidence was recorded.
+    process.env.FORGE614_HOME = join(home, "different-forge-home");
+    mkdirSync(join(home, "different-forge-home"), { recursive: true });
+
+    const result = await verifyMemoryIntegration(registry, { agentId: "codex", home, startupContextOptions: startupContextOptions() });
+
+    expect(result.hook.runtimeStatus.kind).not.toBe("runtime-observed");
+  });
+
+  test("corrupt evidence does not count as proof of execution", async () => {
+    await installFor("claude-code");
+    mkdirSync(dirname(resolveHookEvidencePath(home, "claude-code")), { recursive: true });
+    writeFileSync(resolveHookEvidencePath(home, "claude-code"), "not valid evidence json");
+
+    const result = await verifyMemoryIntegration(registry, { agentId: "claude-code", home, startupContextOptions: startupContextOptions() });
+
+    expect(result.hook.runtimeStatus.kind).toBe("pending-runtime-verification");
+    if (result.hook.runtimeStatus.kind === "pending-runtime-verification") {
+      expect(result.hook.runtimeStatus.reason).toBe("evidence-corrupt");
+    }
+  });
+
+  // Scenario 4 of the vigencia correction: expired evidence never counts, even
+  // for Claude Code where nothing else about it is wrong.
+  test("expired evidence reports pending-runtime-verification with reason evidence-expired, never complete", async () => {
+    const { HOOK_EVIDENCE_MAX_AGE_MS } = await import("./hook-evidence");
+    await installFor("claude-code");
+    await recordHookEvidence(home, "claude-code", true);
+    const evidencePath = resolveHookEvidencePath(home, "claude-code");
+    const evidence = JSON.parse(readFileSync(evidencePath, "utf8"));
+    evidence.timestamp = new Date(Date.now() - HOOK_EVIDENCE_MAX_AGE_MS - 60_000).toISOString();
+    writeFileSync(evidencePath, JSON.stringify(evidence));
+
+    const result = await verifyMemoryIntegration(registry, { agentId: "claude-code", home, startupContextOptions: startupContextOptions() });
+
+    expect(result.hook.runtimeStatus.kind).toBe("pending-runtime-verification");
+    if (result.hook.runtimeStatus.kind === "pending-runtime-verification") {
+      expect(result.hook.runtimeStatus.reason).toBe("evidence-expired");
+    }
+    expect(result.overallStatus).toBe("partial");
+  });
+
+  test("expired evidence for codex falls back to pending-runtime-verification, not needs-user-trust — expiry isn't a trust question", async () => {
+    const { HOOK_EVIDENCE_MAX_AGE_MS } = await import("./hook-evidence");
+    await installFor("codex");
+    await recordHookEvidence(home, "codex", true);
+    const evidencePath = resolveHookEvidencePath(home, "codex");
+    const evidence = JSON.parse(readFileSync(evidencePath, "utf8"));
+    evidence.timestamp = new Date(Date.now() - HOOK_EVIDENCE_MAX_AGE_MS - 60_000).toISOString();
+    writeFileSync(evidencePath, JSON.stringify(evidence));
+
+    const result = await verifyMemoryIntegration(registry, { agentId: "codex", home, startupContextOptions: startupContextOptions() });
+
+    expect(result.hook.runtimeStatus.kind).toBe("pending-runtime-verification");
+    if (result.hook.runtimeStatus.kind === "pending-runtime-verification") {
+      expect(result.hook.runtimeStatus.reason).toBe("evidence-expired");
+    }
+  });
+
+  test("another agent's evidence never counts for this agent", async () => {
+    await installFor("claude-code");
+    await recordHookEvidence(home, "codex", true);
+    const codexEvidence = readFileSync(resolveHookEvidencePath(home, "codex"), "utf8");
+    mkdirSync(dirname(resolveHookEvidencePath(home, "claude-code")), { recursive: true });
+    writeFileSync(resolveHookEvidencePath(home, "claude-code"), codexEvidence);
+
+    const result = await verifyMemoryIntegration(registry, { agentId: "claude-code", home, startupContextOptions: startupContextOptions() });
+
+    expect(result.hook.runtimeStatus.kind).toBe("pending-runtime-verification");
+    if (result.hook.runtimeStatus.kind === "pending-runtime-verification") {
+      expect(result.hook.runtimeStatus.reason).toBe("evidence-wrong-agent");
+    }
   });
 
   test("hook is reported unsupported (not absent/blocked) for cursor", async () => {
     const result = await verifyMemoryIntegration(registry, { agentId: "cursor", home });
     expect(result.hook.supported).toBe(false);
+    expect(result.hook.runtimeStatus.kind).toBe("unsupported");
   });
 
   test("cursor's instructions are always reported unsupported", async () => {
@@ -168,34 +225,12 @@ describe("verifyMemoryIntegration", () => {
 
     expect(result.mcp.present).toBe(true);
     expect(result.instructions.supported).toBe(false);
-    // Cursor structurally cannot have instructions installed, so a present MCP entry is the complete achievable state for this agent.
+    // Cursor structurally cannot have instructions or a hook installed, so a present MCP entry is the complete achievable state for this agent.
     expect(result.overallStatus).toBe("complete");
   });
 
   test("reports instructions absent when the satellite content file is missing, even though CLAUDE.md still references it", async () => {
-    const script = join(home, "engram.js");
-    writeFileSync(
-      script,
-      `console.log(${JSON.stringify(
-        JSON.stringify({
-          id: "forge614-engram-memory",
-          version: 1,
-          instructions: "Call memory_context.",
-          lifecycle: { start: ["s"], save: ["s"], compact: ["s"], resume: ["s"], end: ["s"] },
-          scopes: { shared: "s", project: "p" },
-          security: { neverSave: ["passwords"] },
-        }),
-      )});`,
-    );
-    const installed = await planMemoryInstall(registry, {
-      agentId: "claude-code",
-      home,
-      protocolOptions: { command: process.execPath, args: [script] },
-    });
-    for (const write of installed.writes) {
-      mkdirSync(dirname(write.path), { recursive: true });
-      writeFileSync(write.path, write.afterContent);
-    }
+    await installFor("claude-code");
 
     rmSync(join(home, ".claude", "forge614-engram-memory-protocol.md"));
 

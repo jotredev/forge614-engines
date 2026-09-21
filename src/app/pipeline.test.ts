@@ -3,9 +3,11 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { configFormats } from "../infrastructure/config-io/formats";
+import { resolveHookEvidencePath } from "../modules/agents/hook-command";
 import type { AgentId } from "../modules/agents/types";
 import { applyPlan } from "./apply-plan";
 import { buildDefaultRegistry } from "./default-registry";
+import { recordHookEvidence } from "./hook-evidence";
 import { planMcpInstall } from "./plan-mcp-install";
 import { planMcpRemove } from "./plan-mcp-remove";
 import { planMemoryInstall } from "./plan-memory-install";
@@ -102,11 +104,14 @@ describe("memory-install → apply → verify → memory-remove → apply → ve
 
       const installPlan = await planMemoryInstall(registry, { agentId, home, protocolOptions });
       expect(installPlan.noop).toBe(false);
-      // Codex's hook is structurally correct here but still needs one-time
-      // interactive trust Engines cannot grant or verify — so it's "partial",
-      // never "complete", unlike Claude Code which has no such trust gate.
-      expect(installPlan.metadata?.overallStatus).toBe(agentId === "codex" ? "partial" : "complete");
-      if (agentId === "codex") expect(installPlan.metadata?.hook.status.kind).toBe("needs-user-trust");
+      // Neither agent is "complete" at plan time: no real session has run the
+      // hook yet, so there is no runtime evidence for either — this is the exact
+      // bug this test guards against (a plan that would write a correct hook
+      // entry must never itself claim "complete"). status stays structurally
+      // "write" for both; only runtimeStatus differs by agent.
+      expect(installPlan.metadata?.overallStatus).toBe("partial");
+      expect(installPlan.metadata?.hook.status.kind).toBe("write");
+      expect(installPlan.metadata?.hook.runtimeStatus?.kind).toBe(agentId === "codex" ? "needs-user-trust" : "pending-runtime-verification");
 
       const installResult = await applyPlan(home, installPlan.planId);
       expect(installResult.changedFiles.length).toBeGreaterThan(0);
@@ -115,12 +120,21 @@ describe("memory-install → apply → verify → memory-remove → apply → ve
       expect(afterInstall.mcp.present).toBe(true);
       expect(afterInstall.instructions.present).toBe(true);
       expect(afterInstall.hook.present).toBe(true);
-      expect(afterInstall.hook.dryRunOk).toBe(true);
-      // Same split as the plan-time check: Claude Code reaches "complete", Codex
-      // never does because trustPending stays true until a stable, documented way
-      // to verify Codex's own hook trust exists — which it does not today.
-      expect(afterInstall.hook.trustPending).toBe(agentId === "codex");
-      expect(afterInstall.overallStatus).toBe(agentId === "codex" ? "partial" : "complete");
+      expect(afterInstall.hook.dryRunOk).toBe(true); // diagnostic only — the hook's own code path works
+      // Neither agent is "complete" right after install: no real session has run
+      // the hook yet, so there is no execution evidence. Codex additionally shows
+      // needs-user-trust (its own separate reason); Claude Code shows
+      // pending-runtime-verification (just needs a real session to run once).
+      expect(afterInstall.hook.runtimeStatus.kind).toBe(agentId === "codex" ? "needs-user-trust" : "pending-runtime-verification");
+      expect(afterInstall.overallStatus).toBe("partial");
+
+      // Simulate a real session actually running the hook and receiving context —
+      // for Codex this also stands in for "the user approved it natively", since
+      // Engines has no other way to observe that approval.
+      await recordHookEvidence(home, agentId, true);
+      const afterRealExecution = await verifyMemoryIntegration(registry, { agentId, home, startupContextOptions });
+      expect(afterRealExecution.hook.runtimeStatus.kind).toBe("runtime-observed");
+      expect(afterRealExecution.overallStatus).toBe("complete");
 
       const reinstallPlan = await planMemoryInstall(registry, { agentId, home, protocolOptions });
       expect(reinstallPlan.noop).toBe(true);
@@ -135,6 +149,9 @@ describe("memory-install → apply → verify → memory-remove → apply → ve
       expect(afterRemove.mcp.present).toBe(false);
       expect(afterRemove.instructions.present).toBe(false);
       expect(afterRemove.hook.present).toBe(false);
+      // Removal also invalidates this agent's own execution evidence — a fresh
+      // install later must not silently inherit "complete" from a past session.
+      expect(existsSync(resolveHookEvidencePath(home, agentId))).toBe(false);
 
       const reremovePlan = await planMemoryRemove(registry, { agentId, home });
       expect(reremovePlan.noop).toBe(true);

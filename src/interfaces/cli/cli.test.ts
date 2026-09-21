@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { ConfirmationRequiredError, NotRepairableError } from "../../app/apply-mcp-repair";
@@ -334,8 +334,40 @@ describe("forge614-engines CLI", () => {
     expect(proc.stdout.toString().toLowerCase()).toContain("no disponible");
   });
 
+  test("memory-hook-run records evidence of the real invocation, even when Engram itself is unreachable", async () => {
+    const { resolveHookEvidencePath } = await import("../../modules/agents/hook-command");
+    const evidencePath = resolveHookEvidencePath(home, "claude-code");
+    expect(existsSync(evidencePath)).toBe(false);
+
+    const proc = Bun.spawnSync(["bun", ENTRY, "memory-hook-run", "--agent", "claude-code"], {
+      stdin: Buffer.from(JSON.stringify({ cwd: "/tmp/some-repo", hook_event_name: "SessionStart" })),
+      env: { ...process.env, HOME: home },
+    });
+    expect(proc.exitCode).toBe(0);
+
+    expect(existsSync(evidencePath)).toBe(true);
+    const evidence = JSON.parse(readFileSync(evidencePath, "utf8"));
+    expect(evidence.agentId).toBe("claude-code");
+    expect(evidence.engramContextReceived).toBe(false); // no Engram fixture installed for this test
+    expect(evidence).not.toHaveProperty("directory");
+    expect(evidence).not.toHaveProperty("cwd");
+  });
+
+  test("memory-hook-run does not record evidence when stdin doesn't look like a real hook invocation", async () => {
+    const { resolveHookEvidencePath } = await import("../../modules/agents/hook-command");
+    const evidencePath = resolveHookEvidencePath(home, "codex");
+
+    const proc = Bun.spawnSync(["bun", ENTRY, "memory-hook-run", "--agent", "codex"], {
+      stdin: Buffer.from("not json"),
+      env: { ...process.env, HOME: home },
+    });
+
+    expect(proc.exitCode).toBe(0);
+    expect(existsSync(evidencePath)).toBe(false);
+  });
+
   test.skipIf(process.platform === "win32")(
-    "full memory-install cycle for claude-code reaches complete, then removal clears the hook",
+    "full memory-install cycle for claude-code: not complete until the real hook runs and leaves evidence, then removal clears both",
     async () => {
       installEngramFixture(home);
 
@@ -347,12 +379,27 @@ describe("forge614-engines CLI", () => {
       const applied = await runCli(["apply", "--plan-id", plan.planId]);
       expect(applied.exitCode).toBe(0);
 
+      const verifiedBeforeExecution = await runCli(["verify", "memory-integration", "--agent", "claude-code"]);
+      expect(verifiedBeforeExecution.exitCode).toBe(0);
+      const beforeExecution = JSON.parse(verifiedBeforeExecution.stdout).verification;
+      expect(beforeExecution.hook.present).toBe(true);
+      expect(beforeExecution.hook.dryRunOk).toBe(true); // diagnostic only
+      expect(beforeExecution.hook.runtimeStatus.kind).toBe("pending-runtime-verification");
+      expect(beforeExecution.overallStatus).toBe("partial");
+
+      // Actually run the real hook command the installed config now points at —
+      // this is what a genuine SessionStart trigger does, and it must leave
+      // evidence for verify to find.
+      const hookRun = Bun.spawnSync(["bun", ENTRY, "memory-hook-run", "--agent", "claude-code"], {
+        stdin: Buffer.from(JSON.stringify({ cwd: "/tmp/some-repo", hook_event_name: "SessionStart" })),
+        env: { ...process.env, HOME: home },
+      });
+      expect(hookRun.exitCode).toBe(0);
+
       const verified = await runCli(["verify", "memory-integration", "--agent", "claude-code"]);
       expect(verified.exitCode).toBe(0);
       const verification = JSON.parse(verified.stdout).verification;
-      expect(verification.hook.present).toBe(true);
-      expect(verification.hook.dryRunOk).toBe(true);
-      expect(verification.hook.trustPending).toBe(false);
+      expect(verification.hook.runtimeStatus.kind).toBe("runtime-observed");
       expect(verification.overallStatus).toBe("complete");
 
       const removePlanned = await runCli(["plan", "memory-remove", "--agent", "claude-code"]);
@@ -363,11 +410,12 @@ describe("forge614-engines CLI", () => {
       const finalVerified = await runCli(["verify", "memory-integration", "--agent", "claude-code"]);
       const finalVerification = JSON.parse(finalVerified.stdout).verification;
       expect(finalVerification.hook.present).toBe(false);
+      expect(finalVerification.hook.runtimeStatus.kind).toBe("absent");
     },
   );
 
   test.skipIf(process.platform === "win32")(
-    "codex install always surfaces needs-user-trust through plan, never complete",
+    "codex install always surfaces needs-user-trust through plan, never complete, until evidence proves a real trusted run",
     async () => {
       installEngramFixture(home);
 
@@ -375,8 +423,8 @@ describe("forge614-engines CLI", () => {
       expect(planned.exitCode).toBe(0);
       const plan = JSON.parse(planned.stdout).plan;
 
-      expect(plan.metadata.hook.status.kind).toBe("needs-user-trust");
-      expect(plan.metadata.hook.status.agentId).toBe("codex");
+      expect(plan.metadata.hook.status.kind).toBe("write"); // structural: the config entry itself is correct
+      expect(plan.metadata.hook.runtimeStatus.kind).toBe("needs-user-trust");
       expect(plan.metadata.overallStatus).not.toBe("complete");
 
       const applied = await runCli(["apply", "--plan-id", plan.planId]);
@@ -384,8 +432,22 @@ describe("forge614-engines CLI", () => {
 
       const verified = await runCli(["verify", "memory-integration", "--agent", "codex"]);
       const verification = JSON.parse(verified.stdout).verification;
-      expect(verification.hook.trustPending).toBe(true);
+      expect(verification.hook.runtimeStatus.kind).toBe("needs-user-trust");
       expect(verification.overallStatus).not.toBe("complete");
+
+      // Simulate Codex actually running the trusted hook (the real trust
+      // approval itself happens natively inside Codex, outside anything Engines
+      // can drive — see the spec's Codex section).
+      const hookRun = Bun.spawnSync(["bun", ENTRY, "memory-hook-run", "--agent", "codex"], {
+        stdin: Buffer.from(JSON.stringify({ cwd: "/tmp/some-repo", hook_event_name: "SessionStart" })),
+        env: { ...process.env, HOME: home },
+      });
+      expect(hookRun.exitCode).toBe(0);
+
+      const verifiedAfterExecution = await runCli(["verify", "memory-integration", "--agent", "codex"]);
+      const afterExecution = JSON.parse(verifiedAfterExecution.stdout).verification;
+      expect(afterExecution.hook.runtimeStatus.kind).toBe("runtime-observed");
+      expect(afterExecution.overallStatus).toBe("complete");
     },
   );
 

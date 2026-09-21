@@ -32,6 +32,7 @@ describe("runMemoryHook", () => {
     });
 
     expect(output.available).toBe(true);
+    expect(output.recognizedInvocation).toBe(true);
     expect(output.text.toLowerCase()).toContain("recovered memory");
     expect(output.text).toContain("Language");
     expect(output.text).toContain("Spanish");
@@ -101,11 +102,12 @@ describe("runMemoryHook", () => {
     const output = await runMemoryHook({
       home: dir,
       agentId: "codex",
-      stdin: JSON.stringify({ cwd: "/repo/x" }),
+      stdin: JSON.stringify({ cwd: "/repo/x", hook_event_name: "SessionStart" }),
       startupContextOptions: { command: join(dir, "does-not-exist"), args: [] },
     });
 
     expect(output.available).toBe(false);
+    expect(output.recognizedInvocation).toBe(true); // SessionStart-shaped payload — Engram just wasn't there
     expect(output.text.toLowerCase()).toContain("no disponible");
   });
 
@@ -113,6 +115,7 @@ describe("runMemoryHook", () => {
     const output = await runMemoryHook({ home: dir, agentId: "claude-code", stdin: "not json at all" });
 
     expect(output.available).toBe(false);
+    expect(output.recognizedInvocation).toBe(false); // no cwd at all — this did not look like a SessionStart invocation
     expect(output.text.toLowerCase()).toContain("no disponible");
     expect(output.text).not.toContain(SECRET_DIRECTORY_MARKER);
   });
@@ -124,11 +127,53 @@ describe("runMemoryHook", () => {
     const output = await runMemoryHook({
       home: dir,
       agentId: "claude-code",
-      stdin: JSON.stringify({ cwd: `/repo/${SECRET_DIRECTORY_MARKER}` }),
+      stdin: JSON.stringify({ cwd: `/repo/${SECRET_DIRECTORY_MARKER}`, hook_event_name: "SessionStart" }),
       startupContextOptions: { command: process.execPath, args: [script] },
     });
 
     expect(output.text).not.toContain(SECRET_DIRECTORY_MARKER);
     expect(output.available).toBe(false);
+    expect(output.recognizedInvocation).toBe(true);
+  });
+
+  test("does not recognize the invocation when cwd is present but hook_event_name is missing — still responds normally, just isn't evidence-worthy", async () => {
+    const result = {
+      format: 1,
+      shared: { pinned: [], recent: [], sessions: [], truncated: false },
+      project: { status: "unbound", projectId: null, context: null },
+    };
+    const script = join(dir, "ok.js");
+    writeFileSync(script, `console.log(${JSON.stringify(JSON.stringify(result))});`);
+
+    const output = await runMemoryHook({
+      home: dir,
+      agentId: "claude-code",
+      stdin: JSON.stringify({ cwd: "/repo/x" }), // no hook_event_name at all
+      startupContextOptions: { command: process.execPath, args: [script] },
+    });
+
+    expect(output.available).toBe(true); // still does its actual job
+    expect(output.recognizedInvocation).toBe(false); // but this doesn't count as an observed SessionStart trigger
+  });
+
+  test("does not recognize the invocation when hook_event_name is a different event", async () => {
+    const output = await runMemoryHook({
+      home: dir,
+      agentId: "claude-code",
+      stdin: JSON.stringify({ cwd: "/repo/x", hook_event_name: "PreToolUse" }),
+    });
+
+    expect(output.recognizedInvocation).toBe(false);
+  });
+
+  test("does not recognize a manual/incomplete invocation missing cwd even if hook_event_name is present", async () => {
+    const output = await runMemoryHook({
+      home: dir,
+      agentId: "claude-code",
+      stdin: JSON.stringify({ hook_event_name: "SessionStart" }),
+    });
+
+    expect(output.available).toBe(false);
+    expect(output.recognizedInvocation).toBe(false);
   });
 });

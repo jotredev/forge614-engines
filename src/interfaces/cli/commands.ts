@@ -10,6 +10,7 @@ import { planMcpRemove } from "../../app/plan-mcp-remove";
 import { planMcpRepair } from "../../app/plan-mcp-repair";
 import { planMemoryInstall } from "../../app/plan-memory-install";
 import { planMemoryRemove } from "../../app/plan-memory-remove";
+import { recordHookEvidence } from "../../app/hook-evidence";
 import { runMemoryHook } from "../../app/run-memory-hook";
 import { performUpdate } from "../../app/self-update";
 import { verifyMcpRepair } from "../../app/verify-mcp-repair";
@@ -120,7 +121,14 @@ export async function runVerifyMcpRepair(agentId: AgentId, planId: string): Prom
  * envelope other commands use — that is not part of either host's hook contract.
  */
 export async function runMemoryHookRun(agentId: AgentId, stdin: string): Promise<string> {
-  const result = await runMemoryHook({ home: homedir(), agentId, stdin });
+  const home = homedir();
+  const result = await runMemoryHook({ home, agentId, stdin });
+  if (result.recognizedInvocation) {
+    // Evidence bookkeeping must never take down the hook's actual job: a disk
+    // error here is a diagnostic loss, not a reason to fail (or even delay)
+    // returning context to the host.
+    await recordHookEvidence(home, agentId, result.available).catch(() => {});
+  }
   if (agentId === "codex") {
     return JSON.stringify({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: result.text } });
   }

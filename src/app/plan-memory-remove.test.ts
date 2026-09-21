@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { AgentRegistry } from "../modules/agents/registry";
 import { claudeCodeAdapter } from "../infrastructure/agents/claude-code";
 import { codexAdapter } from "../infrastructure/agents/codex";
 import { cursorAdapter } from "../infrastructure/agents/cursor";
+import { resolveHookEvidencePath } from "../modules/agents/hook-command";
 import { resolveEngramMcpServer } from "../modules/memory-protocol/constants";
+import { recordHookEvidence } from "./hook-evidence";
 import { planMemoryInstall } from "./plan-memory-install";
 import { planMemoryRemove } from "./plan-memory-remove";
 
@@ -156,5 +158,69 @@ describe("planMemoryRemove", () => {
     const { tomlConfigFormat } = await import("../infrastructure/config-io/toml-format");
     expect(tomlConfigFormat.getMcpEntry(configWrites[0]!.afterContent, ["mcp_servers"], "forge614-engram")).toBeUndefined();
     expect(tomlConfigFormat.getValueAtPath(configWrites[0]!.afterContent, ["hooks", "SessionStart"])).toBeUndefined();
+  });
+
+  // Scenario 8: removal deletes or invalidates only this agent's own evidence.
+  test("removal deletes this agent's own execution evidence", async () => {
+    const script = join(home, "engram.js");
+    writeFileSync(script, PROTOCOL_SCRIPT_CONTENT);
+    const installed = await planMemoryInstall(registry, {
+      agentId: "claude-code",
+      home,
+      protocolOptions: { command: process.execPath, args: [script] },
+    });
+    for (const write of installed.writes) {
+      mkdirSync(dirname(write.path), { recursive: true });
+      writeFileSync(write.path, write.afterContent);
+    }
+    await recordHookEvidence(home, "claude-code", true);
+    expect(existsSync(resolveHookEvidencePath(home, "claude-code"))).toBe(true);
+
+    const removePlan = await planMemoryRemove(registry, { agentId: "claude-code", home });
+    const evidenceWrite = removePlan.writes.find((w) => w.path === resolveHookEvidencePath(home, "claude-code"));
+    expect(evidenceWrite).toBeDefined();
+    expect(evidenceWrite!.delete).toBe(true);
+
+    for (const write of removePlan.writes) {
+      if (write.delete) rmSync(write.path, { force: true });
+      else {
+        mkdirSync(dirname(write.path), { recursive: true });
+        writeFileSync(write.path, write.afterContent);
+      }
+    }
+    expect(existsSync(resolveHookEvidencePath(home, "claude-code"))).toBe(false);
+  });
+
+  test("removal never touches a different agent's evidence", async () => {
+    const script = join(home, "engram.js");
+    writeFileSync(script, PROTOCOL_SCRIPT_CONTENT);
+    const installed = await planMemoryInstall(registry, {
+      agentId: "claude-code",
+      home,
+      protocolOptions: { command: process.execPath, args: [script] },
+    });
+    for (const write of installed.writes) {
+      mkdirSync(dirname(write.path), { recursive: true });
+      writeFileSync(write.path, write.afterContent);
+    }
+    await recordHookEvidence(home, "claude-code", true);
+    await recordHookEvidence(home, "codex", true);
+
+    const removePlan = await planMemoryRemove(registry, { agentId: "claude-code", home });
+    expect(removePlan.writes.some((w) => w.path === resolveHookEvidencePath(home, "codex"))).toBe(false);
+
+    for (const write of removePlan.writes) {
+      if (write.delete) rmSync(write.path, { force: true });
+      else {
+        mkdirSync(dirname(write.path), { recursive: true });
+        writeFileSync(write.path, write.afterContent);
+      }
+    }
+    expect(existsSync(resolveHookEvidencePath(home, "codex"))).toBe(true);
+  });
+
+  test("removal is a noop for evidence when none was ever recorded", async () => {
+    const plan = await planMemoryRemove(registry, { agentId: "claude-code", home });
+    expect(plan.writes.some((w) => w.path === resolveHookEvidencePath(home, "claude-code"))).toBe(false);
   });
 });

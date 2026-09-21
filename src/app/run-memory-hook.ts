@@ -21,6 +21,20 @@ export interface RunMemoryHookResult {
   text: string;
   /** False for every "memory not available" fallback; true only when real memory content was rendered. */
   available: boolean;
+  /**
+   * True only when stdin was shaped like a genuine SessionStart trigger: a
+   * non-empty `cwd` AND `hook_event_name` exactly `"SessionStart"`. Neither
+   * `cwd` alone nor `hook_event_name` alone is enough — a payload missing
+   * either does not count, even though the response below (available/text)
+   * still behaves normally regardless, since this process must always answer
+   * safely whatever it receives. This does not prove Claude Code or Codex was
+   * the actual caller (there is no cryptographic way to know that), only that
+   * the payload shape matches what a real host would send. The CLI layer uses
+   * this, not `available`, to decide whether a run is worth recording as
+   * runtime-observed evidence — Engram being briefly unreachable during an
+   * otherwise-recognized invocation still counts.
+   */
+  recognizedInvocation: boolean;
 }
 
 const FRAME_PREAMBLE =
@@ -86,22 +100,34 @@ function truncate(text: string): string {
  */
 export async function runMemoryHook(input: RunMemoryHookInput): Promise<RunMemoryHookResult> {
   let cwd: string | undefined;
+  let recognizedInvocation = false;
   try {
     const parsed = JSON.parse(input.stdin) as Record<string, unknown>;
     if (typeof parsed.cwd === "string" && parsed.cwd.length > 0) cwd = parsed.cwd;
+    // Only an exact SessionStart event name counts. This narrows false positives
+    // from a bare cwd (any manual/partial invocation could supply one) without
+    // constraining on other fields (e.g. a "source"/"session_start_reason"
+    // value) that differ in shape between Claude Code and Codex and are not
+    // needed to rule out the overwhelming majority of non-hook invocations.
+    if (cwd && parsed.hook_event_name === "SessionStart") recognizedInvocation = true;
   } catch {
-    // malformed or empty stdin: fall through with cwd undefined
+    // malformed or empty stdin: fall through with cwd undefined, unrecognized
   }
 
   if (!cwd) {
-    return { agentId: input.agentId, text: unavailableMessage("invalid-hook-input"), available: false };
+    return { agentId: input.agentId, text: unavailableMessage("invalid-hook-input"), available: false, recognizedInvocation };
   }
 
   try {
     const result = await fetchStartupContext(input.home, cwd, input.startupContextOptions);
-    return { agentId: input.agentId, text: truncate(renderStartupContext(result)), available: true };
+    return {
+      agentId: input.agentId,
+      text: truncate(renderStartupContext(result)),
+      available: true,
+      recognizedInvocation,
+    };
   } catch (error) {
     const reason = error instanceof StartupContextUnavailableError ? error.reason : "command-failed";
-    return { agentId: input.agentId, text: unavailableMessage(reason), available: false };
+    return { agentId: input.agentId, text: unavailableMessage(reason), available: false, recognizedInvocation };
   }
 }
