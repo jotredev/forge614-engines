@@ -42,9 +42,18 @@ you instead of leaving you to pick a number: it looks at every commit since the 
 suggests a version, minor for any `feat:` commit, patch otherwise, major for a `!` after the type
 (`feat!:`) or a `BREAKING CHANGE:` footer — the same logic `bun run verify:release` uses to preview
 this without publishing anything. You get a breakdown of every commit and its classification, then
-a prompt with the suggested version as the default (press Enter to accept it, or type a different
-one). Non-interactively (no TTY), it uses the suggestion straight away with no prompt — that's what
-makes running it unattended work.
+one single prompt:
+
+```
+Release 1.10.0? [Y/n, or type a different version]:
+```
+
+Enter or `y` accepts it and goes straight to publishing — that one answer already is the release
+confirmation, so it never asks "continue?" a second time right after. `n` aborts. Typing a
+different version instead treats it as a deliberate override, which does get its own explicit
+confirmation afterward (see below) — overriding what was suggested is a different, more deliberate
+decision than accepting it, and deserves its own gate; accepting it doesn't need two. Non-interactively (no TTY), it uses the suggestion straight away with no prompt at all — what makes running it
+unattended work.
 
 You can still pass a version explicitly to skip all of that: `bun run release 1.9.0` (`release:cut`
 is the same script, kept as an alias) — but typing a number doesn't mean it's accepted blindly.
@@ -58,13 +67,12 @@ bumped without ever having tagged or pushed (exactly what happened cutting v1.9.
 - if what you typed (as an argument, or overriding the prompt's suggested default) doesn't match
   what the commits actually suggest — e.g. asking for `5.0.0` when nothing warrants more than a
   minor bump — it shows the mismatch and asks you to confirm that specific number is intentional,
-  instead of silently accepting whatever number was typed
+  instead of silently accepting whatever number was typed; otherwise (an explicit version that
+  already matches what's expected) it shows the usual bump/tag/push summary and asks to confirm that
 
-It then shows exactly what it's about to do — bump `package.json` (or say so explicitly if it's
-already at the target version, from an earlier attempt) and tag + push — and asks for a `[y/N]`
-confirmation before touching anything. Once confirmed: bumps `package.json`, syncs
-`docs/notion-map.json`'s `productVersion` to match (checked by `verify:docs`, so these two can't
-silently drift apart again), runs tests/typecheck, commits, tags, and pushes.
+Once confirmed: bumps `package.json`, syncs `docs/notion-map.json`'s `productVersion` to match
+(checked by `verify:docs`, so these two can't silently drift apart again), runs
+tests/typecheck, commits, tags, and pushes.
 
 The tag push triggers `.github/workflows/release.yml`, which builds and smoke-tests each
 platform's binary on its own native GitHub Actions runner (including a real Windows machine) and

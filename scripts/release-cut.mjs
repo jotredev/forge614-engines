@@ -66,25 +66,50 @@ export function validateVersion(version, existingTags) {
 }
 
 /**
- * When no version is given: shows `suggested` (computed from the commits
- * since the last tag — see buildReport) as a default the user can accept by
- * just pressing Enter, instead of leaving them to guess a number. In a
- * non-interactive context (no TTY), uses the suggestion directly with no
- * prompt at all — that's what makes `bun run release` with zero arguments
- * work unattended. If there's no suggestion to offer (e.g. no prior tags at
- * all) and stdin isn't interactive, there is nothing reasonable to fall back
- * to, so this refuses rather than guessing.
+ * Pure. Turns one raw answer to "Release <suggested>?" into a single verdict,
+ * so accepting the suggestion is exactly one prompt instead of two ("Version
+ * to release [1.10.0]: 1.10.0" followed by a separate "Continue? [y/N]" —
+ * two steps for what is really one decision). Accepting — Enter, "y"/"yes",
+ * or literally retyping the suggested value — is `confirmed: true`, meaning
+ * the caller must not ask again. Declining outright ("n"/"no") returns a null
+ * version. Anything else is treated as a deliberate override: `confirmed:
+ * false`, so the caller still runs it through describeVersionMismatch and a
+ * real confirmation — overriding is a different, more deliberate decision
+ * than accepting what was suggested, and deserves its own explicit gate.
  */
-async function promptForVersion(suggested) {
+export function interpretReleaseAnswer(answer, suggested) {
+  const trimmed = answer.trim();
+  if (trimmed === "" || /^y(es)?$/i.test(trimmed) || trimmed === suggested) {
+    return { version: suggested, confirmed: true };
+  }
+  if (/^n(o)?$/i.test(trimmed)) return { version: null, confirmed: false };
+  return { version: trimmed, confirmed: false };
+}
+
+/**
+ * The single interactive decision when no version was given. With a
+ * suggestion available, asks once — "Release <suggested>? [Y/n, or type a
+ * different version]" — and interpretReleaseAnswer decides whether that
+ * already counts as a full confirmation. Without a suggestion (e.g. no prior
+ * tags at all), falls back to a plain open question, which still needs its
+ * own confirmation afterward. Non-interactively (no TTY), uses the
+ * suggestion directly with no prompt — what makes `bun run release` with
+ * zero arguments work unattended — and refuses rather than guessing if there
+ * is no suggestion to fall back to either.
+ */
+async function promptForRelease(suggested) {
   if (!process.stdin.isTTY) {
-    if (suggested) return suggested;
+    if (suggested) return { version: suggested, confirmed: true };
     throw new Error("No version given, no reasonable version could be suggested, and stdin is not interactive — pass one explicitly: bun scripts/release-cut.mjs <version>");
   }
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   try {
-    const hint = suggested ? ` [${suggested}]` : "";
-    const answer = (await rl.question(`Version to release${hint}: `)).trim();
-    return answer || suggested;
+    if (!suggested) {
+      const answer = (await rl.question("Version to release: ")).trim();
+      return { version: answer, confirmed: false };
+    }
+    const answer = await rl.question(`Release ${suggested}? [Y/n, or type a different version]: `);
+    return interpretReleaseAnswer(answer, suggested);
   } finally {
     rl.close();
   }
@@ -167,11 +192,18 @@ async function main() {
   const report = buildReport(latest, commitMessages);
 
   let version = process.argv[2];
+  let confirmed = false;
   let reportShown = false;
   if (!version) {
     printReport(report.lines);
     reportShown = true;
-    version = await promptForVersion(report.suggestion?.version ?? null);
+    const answer = await promptForRelease(report.suggestion?.version ?? null);
+    if (answer.version === null) {
+      console.log("Aborted.");
+      process.exit(1);
+    }
+    version = answer.version;
+    confirmed = answer.confirmed;
   }
 
   const validation = validateVersion(version, existingTags);
@@ -180,23 +212,24 @@ async function main() {
     process.exit(64);
   }
 
-  // Catches an explicit `bun run release <version>` (or a suggestion the user
-  // overrode at the prompt) that doesn't match what the actual commits
-  // warrant — validateVersion alone would silently accept any syntactically
-  // valid, unused, newer number, which is exactly the "picks whatever number
-  // occurs to him" problem this whole suggestion system exists to close.
-  const mismatchWarning = describeVersionMismatch(version, report.suggestion);
-  if (mismatchWarning) {
-    if (!reportShown) printReport(report.lines);
-    if (!(await confirm(mismatchWarning))) {
+  // Accepting the prompt's suggested version already IS the confirmation —
+  // asking again right after would be the exact redundant "type the version,
+  // then separately confirm" flow this whole prompt redesign exists to
+  // remove. An explicit CLI argument, or overriding the suggestion (at the
+  // prompt above, or by passing a different version on the command line),
+  // still needs its own real gate: validateVersion alone would silently
+  // accept any syntactically valid, unused, newer number — jumping from
+  // 1.9.0 straight to 5.0.0 included — so describeVersionMismatch is checked
+  // first and, when it applies, IS that gate; describeConfirmation is the
+  // fallback for a deliberate version that already matches what's expected.
+  if (!confirmed) {
+    const mismatchWarning = describeVersionMismatch(version, report.suggestion);
+    if (mismatchWarning && !reportShown) printReport(report.lines);
+    const question = mismatchWarning ?? describeConfirmation(currentVersion, version);
+    if (!(await confirm(question))) {
       console.log("Aborted.");
       process.exit(1);
     }
-  }
-
-  if (!(await confirm(describeConfirmation(currentVersion, version)))) {
-    console.log("Aborted.");
-    process.exit(1);
   }
 
   pkg.version = version;

@@ -1,5 +1,12 @@
 import { describe, expect, mock, test } from "bun:test";
-import { describeConfirmation, describeVersionMismatch, findReleaseRunId, validateVersion, watchReleaseRun } from "./release-cut.mjs";
+import {
+  describeConfirmation,
+  describeVersionMismatch,
+  findReleaseRunId,
+  interpretReleaseAnswer,
+  validateVersion,
+  watchReleaseRun,
+} from "./release-cut.mjs";
 
 function commandNotFoundError() {
   // Matches what execFileSync actually throws when the binary isn't on PATH.
@@ -35,6 +42,30 @@ describe("describeVersionMismatch — the guardrail against picking a version th
 
   test("says nothing when there is no suggestion to compare against (e.g. no prior tags, or no commits since the last one)", () => {
     expect(describeVersionMismatch("1.0.0", null)).toBeNull();
+  });
+});
+
+describe("interpretReleaseAnswer — collapsing 'accept the suggestion' into a single prompt instead of two", () => {
+  test("pressing Enter (empty answer) accepts the suggestion and counts as already confirmed", () => {
+    expect(interpretReleaseAnswer("", "1.10.0")).toEqual({ version: "1.10.0", confirmed: true });
+  });
+
+  test("typing y or yes accepts the suggestion and counts as already confirmed", () => {
+    expect(interpretReleaseAnswer("y", "1.10.0")).toEqual({ version: "1.10.0", confirmed: true });
+    expect(interpretReleaseAnswer("Yes", "1.10.0")).toEqual({ version: "1.10.0", confirmed: true });
+  });
+
+  test("typing n or no declines outright — version is null, nothing left to confirm", () => {
+    expect(interpretReleaseAnswer("n", "1.10.0")).toEqual({ version: null, confirmed: false });
+    expect(interpretReleaseAnswer("No", "1.10.0")).toEqual({ version: null, confirmed: false });
+  });
+
+  test("typing a different version overrides the suggestion and is NOT pre-confirmed — it still needs its own explicit gate", () => {
+    expect(interpretReleaseAnswer("5.0.0", "1.10.0")).toEqual({ version: "5.0.0", confirmed: false });
+  });
+
+  test("trims surrounding whitespace before interpreting", () => {
+    expect(interpretReleaseAnswer("  1.10.0  ", "1.10.0")).toEqual({ version: "1.10.0", confirmed: true });
   });
 });
 
