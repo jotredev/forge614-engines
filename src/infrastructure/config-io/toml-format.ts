@@ -36,4 +36,13 @@ function withMcpEntry(raw: string, entryPath: string[], name: string, value: unk
   return stringify(document);
 }
 
-export const tomlConfigFormat: ConfigFormatIO = { readOrDefault, getMcpEntry, withMcpEntry };
+function isParsable(raw: string): boolean {
+  try {
+    parseDocument(raw);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export const tomlConfigFormat: ConfigFormatIO = { readOrDefault, getMcpEntry, withMcpEntry, isParsable };

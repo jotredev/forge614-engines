@@ -47,3 +47,17 @@ describe("jsonConfigFormat", () => {
     expect(parsed.mcpServers?.foo).toBeUndefined();
   });
 });
+
+describe("isParsable", () => {
+  test("true for valid JSON", () => {
+    expect(jsonConfigFormat.isParsable('{"a":1}')).toBe(true);
+  });
+
+  test("true for empty string (treated as empty document)", () => {
+    expect(jsonConfigFormat.isParsable("")).toBe(true);
+  });
+
+  test("false for malformed JSON", () => {
+    expect(jsonConfigFormat.isParsable("{ this is not json")).toBe(false);
+  });
+});

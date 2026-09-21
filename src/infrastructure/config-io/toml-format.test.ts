@@ -36,3 +36,17 @@ describe("tomlConfigFormat", () => {
     expect(tomlConfigFormat.getMcpEntry(removed, ["mcp_servers"], "forge614-engram")).toBeUndefined();
   });
 });
+
+describe("isParsable", () => {
+  test("true for valid TOML", () => {
+    expect(tomlConfigFormat.isParsable('a = 1\n')).toBe(true);
+  });
+
+  test("true for empty string", () => {
+    expect(tomlConfigFormat.isParsable("")).toBe(true);
+  });
+
+  test("false for malformed TOML", () => {
+    expect(tomlConfigFormat.isParsable("this = is not [valid toml")).toBe(false);
+  });
+});

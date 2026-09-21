@@ -27,4 +27,11 @@ function withMcpEntry(raw: string, entryPath: string[], name: string, value: unk
   return applyEdits(raw, edits);
 }
 
-export const jsonConfigFormat: ConfigFormatIO = { readOrDefault, getMcpEntry, withMcpEntry };
+function isParsable(raw: string): boolean {
+  if (raw.trim() === "") return true;
+  const errors: import("jsonc-parser").ParseError[] = [];
+  parse(raw, errors);
+  return errors.length === 0;
+}
+
+export const jsonConfigFormat: ConfigFormatIO = { readOrDefault, getMcpEntry, withMcpEntry, isParsable };
