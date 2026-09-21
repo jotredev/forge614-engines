@@ -178,6 +178,10 @@ describe("watchReleaseRun — the user-facing fallback when gh isn't installed",
     await watchReleaseRun(run, runCapture, "v1.9.0");
 
     expect(process.exitCode).toBe(1);
-    process.exitCode = previousExitCode;
+    // Bun (unlike Node) does not clear process.exitCode when reassigned to
+    // undefined — it stays 1, which made the whole `bun test` process (and
+    // therefore release-cut.mjs's own `bun test` step) exit non-zero despite
+    // every test passing. Restore to a real 0 default, not undefined.
+    process.exitCode = previousExitCode ?? 0;
   });
 });
