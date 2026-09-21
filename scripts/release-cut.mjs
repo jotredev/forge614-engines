@@ -93,6 +93,56 @@ async function confirm(question) {
   }
 }
 
+const RELEASE_REPO = "jotredev/forge614-engines";
+
+async function sleep(ms) {
+  await new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * GitHub Actions doesn't register the run for a tag push instantly, so the
+ * first few list calls right after `git push` can legitimately come back
+ * empty — this is not a failure, just a race to poll through.
+ */
+async function findReleaseRunId(runCapture, tag) {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    let runs;
+    try {
+      const output = runCapture("gh", [
+        "run", "list", "-R", RELEASE_REPO, "--workflow=release.yml", "--branch", tag, "--limit", "1", "--json", "databaseId",
+      ]);
+      runs = JSON.parse(output);
+    } catch {
+      return null; // gh missing/unauthenticated — caller falls back to the static message
+    }
+    if (runs.length > 0) return runs[0].databaseId;
+    await sleep(2000);
+  }
+  return null;
+}
+
+/**
+ * Streams the release build's live progress into the same terminal
+ * (`gh run watch`) instead of leaving the user to guess whether it passed,
+ * and reports the real GitHub Release URL only once the run has actually
+ * succeeded — never claims "published" when the build failed.
+ */
+async function watchReleaseRun(run, runCapture, tag) {
+  const runId = await findReleaseRunId(runCapture, tag);
+  if (runId === null) {
+    console.log(`Could not find the workflow run to watch — check manually: https://github.com/${RELEASE_REPO}/actions`);
+    return;
+  }
+  console.log(`\nWatching run ${runId} build ${tag}...\n`);
+  try {
+    run("gh", ["run", "watch", String(runId), "--exit-status", "-R", RELEASE_REPO]);
+    console.log(`\nRelease ${tag} published: https://github.com/${RELEASE_REPO}/releases/tag/${tag}`);
+  } catch {
+    console.error(`\nThe release build failed or did not publish. See the run: https://github.com/${RELEASE_REPO}/actions/runs/${runId}`);
+    process.exitCode = 1;
+  }
+}
+
 async function main() {
   const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const run = (command, args, opts = {}) => execFileSync(command, args, { cwd: root, stdio: "inherit", ...opts });
@@ -156,8 +206,8 @@ async function main() {
   run("git", ["push", "origin", "HEAD"]);
   run("git", ["push", "origin", tag]);
 
-  console.log(`\nPushed tag ${tag} — GitHub Actions will build, verify, and publish the release:`);
-  console.log(`https://github.com/jotredev/forge614-engines/actions`);
+  console.log(`\nPushed tag ${tag}.`);
+  await watchReleaseRun(run, runCapture, tag);
 }
 
 const scriptPath = fileURLToPath(import.meta.url);
