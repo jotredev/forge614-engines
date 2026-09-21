@@ -45,4 +45,33 @@ function isParsable(raw: string): boolean {
   }
 }
 
-export const tomlConfigFormat: ConfigFormatIO = { readOrDefault, getMcpEntry, withMcpEntry, isParsable };
+function getValueAtPath(raw: string, path: string[]): unknown {
+  const document = parseDocument(raw);
+  return path.reduce<unknown>(
+    (node, key) => (node && typeof node === "object" ? (node as Record<string, unknown>)[key] : undefined),
+    document,
+  );
+}
+
+function withValueAtPath(raw: string, path: string[], value: unknown): string {
+  const document = parseDocument(raw);
+  if (path.length === 0) throw new Error("withValueAtPath requires a non-empty path");
+  let cursor: Record<string, unknown> = document;
+  for (const key of path.slice(0, -1)) {
+    if (typeof cursor[key] !== "object" || cursor[key] === null) cursor[key] = {};
+    cursor = cursor[key] as Record<string, unknown>;
+  }
+  const lastKey = path[path.length - 1]!;
+  if (value === undefined) delete cursor[lastKey];
+  else cursor[lastKey] = value;
+  return stringify(document);
+}
+
+export const tomlConfigFormat: ConfigFormatIO = {
+  readOrDefault,
+  getMcpEntry,
+  withMcpEntry,
+  getValueAtPath,
+  withValueAtPath,
+  isParsable,
+};

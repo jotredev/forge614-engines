@@ -34,4 +34,24 @@ function isParsable(raw: string): boolean {
   return errors.length === 0;
 }
 
-export const jsonConfigFormat: ConfigFormatIO = { readOrDefault, getMcpEntry, withMcpEntry, isParsable };
+function getValueAtPath(raw: string, path: string[]): unknown {
+  const document = parse(raw) as Record<string, unknown>;
+  return path.reduce<unknown>(
+    (node, key) => (node && typeof node === "object" ? (node as Record<string, unknown>)[key] : undefined),
+    document,
+  );
+}
+
+function withValueAtPath(raw: string, path: string[], value: unknown): string {
+  const edits = modify(raw, path, value, { formattingOptions: { insertSpaces: true, tabSize: 2 } });
+  return applyEdits(raw, edits);
+}
+
+export const jsonConfigFormat: ConfigFormatIO = {
+  readOrDefault,
+  getMcpEntry,
+  withMcpEntry,
+  getValueAtPath,
+  withValueAtPath,
+  isParsable,
+};

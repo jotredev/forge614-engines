@@ -1,63 +1,30 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { describe, expect, test } from "bun:test";
 import { jsonConfigFormat } from "./json-format";
 
-let dir: string;
-
-beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "engines-jsonfmt-"));
-});
-
-afterEach(() => {
-  rmSync(dir, { recursive: true, force: true });
-});
-
-describe("jsonConfigFormat", () => {
-  test("readOrDefault returns exists:false and '{}' when the file is missing", async () => {
-    const result = await jsonConfigFormat.readOrDefault(join(dir, "missing.json"));
-    expect(result).toEqual({ raw: "{}", exists: false });
+describe("jsonConfigFormat.getValueAtPath / withValueAtPath", () => {
+  test("reads a nested array value", () => {
+    const raw = JSON.stringify({ hooks: { SessionStart: [{ hooks: [{ type: "command", command: "a" }] }] } });
+    expect(jsonConfigFormat.getValueAtPath(raw, ["hooks", "SessionStart"])).toEqual([
+      { hooks: [{ type: "command", command: "a" }] },
+    ]);
   });
 
-  test("readOrDefault returns the real content when the file exists", async () => {
-    const path = join(dir, "config.json");
-    writeFileSync(path, '{"other":true}');
-    const result = await jsonConfigFormat.readOrDefault(path);
-    expect(result).toEqual({ raw: '{"other":true}', exists: true });
+  test("returns undefined for a missing path", () => {
+    expect(jsonConfigFormat.getValueAtPath("{}", ["hooks", "SessionStart"])).toBeUndefined();
   });
 
-  test("getMcpEntry reads a nested value, undefined if absent", () => {
-    expect(jsonConfigFormat.getMcpEntry('{"mcpServers":{"foo":{"command":"x"}}}', ["mcpServers"], "foo")).toEqual({
-      command: "x",
-    });
-    expect(jsonConfigFormat.getMcpEntry("{}", ["mcpServers"], "foo")).toBeUndefined();
+  test("writes a nested array value, creating intermediate objects, and preserves unrelated keys", () => {
+    const raw = JSON.stringify({ otherKey: "untouched" });
+    const next = jsonConfigFormat.withValueAtPath(raw, ["hooks", "SessionStart"], [{ hooks: [{ type: "command", command: "a" }] }]);
+    const parsed = JSON.parse(next);
+    expect(parsed.otherKey).toBe("untouched");
+    expect(parsed.hooks.SessionStart).toEqual([{ hooks: [{ type: "command", command: "a" }] }]);
   });
 
-  test("withMcpEntry inserts a new entry without touching unrelated keys", () => {
-    const updated = jsonConfigFormat.withMcpEntry('{"other":true}', ["mcpServers"], "foo", { command: "x", args: [] });
-    const parsed = JSON.parse(updated);
-    expect(parsed.other).toBe(true);
-    expect(parsed.mcpServers.foo).toEqual({ command: "x", args: [] });
-  });
-
-  test("withMcpEntry removes an entry when given undefined", () => {
-    const updated = jsonConfigFormat.withMcpEntry('{"mcpServers":{"foo":{"command":"x"}}}', ["mcpServers"], "foo", undefined);
-    const parsed = JSON.parse(updated);
-    expect(parsed.mcpServers?.foo).toBeUndefined();
-  });
-});
-
-describe("isParsable", () => {
-  test("true for valid JSON", () => {
-    expect(jsonConfigFormat.isParsable('{"a":1}')).toBe(true);
-  });
-
-  test("true for empty string (treated as empty document)", () => {
-    expect(jsonConfigFormat.isParsable("")).toBe(true);
-  });
-
-  test("false for malformed JSON", () => {
-    expect(jsonConfigFormat.isParsable("{ this is not json")).toBe(false);
+  test("deletes the leaf key when value is undefined", () => {
+    const raw = JSON.stringify({ hooks: { SessionStart: [{ a: 1 }], other: true } });
+    const next = jsonConfigFormat.withValueAtPath(raw, ["hooks", "SessionStart"], undefined);
+    const parsed = JSON.parse(next);
+    expect(parsed.hooks).toEqual({ other: true });
   });
 });

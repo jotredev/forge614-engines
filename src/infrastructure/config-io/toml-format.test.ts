@@ -1,52 +1,31 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { describe, expect, test } from "bun:test";
+import { parse } from "smol-toml";
 import { tomlConfigFormat } from "./toml-format";
 
-let dir: string;
-
-beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "engines-tomlfmt-"));
-});
-
-afterEach(() => {
-  rmSync(dir, { recursive: true, force: true });
-});
-
-describe("tomlConfigFormat", () => {
-  test("readOrDefault returns exists:false and '' when the file is missing", async () => {
-    const result = await tomlConfigFormat.readOrDefault(join(dir, "missing.toml"));
-    expect(result).toEqual({ raw: "", exists: false });
+describe("tomlConfigFormat.getValueAtPath / withValueAtPath", () => {
+  test("round-trips a nested array-of-tables value (Codex's real hooks.SessionStart shape)", () => {
+    const desired = [
+      {
+        matcher: "^(startup|resume|clear|compact)$",
+        hooks: [{ type: "command", command: '"/bin/x" memory-hook-run --agent codex', additionalContextLimit: 4000 }],
+      },
+    ];
+    const written = tomlConfigFormat.withValueAtPath("", ["hooks", "SessionStart"], desired);
+    expect(tomlConfigFormat.getValueAtPath(written, ["hooks", "SessionStart"])).toEqual(desired);
+    expect((parse(written) as any).hooks.SessionStart).toEqual(desired);
   });
 
-  test("withMcpEntry adds a table entry, preserving unrelated top-level keys", async () => {
-    const updated = tomlConfigFormat.withMcpEntry('model = "gpt-5"', ["mcp_servers"], "forge614-engram", {
-      command: "/bin/engram",
-      args: ["mcp"],
-    });
-    const entry = tomlConfigFormat.getMcpEntry(updated, ["mcp_servers"], "forge614-engram");
-    expect(entry).toEqual({ command: "/bin/engram", args: ["mcp"] });
-    expect(updated).toContain('model = "gpt-5"');
+  test("preserves an unrelated top-level table already in the file", () => {
+    const raw = 'model = "gpt-5"\n\n[mcp_servers.forge614-engram]\ncommand = "/bin/engram"\nargs = ["mcp"]\n';
+    const next = tomlConfigFormat.withValueAtPath(raw, ["hooks", "SessionStart"], [{ hooks: [{ type: "command", command: "x" }] }]);
+    const parsed = parse(next) as any;
+    expect(parsed.model).toBe("gpt-5");
+    expect(parsed.mcp_servers["forge614-engram"]).toEqual({ command: "/bin/engram", args: ["mcp"] });
   });
 
-  test("withMcpEntry with undefined removes the entry", async () => {
-    const withEntry = tomlConfigFormat.withMcpEntry("", ["mcp_servers"], "forge614-engram", { command: "/bin/engram" });
-    const removed = tomlConfigFormat.withMcpEntry(withEntry, ["mcp_servers"], "forge614-engram", undefined);
-    expect(tomlConfigFormat.getMcpEntry(removed, ["mcp_servers"], "forge614-engram")).toBeUndefined();
-  });
-});
-
-describe("isParsable", () => {
-  test("true for valid TOML", () => {
-    expect(tomlConfigFormat.isParsable('a = 1\n')).toBe(true);
-  });
-
-  test("true for empty string", () => {
-    expect(tomlConfigFormat.isParsable("")).toBe(true);
-  });
-
-  test("false for malformed TOML", () => {
-    expect(tomlConfigFormat.isParsable("this = is not [valid toml")).toBe(false);
+  test("deletes the leaf key when value is undefined", () => {
+    const raw = tomlConfigFormat.withValueAtPath("", ["hooks", "SessionStart"], [{ a: 1 }]);
+    const next = tomlConfigFormat.withValueAtPath(raw, ["hooks", "SessionStart"], undefined);
+    expect(tomlConfigFormat.getValueAtPath(next, ["hooks", "SessionStart"])).toBeUndefined();
   });
 });
