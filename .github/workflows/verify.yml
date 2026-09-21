@@ -31,6 +31,7 @@ jobs:
       - run: node --check scripts/lib/semver.mjs
       - run: node --check scripts/lib/release-suggestion.mjs
       - run: node --check scripts/lib/git-log.mjs
+      - run: node --check scripts/lib/tty.mjs
       - run: node --check scripts/verify-windows-self-update.mjs
 
   windows:

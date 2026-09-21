@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { commitsSinceTag } from "./lib/git-log.mjs";
 import { classifyCommit, suggestNextVersion } from "./lib/release-suggestion.mjs";
 import { formatVersion, latestReleasedVersion } from "./lib/semver.mjs";
+import { bold, dim } from "./lib/tty.mjs";
 
 /**
  * Pure: given the latest released version (a [major, minor, patch] triple, or
@@ -32,6 +33,20 @@ export function buildReport(latest, commitMessages) {
   return { suggestion, lines };
 }
 
+/**
+ * Prints the report to stdout — never stderr: most terminals color stderr
+ * red by default, which made a perfectly successful run look like an error.
+ * Every line but the last (the per-commit breakdown, all diagnostic) is
+ * dimmed; the final "Suggested next version" line is bold, so it's the one
+ * thing that visually stands out as the actual answer. release-cut.mjs
+ * reuses this so its own version-suggestion prompt looks identical.
+ */
+export function printReport(lines) {
+  lines.forEach((line, index) => {
+    console.log(index === lines.length - 1 ? bold(line) : dim(line));
+  });
+}
+
 async function main() {
   const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const runCapture = (command, args) => execFileSync(command, args, { cwd: root, encoding: "utf8" }).trim();
@@ -42,14 +57,7 @@ async function main() {
   const commitMessages = latest ? commitsSinceTag(runCapture, `v${formatVersion(latest)}`) : [];
 
   const report = buildReport(latest, commitMessages);
-  for (const line of report.lines) console.error(line);
-
-  // Bare, machine-consumable final line on stdout — everything above is
-  // analysis on stderr. Running `bun scripts/verify-release.mjs` directly
-  // shows both in a terminal; `bun scripts/verify-release.mjs > /dev/null`
-  // or `$(bun scripts/verify-release.mjs)` gets only the version, if anything
-  // was actually suggested.
-  if (report.suggestion) console.log(report.suggestion.version);
+  printReport(report.lines);
 }
 
 const scriptPath = fileURLToPath(import.meta.url);

@@ -5,7 +5,7 @@ import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 import { commitsSinceTag } from "./lib/git-log.mjs";
 import { compareVersions, formatVersion, latestReleasedVersion, parseVersion } from "./lib/semver.mjs";
-import { buildReport } from "./verify-release.mjs";
+import { buildReport, printReport } from "./verify-release.mjs";
 
 /**
  * Pure — worded differently depending on whether package.json actually needs
@@ -154,7 +154,7 @@ async function main() {
     const latest = latestReleasedVersion(existingTags);
     const commitMessages = latest ? commitsSinceTag(runCapture, `v${formatVersion(latest)}`) : [];
     const report = buildReport(latest, commitMessages);
-    for (const line of report.lines) console.log(line);
+    printReport(report.lines);
     version = await promptForVersion(report.suggestion?.version ?? null);
   }
 
