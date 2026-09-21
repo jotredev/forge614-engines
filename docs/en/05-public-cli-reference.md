@@ -60,5 +60,6 @@ Every error is JSON with `error.code` and `error.message`.
 | `INTERNAL_ERROR` | an unclassified problem occurred |
 | `ENGRAM_PROTOCOL_UNAVAILABLE` | Engram is not installed, the command failed, or its JSON did not match the protocol shape |
 | `NOT_REPAIRABLE` | the given `planId` is not a `forge614-engram` repair plan |
+| `CONFIRMATION_REQUIRED` | attempted to apply an mcp-repair plan via the generic `apply` command instead of `apply mcp-repair --confirm` |
 
 Do not automate decisions from message prose; use the stable code.
