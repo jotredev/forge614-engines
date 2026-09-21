@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { parse as parseToml } from "smol-toml";
 import { AgentRegistry } from "../modules/agents/registry";
 import { claudeCodeAdapter } from "../infrastructure/agents/claude-code";
 import { codexAdapter } from "../infrastructure/agents/codex";
@@ -74,6 +75,12 @@ describe("planMcpRepair", () => {
     const plan = await planMcpRepair(registry, { agentId: "codex", home });
     expect(plan.repair?.status).toBe("repairable-conflict");
     expect(plan.writes).toHaveLength(1);
+
+    const parsed = parseToml(plan.writes[0].afterContent) as {
+      mcp_servers: Record<string, { command: string; args: string[] }>;
+    };
+    expect(parsed.mcp_servers.other).toEqual({ command: "z", args: [] });
+    expect(parsed.mcp_servers["forge614-engram"]).toEqual({ command: resolveEngramExecutable(home), args: ["mcp"] });
   });
 
   test("redacts non-command/args keys in the existing-entry preview", async () => {

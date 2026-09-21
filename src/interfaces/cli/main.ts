@@ -16,7 +16,7 @@ import {
   runVerifyMemoryIntegration,
 } from "./commands";
 import { EngramProtocolUnavailableError } from "../../infrastructure/engram/memory-protocol-client";
-import { NotRepairableError } from "../../app/apply-mcp-repair";
+import { ConfirmationRequiredError, NotRepairableError } from "../../app/apply-mcp-repair";
 import { StalePlanError } from "../../app/apply-plan";
 import { HeadlessUnsupportedError } from "../../app/headless-command";
 import { UnrecognizedEntryError } from "../../app/plan-mcp-remove";
@@ -66,6 +66,7 @@ export function errorCodeFor(error: unknown): string {
   if (error instanceof ConfigConflictError) return "CONFLICT";
   if (error instanceof EngramProtocolUnavailableError) return "ENGRAM_PROTOCOL_UNAVAILABLE";
   if (error instanceof NotRepairableError) return "NOT_REPAIRABLE";
+  if (error instanceof ConfirmationRequiredError) return "CONFIRMATION_REQUIRED";
   if (error instanceof StalePlanError) return "STALE_PLAN";
   if (error instanceof UnrecognizedEntryError) return "UNRECOGNIZED_ENTRY";
   if (error instanceof PlanNotFoundError) return "PLAN_NOT_FOUND";

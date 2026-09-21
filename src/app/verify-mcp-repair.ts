@@ -65,6 +65,11 @@ export async function verifyMcpRepair(registry: AgentRegistry, input: VerifyMcpR
       // The repair was never confirmed/applied (no snapshot was ever taken), so
       // there is nothing to prove was preserved — fail closed on the claim.
       foreignPreserved = false;
+    } else if (!parsable) {
+      // The current file is corrupt/unparsable (e.g. mutated after the repair) — there
+      // is nothing to mechanically compare, so fail closed rather than throw a raw
+      // parser error (TomlError for Codex, or similar) out of a "clean result" API.
+      foreignPreserved = false;
     } else {
       const beforeStripped = format.withMcpEntry(beforeRaw, adapter.mcpEntryPath, engramServer.name, undefined);
       const afterStripped = format.withMcpEntry(raw, adapter.mcpEntryPath, engramServer.name, undefined);

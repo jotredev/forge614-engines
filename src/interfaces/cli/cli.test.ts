@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { NotRepairableError } from "../../app/apply-mcp-repair";
+import { ConfirmationRequiredError, NotRepairableError } from "../../app/apply-mcp-repair";
 import { errorCodeFor } from "./main";
 
 const ENTRY = "src/interfaces/cli/main.ts";
@@ -257,10 +257,32 @@ describe("forge614-engines CLI", () => {
     const parsed = JSON.parse(stdout);
     expect(parsed.verification.mcp.present).toBe(false);
   });
+
+  test("the generic apply command refuses an mcp-repair plan with CONFIRMATION_REQUIRED", async () => {
+    const configPath = join(home, ".claude.json");
+    const before = '{"mcpServers":{"forge614-engram":{"command":"/old/path","args":["serve"]}}}';
+    writeFileSync(configPath, before);
+
+    const planned = await runCli(["plan", "mcp-repair", "--agent", "claude-code"]);
+    expect(planned.exitCode).toBe(0);
+    const plan = JSON.parse(planned.stdout).plan;
+    expect(plan.repair.status).toBe("repairable-conflict");
+
+    const { stdout, exitCode } = await runCli(["apply", "--plan-id", plan.planId]);
+
+    expect(exitCode).toBe(1);
+    const parsed = JSON.parse(stdout);
+    expect(parsed.error.code).toBe("CONFIRMATION_REQUIRED");
+    expect(readFileSync(configPath, "utf8")).toBe(before);
+  });
 });
 
 describe("errorCodeFor — mcp-repair", () => {
   test("maps NotRepairableError to NOT_REPAIRABLE", () => {
     expect(errorCodeFor(new NotRepairableError("abc"))).toBe("NOT_REPAIRABLE");
+  });
+
+  test("maps ConfirmationRequiredError to CONFIRMATION_REQUIRED", () => {
+    expect(errorCodeFor(new ConfirmationRequiredError("abc"))).toBe("CONFIRMATION_REQUIRED");
   });
 });

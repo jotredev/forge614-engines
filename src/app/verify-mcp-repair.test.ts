@@ -98,6 +98,25 @@ describe("verifyMcpRepair", () => {
     expect(verification.foreignPreserved).toBe(false);
   });
 
+  test("returns a clean result with foreignPreserved:false instead of throwing when the current config is corrupted", async () => {
+    writeFileSync(
+      join(home, ".claude.json"),
+      JSON.stringify({ other: true, mcpServers: { "forge614-engram": { command: "/old/path", args: ["serve"] }, keep: { command: "y", args: [] } } }),
+    );
+    const plan = await planMcpRepair(registry, { agentId: "claude-code", home });
+    await applyMcpRepair(home, plan.planId, true);
+
+    // Corrupt the config file on disk after the repair, simulating something else
+    // mangling it — this must not surface a raw parser error to the CLI.
+    const configPath = join(home, ".claude.json");
+    writeFileSync(configPath, "{ this is not valid json at all");
+
+    const verification = await verifyMcpRepair(registry, { agentId: "claude-code", home, planId: plan.planId });
+    expect(verification.foreignPreserved).toBe(false);
+    expect(verification.present).toBe(false);
+    expect(verification.status).toBe("missing");
+  });
+
   test("throws NotRepairableError for a non-repair plan", async () => {
     const { planMcpInstall } = await import("./plan-mcp-install");
     const { NotRepairableError } = await import("./apply-mcp-repair");

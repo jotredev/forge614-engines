@@ -1,5 +1,5 @@
 import { homedir } from "node:os";
-import { applyMcpRepair } from "../../app/apply-mcp-repair";
+import { applyMcpRepair, ConfirmationRequiredError } from "../../app/apply-mcp-repair";
 import { applyPlan } from "../../app/apply-plan";
 import { buildDefaultRegistry } from "../../app/default-registry";
 import { capabilitiesFor, listAgents } from "../../app/capabilities";
@@ -13,6 +13,7 @@ import { planMemoryRemove } from "../../app/plan-memory-remove";
 import { performUpdate } from "../../app/self-update";
 import { verifyMcpRepair } from "../../app/verify-mcp-repair";
 import { verifyMemoryIntegration } from "../../app/verify-memory-integration";
+import { loadPlan } from "../../infrastructure/plan-store";
 import type { AgentId, ReasoningLevel } from "../../modules/agents/types";
 
 const SCHEMA_VERSION = 1;
@@ -46,6 +47,8 @@ export async function runPlanMcpRepair(agentId: AgentId): Promise<void> {
 }
 
 export async function runApply(planId: string): Promise<void> {
+  const plan = await loadPlan(homedir(), planId);
+  if (plan.action === "mcp-repair") throw new ConfirmationRequiredError(planId);
   const result = await applyPlan(homedir(), planId);
   printJson({ result });
 }
