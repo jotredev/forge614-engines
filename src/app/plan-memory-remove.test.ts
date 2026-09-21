@@ -60,13 +60,16 @@ describe("planMemoryRemove", () => {
 
     expect(plan.noop).toBe(false);
     const claudeMdWrite = plan.writes.find((w) => w.path === join(home, ".claude.json"))!;
-    expect(JSON.parse(claudeMdWrite.afterContent).mcpServers?.engram).toBeUndefined();
+    expect(JSON.parse(claudeMdWrite.afterContent).mcpServers?.["forge614-engram"]).toBeUndefined();
     const contentWrite = plan.writes.find((w) => w.path === join(home, ".claude", "forge614-engram-memory-protocol.md"))!;
     expect(contentWrite.delete).toBe(true);
   });
 
   test("blocks the mcp component as data (not a thrown error) when the entry is unrecognized", async () => {
-    writeFileSync(join(home, ".claude.json"), JSON.stringify({ mcpServers: { engram: { command: "/something/else" } } }));
+    writeFileSync(
+      join(home, ".claude.json"),
+      JSON.stringify({ mcpServers: { "forge614-engram": { command: "/something/else" } } }),
+    );
 
     const plan = await planMemoryRemove(registry, { agentId: "claude-code", home });
 
@@ -76,7 +79,10 @@ describe("planMemoryRemove", () => {
 
   test("cursor's instructions component is unsupported, mcp still removes", async () => {
     mkdirSync(join(home, ".cursor"), { recursive: true });
-    writeFileSync(join(home, ".cursor", "mcp.json"), JSON.stringify({ mcpServers: { engram: { command: "forge614-engram", args: ["mcp"] } } }));
+    writeFileSync(
+      join(home, ".cursor", "mcp.json"),
+      JSON.stringify({ mcpServers: { "forge614-engram": { command: "forge614-engram", args: ["mcp"] } } }),
+    );
 
     const plan = await planMemoryRemove(registry, { agentId: "cursor", home });
 

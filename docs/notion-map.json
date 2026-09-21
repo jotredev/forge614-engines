@@ -52,13 +52,13 @@
       "localPath": "docs/es/03-plan-seguro-de-mcp.md",
       "language": "es",
       "notionUrl": "https://app.notion.com/p/3e121943d12981f79fd1e4fd43e2587c",
-      "sha256": "71dcee14f2b6b5f0fcc00641e6a2430f61ebed31bdf98ebd0111129212cc9cd1"
+      "sha256": "4bfc15bd7bf88aa22bcc6717a3a2f9fd36dd4a7bc4b21597ea465692a6a08948"
     },
     {
       "localPath": "docs/en/03-safe-mcp-planning.md",
       "language": "en",
       "notionUrl": "https://app.notion.com/p/3e121943d129811a822eec896be4b4dc",
-      "sha256": "de90cd7973d60b468f75bd94e96434faa1ec9c431e3f7f90363c6e58351a7e47"
+      "sha256": "37702302906eeecc908ca2842fd197ed70cf86e1471db3ef11ad683aa0ce544a"
     },
     {
       "localPath": "docs/es/04-aplicacion-segura-y-recuperacion.md",

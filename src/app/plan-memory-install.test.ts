@@ -6,6 +6,7 @@ import { AgentRegistry } from "../modules/agents/registry";
 import { claudeCodeAdapter } from "../infrastructure/agents/claude-code";
 import { codexAdapter } from "../infrastructure/agents/codex";
 import { cursorAdapter } from "../infrastructure/agents/cursor";
+import { tomlConfigFormat } from "../infrastructure/config-io/toml-format";
 import { EngramProtocolUnavailableError } from "../infrastructure/engram/memory-protocol-client";
 import { planMemoryInstall } from "./plan-memory-install";
 
@@ -53,15 +54,33 @@ describe("planMemoryInstall", () => {
     expect(plan.metadata?.overallStatus).toBe("complete");
     expect(plan.writes.length).toBeGreaterThanOrEqual(3);
     const mcpWrite = plan.writes.find((w) => w.path === join(home, ".claude.json"))!;
-    expect(JSON.parse(mcpWrite.afterContent).mcpServers.engram).toEqual({ command: "forge614-engram", args: ["mcp"] });
+    expect(JSON.parse(mcpWrite.afterContent).mcpServers["forge614-engram"]).toEqual({
+      command: "forge614-engram",
+      args: ["mcp"],
+    });
   });
 
-  test("is partial for cursor: mcp installs, instructions are unsupported", async () => {
+  test("is complete for codex: installs the MCP entry under the canonical name", async () => {
+    const plan = await planMemoryInstall(registry, { agentId: "codex", home, protocolOptions: protocolOptions() });
+
+    expect(plan.metadata?.overallStatus).toBe("complete");
+    const mcpWrite = plan.writes.find((w) => w.path === join(home, ".codex", "config.toml"))!;
+    expect(tomlConfigFormat.getMcpEntry(mcpWrite.afterContent, ["mcp_servers"], "forge614-engram")).toEqual({
+      command: "forge614-engram",
+      args: ["mcp"],
+    });
+  });
+
+  test("is partial for cursor: mcp installs under the canonical name, instructions are unsupported", async () => {
     const plan = await planMemoryInstall(registry, { agentId: "cursor", home, protocolOptions: protocolOptions() });
 
     expect(plan.metadata?.overallStatus).toBe("partial");
     expect(plan.metadata?.instructions.status.kind).toBe("unsupported");
-    expect(plan.writes.some((w) => w.path === join(home, ".cursor", "mcp.json"))).toBe(true);
+    const mcpWrite = plan.writes.find((w) => w.path === join(home, ".cursor", "mcp.json"))!;
+    expect(JSON.parse(mcpWrite.afterContent).mcpServers["forge614-engram"]).toEqual({
+      command: "forge614-engram",
+      args: ["mcp"],
+    });
   });
 
   test("is a noop end to end the second time nothing changed", async () => {

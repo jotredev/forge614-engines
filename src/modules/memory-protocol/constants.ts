@@ -1,7 +1,7 @@
 import type { McpServerDefinition } from "../agents/types";
 
 export const ENGRAM_MCP_SERVER: McpServerDefinition = {
-  name: "engram",
+  name: "forge614-engram",
   command: "forge614-engram",
   args: ["mcp"],
 };

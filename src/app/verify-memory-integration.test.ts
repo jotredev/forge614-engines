@@ -67,7 +67,10 @@ describe("verifyMemoryIntegration", () => {
 
   test("cursor's instructions are always reported unsupported", async () => {
     mkdirSync(join(home, ".cursor"), { recursive: true });
-    writeFileSync(join(home, ".cursor", "mcp.json"), JSON.stringify({ mcpServers: { engram: { command: "forge614-engram", args: ["mcp"] } } }));
+    writeFileSync(
+      join(home, ".cursor", "mcp.json"),
+      JSON.stringify({ mcpServers: { "forge614-engram": { command: "forge614-engram", args: ["mcp"] } } }),
+    );
 
     const result = await verifyMemoryIntegration(registry, { agentId: "cursor", home });
 

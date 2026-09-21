@@ -35,7 +35,7 @@ forge614-engines plan memory-install --agent codex
 forge614-engines plan memory-remove --agent codex
 ```
 
-`plan memory-install` y `plan memory-remove` agrupan dos decisiones —la entrada MCP `engram` y el o los archivos de instrucciones del agente— en un solo plan, con un único `planId` que cubre ambas. Un conflicto en un solo componente no aborta ese plan: una entrada MCP `engram` diferente, o un `AGENTS.override.md` no vacío que eclipsa el `AGENTS.md` de Codex, se reporta como `blocked` solo para ese componente, mientras el otro componente sigue su curso normal. El componente de instrucciones de Cursor siempre se reporta como `unsupported`, porque Cursor no tiene un mecanismo global basado en archivos oficialmente documentado para cargar instrucciones automáticamente en cada sesión nueva.
+`plan memory-install` y `plan memory-remove` agrupan dos decisiones —la entrada MCP `forge614-engram` y el o los archivos de instrucciones del agente— en un solo plan, con un único `planId` que cubre ambas. Un conflicto en un solo componente no aborta ese plan: una entrada MCP `forge614-engram` diferente, o un `AGENTS.override.md` no vacío que eclipsa el `AGENTS.md` de Codex, se reporta como `blocked` solo para ese componente, mientras el otro componente sigue su curso normal. El componente de instrucciones de Cursor siempre se reporta como `unsupported`, porque Cursor no tiene un mecanismo global basado en archivos oficialmente documentado para cargar instrucciones automáticamente en cada sesión nueva.
 
 ## Ciclo correcto
 
