@@ -33,6 +33,20 @@ export const claudeCodeAdapter: AgentAdapter = {
       return join(home, ".claude", "forge614-engram-memory-protocol.md");
     },
   },
+  hooks: {
+    configFile(home) {
+      return join(home, ".claude", "settings.json");
+    },
+    configFormat: "json",
+    entryPath: ["hooks", "SessionStart"],
+    entryShape(command) {
+      // No matcher: confirmed in Claude Code's official hooks doc that an omitted
+      // matcher on SessionStart fires for every source — startup, resume, clear,
+      // and post-compaction recovery all included.
+      return { hooks: [{ type: "command", command }] };
+    },
+    requiresUserTrust: false,
+  },
   headlessCommand(executable, opts) {
     if (opts.reasoningLevel) {
       // Claude Code's CLI has no public, stable flag to select a reasoning/thinking

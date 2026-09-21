@@ -22,6 +22,9 @@ export function validateCapabilityManifest(adapter: AgentAdapter): void {
   if (adapter.capabilities.supportsMcp && adapter.mcpEntryPath.length === 0) {
     throw new InvalidCapabilityManifestError(adapter.id, "supportsMcp is true but mcpEntryPath is empty");
   }
+  if (adapter.capabilities.supportsHooks && !adapter.hooks) {
+    throw new InvalidCapabilityManifestError(adapter.id, "supportsHooks is true but hooks target is not implemented");
+  }
 }
 
 export class AgentRegistry {

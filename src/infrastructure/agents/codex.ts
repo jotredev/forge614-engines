@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import type { AgentAdapter, McpServerDefinition } from "../../modules/agents/types";
+import { MEMORY_HOOK_CONTEXT_TOKEN_LIMIT } from "../../modules/agents/hook-command";
 
 export const codexAdapter: AgentAdapter = {
   id: "codex",
@@ -29,6 +30,28 @@ export const codexAdapter: AgentAdapter = {
     shadowingFiles(home) {
       return [join(home, ".codex", "AGENTS.override.md")];
     },
+  },
+  hooks: {
+    configFile(home) {
+      return join(home, ".codex", "config.toml");
+    },
+    configFormat: "toml",
+    entryPath: ["hooks", "SessionStart"],
+    entryShape(command) {
+      // Names exactly the sources this integration covers, since Codex's docs (unlike
+      // Claude Code's) don't confirm that a wildcard or omitted matcher means "match
+      // all future sources too". additionalContextLimit is Codex's own documented
+      // bound on top of the char limit memory-hook-run enforces itself.
+      return {
+        matcher: "^(startup|resume|clear|compact)$",
+        hooks: [{ type: "command", command, additionalContextLimit: MEMORY_HOOK_CONTEXT_TOKEN_LIMIT }],
+      };
+    },
+    // Codex requires reviewing and trusting a non-managed hook once via its own
+    // interactive "/hooks" command before it will ever run it — a real constraint
+    // this installer must report, never bypass or hide (see the spec's Codex
+    // section and the "needs-user-trust" contract).
+    requiresUserTrust: true,
   },
   headlessCommand(executable, opts) {
     const args = ["exec"];

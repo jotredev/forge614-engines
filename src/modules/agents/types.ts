@@ -54,6 +54,22 @@ export interface AgentCapabilities {
   supportsHeadlessExec: boolean;
 }
 
+export interface HookTarget {
+  /** File this agent reads its SessionStart hooks from. May differ from configFile() — Claude Code keeps hooks in a settings file separate from its mcpServers file. */
+  configFile(home: string): string;
+  configFormat: ConfigFormat;
+  /** Key path to the SessionStart hook-group array inside that file, e.g. ["hooks", "SessionStart"]. */
+  entryPath: string[];
+  /** Builds one hook-group array element (not the whole array) for the given exact shell command string. */
+  entryShape(command: string): unknown;
+  /**
+   * True when this agent gates hook execution behind a one-time interactive trust
+   * approval that Engines has no stable, documented way to grant or verify on the
+   * user's behalf (Codex). False when an installed hook simply runs (Claude Code).
+   */
+  requiresUserTrust: boolean;
+}
+
 export interface AgentAdapter {
   id: AgentId;
   label: string;
@@ -69,4 +85,6 @@ export interface AgentAdapter {
   headlessCommand?(executable: string, opts: HeadlessOptions): HeadlessCommand;
   /** Absent when this agent has no officially supported, stable, file-based mechanism to auto-load global instructions in new sessions. */
   instructions?: InstructionsTarget;
+  /** Absent when this agent has no officially supported, stable session-start hook mechanism this installer can configure. */
+  hooks?: HookTarget;
 }

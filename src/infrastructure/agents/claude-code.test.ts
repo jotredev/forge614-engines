@@ -1,68 +1,23 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { ReasoningLevelUnsupportedError } from "../../modules/agents/types";
 import { claudeCodeAdapter } from "./claude-code";
 
-describe("claudeCodeAdapter", () => {
-  test("has the expected identity and capabilities", () => {
-    expect(claudeCodeAdapter.id).toBe("claude-code");
-    expect(claudeCodeAdapter.capabilities).toEqual({
-      supportsMcp: true,
-      supportsHooks: true,
-      supportsHeadlessExec: true,
-    });
+describe("claudeCodeAdapter.hooks", () => {
+  test("declares hooks in ~/.claude/settings.json, separate from the MCP config file", () => {
+    const home = "/home/jorge";
+    expect(claudeCodeAdapter.hooks!.configFile(home)).toBe(join(home, ".claude", "settings.json"));
+    expect(claudeCodeAdapter.hooks!.configFile(home)).not.toBe(claudeCodeAdapter.configFile(home));
+    expect(claudeCodeAdapter.hooks!.configFormat).toBe("json");
+    expect(claudeCodeAdapter.hooks!.entryPath).toEqual(["hooks", "SessionStart"]);
   });
 
-  test("points at ~/.claude.json for config", () => {
-    expect(claudeCodeAdapter.configFile("/home/u")).toBe(join("/home/u", ".claude.json"));
-    expect(claudeCodeAdapter.configDir("/home/u")).toBe(join("/home/u", ".claude"));
+  test("entryShape omits matcher, which Claude Code's docs confirm means every source, including resume and post-compaction recovery", () => {
+    const entry = claudeCodeAdapter.hooks!.entryShape("cmd") as Record<string, unknown>;
+    expect(entry).toEqual({ hooks: [{ type: "command", command: "cmd" }] });
+    expect(entry).not.toHaveProperty("matcher");
   });
 
-  test("builds the {command,args} MCP entry shape", () => {
-    const shape = claudeCodeAdapter.mcpEntryShape({ name: "forge614-engram", command: "/bin/engram", args: ["mcp"] });
-    expect(shape).toEqual({ command: "/bin/engram", args: ["mcp"] });
-  });
-
-  test("builds a headless invocation with -p", () => {
-    const headless = claudeCodeAdapter.headlessCommand?.("/bin/claude", { prompt: "hello" });
-    expect(headless).toEqual({ command: "/bin/claude", args: ["-p", "hello"] });
-  });
-
-  test("adds --model to the headless invocation when a model is requested", () => {
-    const headless = claudeCodeAdapter.headlessCommand?.("/bin/claude", { prompt: "hello", model: "claude-opus-5" });
-    expect(headless).toEqual({ command: "/bin/claude", args: ["-p", "hello", "--model", "claude-opus-5"] });
-  });
-
-  test("throws ReasoningLevelUnsupportedError when a reasoning level is requested", () => {
-    expect(() =>
-      claudeCodeAdapter.headlessCommand?.("/bin/claude", { prompt: "hello", reasoningLevel: "medium" }),
-    ).toThrow(ReasoningLevelUnsupportedError);
-  });
-
-  test("omits the prompt from args and marks stdin delivery when stdinPrompt is requested", () => {
-    const headless = claudeCodeAdapter.headlessCommand?.("/bin/claude", { prompt: "hello", stdinPrompt: true });
-    expect(headless).toEqual({ command: "/bin/claude", args: ["-p"], stdin: true });
-  });
-
-  test("combines stdin delivery with --model", () => {
-    const headless = claudeCodeAdapter.headlessCommand?.("/bin/claude", {
-      prompt: "hello",
-      model: "claude-opus-5",
-      stdinPrompt: true,
-    });
-    expect(headless).toEqual({ command: "/bin/claude", args: ["-p", "--model", "claude-opus-5"], stdin: true });
-  });
-
-  test("uses claude.exe as the candidate name on windows", () => {
-    expect(claudeCodeAdapter.candidateExecutableNames("win32")).toEqual(["claude.exe"]);
-    expect(claudeCodeAdapter.candidateExecutableNames("darwin")).toEqual(["claude"]);
-  });
-
-  test("manages global instructions through CLAUDE.md with a satellite content file", () => {
-    const target = claudeCodeAdapter.instructions;
-    expect(target).toBeDefined();
-    expect(target?.primaryFile("/home/u")).toBe(join("/home/u", ".claude", "CLAUDE.md"));
-    expect(target?.shadowingFiles("/home/u")).toEqual([]);
-    expect(target?.contentFile?.("/home/u")).toBe(join("/home/u", ".claude", "forge614-engram-memory-protocol.md"));
+  test("does not require user trust — Claude Code's hooks have no per-hook trust gate", () => {
+    expect(claudeCodeAdapter.hooks!.requiresUserTrust).toBe(false);
   });
 });
