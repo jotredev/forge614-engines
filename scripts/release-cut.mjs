@@ -3,28 +3,9 @@ import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
-
-function parseVersion(version) {
-  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version ?? "");
-  if (!match) return null;
-  return [Number(match[1]), Number(match[2]), Number(match[3])];
-}
-
-function compareVersions(a, b) {
-  for (let i = 0; i < 3; i++) {
-    if (a[i] !== b[i]) return a[i] - b[i];
-  }
-  return 0;
-}
-
-function latestReleasedVersion(existingTags) {
-  const versions = existingTags
-    .map((tag) => /^v(\d+\.\d+\.\d+)$/.exec(tag)?.[1])
-    .filter((v) => v !== undefined)
-    .map(parseVersion);
-  if (versions.length === 0) return null;
-  return versions.reduce((max, v) => (compareVersions(v, max) > 0 ? v : max));
-}
+import { commitsSinceTag } from "./lib/git-log.mjs";
+import { compareVersions, formatVersion, latestReleasedVersion, parseVersion } from "./lib/semver.mjs";
+import { buildReport } from "./verify-release.mjs";
 
 /**
  * Pure — worded differently depending on whether package.json actually needs
@@ -65,18 +46,31 @@ export function validateVersion(version, existingTags) {
   }
   const latest = latestReleasedVersion(existingTags);
   if (latest && compareVersions(parsed, latest) <= 0) {
-    return { ok: false, reason: `${version} is not newer than the latest released version ${latest.join(".")}` };
+    return { ok: false, reason: `${version} is not newer than the latest released version ${formatVersion(latest)}` };
   }
   return { ok: true };
 }
 
-async function promptForVersion(currentVersion) {
+/**
+ * When no version is given: shows `suggested` (computed from the commits
+ * since the last tag — see buildReport) as a default the user can accept by
+ * just pressing Enter, instead of leaving them to guess a number. In a
+ * non-interactive context (no TTY), uses the suggestion directly with no
+ * prompt at all — that's what makes `bun run release` with zero arguments
+ * work unattended. If there's no suggestion to offer (e.g. no prior tags at
+ * all) and stdin isn't interactive, there is nothing reasonable to fall back
+ * to, so this refuses rather than guessing.
+ */
+async function promptForVersion(suggested) {
   if (!process.stdin.isTTY) {
-    throw new Error("No version given and stdin is not interactive — pass it explicitly: bun scripts/release-cut.mjs <version>");
+    if (suggested) return suggested;
+    throw new Error("No version given, no reasonable version could be suggested, and stdin is not interactive — pass one explicitly: bun scripts/release-cut.mjs <version>");
   }
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   try {
-    return (await rl.question(`Version to release (current: ${currentVersion}): `)).trim();
+    const hint = suggested ? ` [${suggested}]` : "";
+    const answer = (await rl.question(`Version to release${hint}: `)).trim();
+    return answer || suggested;
   } finally {
     rl.close();
   }
@@ -152,11 +146,17 @@ async function main() {
   const pkg = JSON.parse(await readFile(packageJsonPath, "utf8"));
   const currentVersion = pkg.version;
 
-  let version = process.argv[2];
-  if (!version) version = await promptForVersion(currentVersion);
-
   run("git", ["fetch", "--tags"]);
   const existingTags = runCapture("git", ["tag", "--list"]).split("\n").filter(Boolean);
+
+  let version = process.argv[2];
+  if (!version) {
+    const latest = latestReleasedVersion(existingTags);
+    const commitMessages = latest ? commitsSinceTag(runCapture, `v${formatVersion(latest)}`) : [];
+    const report = buildReport(latest, commitMessages);
+    for (const line of report.lines) console.log(line);
+    version = await promptForVersion(report.suggestion?.version ?? null);
+  }
 
   const validation = validateVersion(version, existingTags);
   if (!validation.ok) {

@@ -34,15 +34,24 @@ Then call it directly — `~/.forge614/engines/bin/forge614-engines` on macOS/Li
 ## Releasing
 
 ```bash
-bun run release <version>   # e.g. bun run release 1.9.0 — "release:cut" also works, same script
+bun run release   # picks the version itself — see below
 ```
 
-Leave off `<version>` and it prompts for one interactively (shows the current `package.json`
-version as a hint; refuses cleanly instead of hanging if stdin isn't a terminal).
+With no `<version>` argument (the recommended way to run it), it works out a reasonable one for
+you instead of leaving you to pick a number: it looks at every commit since the latest tag and
+suggests a version, minor for any `feat:` commit, patch otherwise, major for a `!` after the type
+(`feat!:`) or a `BREAKING CHANGE:` footer — the same logic `bun run verify:release` uses to preview
+this without publishing anything. You get a breakdown of every commit and its classification, then
+a prompt with the suggested version as the default (press Enter to accept it, or type a different
+one). Non-interactively (no TTY), it uses the suggestion straight away with no prompt — that's what
+makes running it unattended work.
 
-Before touching anything, it validates the version against the real release history — `git tag`,
-not `package.json`'s current field, since a prior attempt can leave that file already bumped
-without ever having tagged or pushed (exactly what happened cutting v1.9.0 the first time):
+You can still pass a version explicitly to skip all of that: `bun run release 1.9.0` (`release:cut`
+is the same script, kept as an alias).
+
+Either way, before touching anything, it validates the version against the real release history —
+`git tag`, not `package.json`'s current field, since a prior attempt can leave that file already
+bumped without ever having tagged or pushed (exactly what happened cutting v1.9.0 the first time):
 
 - rejects anything that isn't `X.Y.Z`
 - rejects a version that isn't newer than the highest version any existing tag claims
