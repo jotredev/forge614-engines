@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { NotRepairableError } from "../../app/apply-mcp-repair";
+import { errorCodeFor } from "./main";
 
 const ENTRY = "src/interfaces/cli/main.ts";
 
@@ -254,5 +256,11 @@ describe("forge614-engines CLI", () => {
     expect(exitCode).toBe(0);
     const parsed = JSON.parse(stdout);
     expect(parsed.verification.mcp.present).toBe(false);
+  });
+});
+
+describe("errorCodeFor — mcp-repair", () => {
+  test("maps NotRepairableError to NOT_REPAIRABLE", () => {
+    expect(errorCodeFor(new NotRepairableError("abc"))).toBe("NOT_REPAIRABLE");
   });
 });

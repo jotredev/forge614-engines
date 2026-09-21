@@ -2,17 +2,21 @@
 import {
   runAgentsList,
   runApply,
+  runApplyMcpRepair,
   runCapabilities,
   runDetect,
   runHeadlessCommand,
   runPlanMcpInstall,
   runPlanMcpRemove,
+  runPlanMcpRepair,
   runPlanMemoryInstall,
   runPlanMemoryRemove,
   runUpdate,
+  runVerifyMcpRepair,
   runVerifyMemoryIntegration,
 } from "./commands";
 import { EngramProtocolUnavailableError } from "../../infrastructure/engram/memory-protocol-client";
+import { NotRepairableError } from "../../app/apply-mcp-repair";
 import { StalePlanError } from "../../app/apply-plan";
 import { HeadlessUnsupportedError } from "../../app/headless-command";
 import { UnrecognizedEntryError } from "../../app/plan-mcp-remove";
@@ -61,6 +65,7 @@ function mcpArgsFlag(args: string[]): string[] {
 export function errorCodeFor(error: unknown): string {
   if (error instanceof ConfigConflictError) return "CONFLICT";
   if (error instanceof EngramProtocolUnavailableError) return "ENGRAM_PROTOCOL_UNAVAILABLE";
+  if (error instanceof NotRepairableError) return "NOT_REPAIRABLE";
   if (error instanceof StalePlanError) return "STALE_PLAN";
   if (error instanceof UnrecognizedEntryError) return "UNRECOGNIZED_ENTRY";
   if (error instanceof PlanNotFoundError) return "PLAN_NOT_FOUND";
@@ -103,6 +108,17 @@ async function main(): Promise<void> {
     return runPlanMemoryRemove(agentId);
   }
 
+  if (command === "plan" && subcommand === "mcp-repair") {
+    const agentId = flag(rest, "--agent") as AgentId;
+    return runPlanMcpRepair(agentId);
+  }
+
+  if (command === "apply" && subcommand === "mcp-repair") {
+    const planId = flag(rest, "--plan-id")!;
+    const confirmed = boolFlag(rest, "--confirm");
+    return runApplyMcpRepair(planId, confirmed);
+  }
+
   if (command === "apply") {
     return runApply(flag(process.argv.slice(3), "--plan-id")!);
   }
@@ -118,6 +134,12 @@ async function main(): Promise<void> {
   if (command === "verify" && subcommand === "memory-integration") {
     const agentId = flag(rest, "--agent") as AgentId;
     return runVerifyMemoryIntegration(agentId);
+  }
+
+  if (command === "verify" && subcommand === "mcp-repair") {
+    const agentId = flag(rest, "--agent") as AgentId;
+    const planId = flag(rest, "--plan-id")!;
+    return runVerifyMcpRepair(agentId, planId);
   }
 
   if (command === "headless") {
@@ -136,23 +158,25 @@ async function main(): Promise<void> {
   throw new UnknownCommandError(process.argv.slice(2).join(" "));
 }
 
-main()
-  .catch((error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error);
-    console.log(
-      JSON.stringify({ schemaVersion: SCHEMA_VERSION, error: { code: errorCodeFor(error), message } }, null, 2),
-    );
-    process.exitCode = 1;
-  })
-  .then(() => {
-    // `update` spawns a detached helper process on Windows (see
-    // scheduleWindowsSwap in self-update.ts) and .unref()s it so it doesn't
-    // keep this process alive — but explicitly exit anyway rather than
-    // trust the event loop to drain on its own: a real Windows CI run
-    // showed this process hang for several minutes after printing its
-    // result, which an unref()'d handle should never do. Whether that's a
-    // Bun-on-Windows quirk or something else, forcing the exit here is
-    // strictly correct regardless — nothing meaningful happens after this
-    // point on any command or platform.
-    process.exit(process.exitCode ?? 0);
-  });
+if (import.meta.main) {
+  main()
+    .catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.log(
+        JSON.stringify({ schemaVersion: SCHEMA_VERSION, error: { code: errorCodeFor(error), message } }, null, 2),
+      );
+      process.exitCode = 1;
+    })
+    .then(() => {
+      // `update` spawns a detached helper process on Windows (see
+      // scheduleWindowsSwap in self-update.ts) and .unref()s it so it doesn't
+      // keep this process alive — but explicitly exit anyway rather than
+      // trust the event loop to drain on its own: a real Windows CI run
+      // showed this process hang for several minutes after printing its
+      // result, which an unref()'d handle should never do. Whether that's a
+      // Bun-on-Windows quirk or something else, forcing the exit here is
+      // strictly correct regardless — nothing meaningful happens after this
+      // point on any command or platform.
+      process.exit(process.exitCode ?? 0);
+    });
+}

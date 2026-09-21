@@ -1,4 +1,5 @@
 import { homedir } from "node:os";
+import { applyMcpRepair } from "../../app/apply-mcp-repair";
 import { applyPlan } from "../../app/apply-plan";
 import { buildDefaultRegistry } from "../../app/default-registry";
 import { capabilitiesFor, listAgents } from "../../app/capabilities";
@@ -6,9 +7,11 @@ import { detectAgents } from "../../app/detect";
 import { headlessCommandFor } from "../../app/headless-command";
 import { planMcpInstall } from "../../app/plan-mcp-install";
 import { planMcpRemove } from "../../app/plan-mcp-remove";
+import { planMcpRepair } from "../../app/plan-mcp-repair";
 import { planMemoryInstall } from "../../app/plan-memory-install";
 import { planMemoryRemove } from "../../app/plan-memory-remove";
 import { performUpdate } from "../../app/self-update";
+import { verifyMcpRepair } from "../../app/verify-mcp-repair";
 import { verifyMemoryIntegration } from "../../app/verify-memory-integration";
 import type { AgentId, ReasoningLevel } from "../../modules/agents/types";
 
@@ -36,8 +39,19 @@ export async function runPlanMcpRemove(agentId: AgentId, name: string, command: 
   printJson({ plan });
 }
 
+export async function runPlanMcpRepair(agentId: AgentId): Promise<void> {
+  const registry = buildDefaultRegistry();
+  const plan = await planMcpRepair(registry, { agentId, home: homedir() });
+  printJson({ plan });
+}
+
 export async function runApply(planId: string): Promise<void> {
   const result = await applyPlan(homedir(), planId);
+  printJson({ result });
+}
+
+export async function runApplyMcpRepair(planId: string, confirmed: boolean): Promise<void> {
+  const result = await applyMcpRepair(homedir(), planId, confirmed);
   printJson({ result });
 }
 
@@ -85,5 +99,11 @@ export async function runPlanMemoryRemove(agentId: AgentId): Promise<void> {
 export async function runVerifyMemoryIntegration(agentId: AgentId): Promise<void> {
   const registry = buildDefaultRegistry();
   const verification = await verifyMemoryIntegration(registry, { agentId, home: homedir() });
+  printJson({ verification });
+}
+
+export async function runVerifyMcpRepair(agentId: AgentId, planId: string): Promise<void> {
+  const registry = buildDefaultRegistry();
+  const verification = await verifyMcpRepair(registry, { agentId, home: homedir(), planId });
   printJson({ verification });
 }
