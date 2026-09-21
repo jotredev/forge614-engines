@@ -1,5 +1,19 @@
 import { describe, expect, test } from "bun:test";
-import { validateVersion } from "./release-cut.mjs";
+import { describeConfirmation, validateVersion } from "./release-cut.mjs";
+
+describe("describeConfirmation", () => {
+  test("says package.json needs a bump when the current and target versions differ", () => {
+    expect(describeConfirmation("1.8.0", "1.9.0")).toBe(
+      "Bumping package.json 1.8.0 -> 1.9.0. Tagging v1.9.0 and pushing — this publishes a real release. Continue?",
+    );
+  });
+
+  test("says the bump is skipped when package.json is already at the target version — the exact case that used to read '1.9.0 -> 1.9.0' and looked like a no-op bug", () => {
+    expect(describeConfirmation("1.9.0", "1.9.0")).toBe(
+      "package.json is already at 1.9.0 (from an earlier attempt) — skipping the bump. Tagging v1.9.0 and pushing — this publishes a real release. Continue?",
+    );
+  });
+});
 
 describe("validateVersion", () => {
   test("accepts a version strictly greater than the latest released tag", () => {

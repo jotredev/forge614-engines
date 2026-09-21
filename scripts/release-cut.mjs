@@ -27,6 +27,21 @@ function latestReleasedVersion(existingTags) {
 }
 
 /**
+ * Pure — worded differently depending on whether package.json actually needs
+ * to change, so "About to bump 1.9.0 -> 1.9.0" (confusing: looks like nothing
+ * would happen) never appears for the exact re-run-after-a-failed-attempt case
+ * this script exists to support, where package.json is already at the target
+ * version and only tagging + pushing remains.
+ */
+export function describeConfirmation(currentVersion, version) {
+  const bumpStep =
+    currentVersion === version
+      ? `package.json is already at ${version} (from an earlier attempt) — skipping the bump.`
+      : `Bumping package.json ${currentVersion} -> ${version}.`;
+  return `${bumpStep} Tagging v${version} and pushing — this publishes a real release. Continue?`;
+}
+
+/**
  * Pure — no git, no filesystem, no prompts — so it's directly unit-testable.
  * The real lock this exists for: a first release-cut attempt can bump
  * package.json and then fail before tagging or pushing (exactly what happened
@@ -99,7 +114,7 @@ async function main() {
     process.exit(64);
   }
 
-  if (!(await confirm(`About to bump ${currentVersion} -> ${version}, tag it, and push — this publishes a real release. Continue?`))) {
+  if (!(await confirm(describeConfirmation(currentVersion, version)))) {
     console.log("Aborted.");
     process.exit(1);
   }
