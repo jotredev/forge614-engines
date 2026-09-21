@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit",
     "verify:docs": "bun scripts/verify-documentation.mjs",
     "build": "bun build ./src/interfaces/cli/main.ts --compile --outfile dist/forge614-engines",
+    "release": "bun scripts/release-cut.mjs",
     "release:bundle": "bun scripts/release-bundle.mjs",
     "release:cut": "bun scripts/release-cut.mjs"
   },
