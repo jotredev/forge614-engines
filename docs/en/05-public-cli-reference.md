@@ -9,6 +9,7 @@ The CLI (command-line interface) is the Engines counter. Every request returns a
 | Command | Main result | Writes |
 | --- | --- | --- |
 | `forge614-engines detect` | detected `agents` | No |
+| `forge614-engines agents list` | every agent the code supports, installed or not | No |
 | `forge614-engines capabilities --agent <id>` | one agent's capabilities | No |
 | `forge614-engines plan mcp-install ...` | installation `plan` | Stores the plan only |
 | `forge614-engines plan mcp-remove ...` | removal `plan` | Stores the plan only |
@@ -24,10 +25,13 @@ The CLI (command-line interface) is the Engines counter. Every request returns a
 ## Examples
 
 ```text
+forge614-engines agents list
 forge614-engines capabilities --agent cursor
 forge614-engines headless --agent codex --executable codex --prompt "Summarize this repository"
 forge614-engines plan mcp-install --agent claude-code --name engram --command forge614-engram --args mcp
 ```
+
+`agents list` reports the static, built-in agent registry — every agent the code supports, whatever is or is not installed on this machine. `detect` answers a different question: which of those agents are actually present right now.
 
 `headless` output does not run Codex or Claude Code: it produces the safe order that Atlas may decide to start. For Codex the order is `codex exec <prompt>`; for Claude Code it is `claude -p <prompt>`. Optional `--model <model-id>` and `--reasoning-level <low|medium|high>` are additive: each adapter decides how to fold them into its own order, and Claude Code rejects `--reasoning-level` with `REASONING_LEVEL_UNSUPPORTED` (see 06).
 

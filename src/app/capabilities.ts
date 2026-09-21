@@ -20,3 +20,14 @@ export function capabilitiesFor(registry: AgentRegistry, agentId: AgentId): Capa
     supportsHeadlessExec: adapter.capabilities.supportsHeadlessExec,
   };
 }
+
+/** Every agent the code supports, regardless of whether it is installed on this machine — unlike `detect`. */
+export function listAgents(registry: AgentRegistry): CapabilitiesReport[] {
+  return registry.list().map((adapter) => ({
+    id: adapter.id,
+    label: adapter.label,
+    supportsMcp: adapter.capabilities.supportsMcp,
+    supportsHooks: adapter.capabilities.supportsHooks,
+    supportsHeadlessExec: adapter.capabilities.supportsHeadlessExec,
+  }));
+}

@@ -37,6 +37,19 @@ describe("forge614-engines CLI", () => {
     expect(parsed.agents.some((a: { id: string }) => a.id === "claude-code")).toBe(true);
   });
 
+  test("agents list reports every supported agent regardless of installation", async () => {
+    const { stdout, exitCode } = await runCli(["agents", "list"]);
+
+    expect(exitCode).toBe(0);
+    const parsed = JSON.parse(stdout);
+    expect(parsed.schemaVersion).toBe(1);
+    expect(parsed.agents).toEqual([
+      { id: "claude-code", label: "Claude Code", supportsMcp: true, supportsHooks: true, supportsHeadlessExec: true },
+      { id: "codex", label: "Codex", supportsMcp: true, supportsHooks: true, supportsHeadlessExec: true },
+      { id: "cursor", label: "Cursor", supportsMcp: true, supportsHooks: false, supportsHeadlessExec: false },
+    ]);
+  });
+
   test("--args stops at the next flag instead of swallowing it", async () => {
     const { stdout, exitCode } = await runCli([
       "plan",

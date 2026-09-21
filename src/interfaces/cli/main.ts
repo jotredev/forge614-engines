@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import {
+  runAgentsList,
   runApply,
   runCapabilities,
   runDetect,
@@ -71,6 +72,8 @@ async function main(): Promise<void> {
   const [command, subcommand, ...rest] = process.argv.slice(2);
 
   if (command === "detect") return runDetect();
+
+  if (command === "agents" && subcommand === "list") return runAgentsList();
 
   if (command === "plan" && subcommand === "mcp-install") {
     const agentId = flag(rest, "--agent") as AgentId;

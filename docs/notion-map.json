@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "productVersion": "1.5.0",
+  "productVersion": "1.6.0",
   "requiredNumbers": [
     "00",
     "01",
@@ -76,13 +76,13 @@
       "localPath": "docs/es/05-referencia-del-cli-publico.md",
       "language": "es",
       "notionUrl": "https://app.notion.com/p/3e121943d1298178b133f109e29a742f",
-      "sha256": "f8917075427ed3c7233aab51892462ed889cb0eac3b2565dabadf99dfe647987"
+      "sha256": "46f6ab11e6d6951896ad989713396e6ce64f348f756413660f15138842d1c6e5"
     },
     {
       "localPath": "docs/en/05-public-cli-reference.md",
       "language": "en",
       "notionUrl": "https://app.notion.com/p/3e121943d12981c097f7ff61185f3454",
-      "sha256": "119d753db1d1e388d5e2e7962ef5b3cc5679ab49534d3ef9d67da38239f9be72"
+      "sha256": "4974688b54ddbfe2c2f16e157f35a1f0c420239d2252c93caa97e194d44417fb"
     },
     {
       "localPath": "docs/es/06-ejecucion-automatica-e-integraciones.md",

@@ -1,7 +1,7 @@
 import { homedir } from "node:os";
 import { applyPlan } from "../../app/apply-plan";
 import { buildDefaultRegistry } from "../../app/default-registry";
-import { capabilitiesFor } from "../../app/capabilities";
+import { capabilitiesFor, listAgents } from "../../app/capabilities";
 import { detectAgents } from "../../app/detect";
 import { headlessCommandFor } from "../../app/headless-command";
 import { planMcpInstall } from "../../app/plan-mcp-install";
@@ -44,6 +44,11 @@ export async function runApply(planId: string): Promise<void> {
 export async function runCapabilities(agentId: AgentId): Promise<void> {
   const registry = buildDefaultRegistry();
   printJson({ ...capabilitiesFor(registry, agentId) });
+}
+
+export async function runAgentsList(): Promise<void> {
+  const registry = buildDefaultRegistry();
+  printJson({ agents: listAgents(registry) });
 }
 
 export async function runUpdate(): Promise<void> {
