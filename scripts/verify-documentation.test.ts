@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
@@ -113,7 +113,14 @@ test("rejects a missing documented agent", async () => {
 });
 
 test("accepts the complete local documentation index", async () => {
-  await expect(verifyDocumentation(process.cwd())).resolves.toMatchObject({ documents: 16, productVersion: "1.9.0" });
+  // Reads the real, current package.json version rather than a hardcoded
+  // literal — a hardcoded string here needed manually bumping by hand on
+  // every single release (missed at least twice already: 1.7.0 -> 1.8.0 and
+  // 1.8.0 -> 1.9.0), even though release-cut.mjs already keeps
+  // docs/notion-map.json's productVersion in sync with package.json
+  // automatically. This test should never need touching again.
+  const pkg = JSON.parse(await readFile(join(process.cwd(), "package.json"), "utf8"));
+  await expect(verifyDocumentation(process.cwd())).resolves.toMatchObject({ documents: 16, productVersion: pkg.version });
 });
 
 test("rejects a local documentation page that is absent from the map", async () => {

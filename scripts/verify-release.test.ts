@@ -43,14 +43,14 @@ describe("printReport", () => {
     const originalLog = console.log;
     console.log = log;
     try {
-      printReport(["Changes since v1.9.0 (1 commit):", "  - [minor] feat: add the thing", "", "Suggested next version: 1.10.0"]);
+      printReport(["Changes since v1.9.0 (1 commit):", "  - [minor] feat: add the thing", "", "Suggested next version: 1.10.0"], false);
     } finally {
       console.log = originalLog;
     }
 
-    // process.stdout.isTTY is false in the test runner, so dim()/bold() are
-    // no-ops here — this also confirms lines print as plain text, not ANSI
-    // escape codes, when output isn't a real terminal.
+    // isTTY is passed explicitly as false, regardless of the real terminal
+    // this test happens to run in — this also confirms lines print as plain
+    // text, not ANSI escape codes, when output isn't a real terminal.
     expect(log).toHaveBeenCalledTimes(4);
     expect(log).toHaveBeenNthCalledWith(1, "Changes since v1.9.0 (1 commit):");
     expect(log).toHaveBeenNthCalledWith(4, "Suggested next version: 1.10.0");

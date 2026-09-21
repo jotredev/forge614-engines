@@ -41,9 +41,9 @@ export function buildReport(latest, commitMessages) {
  * thing that visually stands out as the actual answer. release-cut.mjs
  * reuses this so its own version-suggestion prompt looks identical.
  */
-export function printReport(lines) {
+export function printReport(lines, isTTY = process.stdout.isTTY) {
   lines.forEach((line, index) => {
-    console.log(index === lines.length - 1 ? bold(line) : dim(line));
+    console.log(index === lines.length - 1 ? bold(line, isTTY) : dim(line, isTTY));
   });
 }
 
