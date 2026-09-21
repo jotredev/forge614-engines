@@ -47,8 +47,7 @@ one). Non-interactively (no TTY), it uses the suggestion straight away with no p
 makes running it unattended work.
 
 You can still pass a version explicitly to skip all of that: `bun run release 1.9.0` (`release:cut`
-is the same script, kept as an alias).
-
+is the same script, kept as an alias) — but typing a number doesn't mean it's accepted blindly.
 Either way, before touching anything, it validates the version against the real release history —
 `git tag`, not `package.json`'s current field, since a prior attempt can leave that file already
 bumped without ever having tagged or pushed (exactly what happened cutting v1.9.0 the first time):
@@ -56,6 +55,10 @@ bumped without ever having tagged or pushed (exactly what happened cutting v1.9.
 - rejects anything that isn't `X.Y.Z`
 - rejects a version that isn't newer than the highest version any existing tag claims
 - rejects a version whose tag (`vX.Y.Z`) already exists — no duplicate releases
+- if what you typed (as an argument, or overriding the prompt's suggested default) doesn't match
+  what the commits actually suggest — e.g. asking for `5.0.0` when nothing warrants more than a
+  minor bump — it shows the mismatch and asks you to confirm that specific number is intentional,
+  instead of silently accepting whatever number was typed
 
 It then shows exactly what it's about to do — bump `package.json` (or say so explicitly if it's
 already at the target version, from an earlier attempt) and tag + push — and asks for a `[y/N]`

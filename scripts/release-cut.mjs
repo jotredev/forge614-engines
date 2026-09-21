@@ -23,6 +23,20 @@ export function describeConfirmation(currentVersion, version) {
 }
 
 /**
+ * Pure. Guards against typing a version "just because" instead of one the
+ * actual changes warrant — validateVersion alone would happily accept
+ * jumping from 1.9.0 straight to 5.0.0 (it's syntactically valid, newer, and
+ * unused), which is exactly the arbitrary-number problem this whole
+ * suggestion system exists to prevent. Returns null (nothing to warn about)
+ * when the requested version matches the suggestion, or when there is no
+ * suggestion to compare against at all.
+ */
+export function describeVersionMismatch(version, suggestion) {
+  if (!suggestion || suggestion.version === version) return null;
+  return `You asked for ${version}, but the changes since the last release suggest a ${suggestion.severity} bump to ${suggestion.version} instead. Release ${version} anyway?`;
+}
+
+/**
  * Pure — no git, no filesystem, no prompts — so it's directly unit-testable.
  * The real lock this exists for: a first release-cut attempt can bump
  * package.json and then fail before tagging or pushing (exactly what happened
@@ -148,13 +162,15 @@ async function main() {
 
   run("git", ["fetch", "--tags"]);
   const existingTags = runCapture("git", ["tag", "--list"]).split("\n").filter(Boolean);
+  const latest = latestReleasedVersion(existingTags);
+  const commitMessages = latest ? commitsSinceTag(runCapture, `v${formatVersion(latest)}`) : [];
+  const report = buildReport(latest, commitMessages);
 
   let version = process.argv[2];
+  let reportShown = false;
   if (!version) {
-    const latest = latestReleasedVersion(existingTags);
-    const commitMessages = latest ? commitsSinceTag(runCapture, `v${formatVersion(latest)}`) : [];
-    const report = buildReport(latest, commitMessages);
     printReport(report.lines);
+    reportShown = true;
     version = await promptForVersion(report.suggestion?.version ?? null);
   }
 
@@ -162,6 +178,20 @@ async function main() {
   if (!validation.ok) {
     console.error(`Refusing to release: ${validation.reason}`);
     process.exit(64);
+  }
+
+  // Catches an explicit `bun run release <version>` (or a suggestion the user
+  // overrode at the prompt) that doesn't match what the actual commits
+  // warrant — validateVersion alone would silently accept any syntactically
+  // valid, unused, newer number, which is exactly the "picks whatever number
+  // occurs to him" problem this whole suggestion system exists to close.
+  const mismatchWarning = describeVersionMismatch(version, report.suggestion);
+  if (mismatchWarning) {
+    if (!reportShown) printReport(report.lines);
+    if (!(await confirm(mismatchWarning))) {
+      console.log("Aborted.");
+      process.exit(1);
+    }
   }
 
   if (!(await confirm(describeConfirmation(currentVersion, version)))) {

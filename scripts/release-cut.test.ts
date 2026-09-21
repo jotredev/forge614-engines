@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
-import { describeConfirmation, findReleaseRunId, validateVersion, watchReleaseRun } from "./release-cut.mjs";
+import { describeConfirmation, describeVersionMismatch, findReleaseRunId, validateVersion, watchReleaseRun } from "./release-cut.mjs";
 
 function commandNotFoundError() {
   // Matches what execFileSync actually throws when the binary isn't on PATH.
@@ -19,6 +19,22 @@ describe("describeConfirmation", () => {
     expect(describeConfirmation("1.9.0", "1.9.0")).toBe(
       "package.json is already at 1.9.0 (from an earlier attempt) — skipping the bump. Tagging v1.9.0 and pushing — this publishes a real release. Continue?",
     );
+  });
+});
+
+describe("describeVersionMismatch — the guardrail against picking a version that doesn't match reality", () => {
+  test("warns when the requested version doesn't match what the commits actually suggest", () => {
+    expect(describeVersionMismatch("5.0.0", { severity: "minor", version: "1.10.0" })).toBe(
+      "You asked for 5.0.0, but the changes since the last release suggest a minor bump to 1.10.0 instead. Release 5.0.0 anyway?",
+    );
+  });
+
+  test("says nothing (null) when the requested version matches the suggestion exactly", () => {
+    expect(describeVersionMismatch("1.10.0", { severity: "minor", version: "1.10.0" })).toBeNull();
+  });
+
+  test("says nothing when there is no suggestion to compare against (e.g. no prior tags, or no commits since the last one)", () => {
+    expect(describeVersionMismatch("1.0.0", null)).toBeNull();
   });
 });
 
