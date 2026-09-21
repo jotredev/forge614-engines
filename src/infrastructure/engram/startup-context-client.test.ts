@@ -13,9 +13,9 @@ afterEach(() => {
 });
 
 const RESULT = {
-  format: 1,
+  format: 1 as const,
   shared: { pinned: [], recent: [{ title: "Shared fact", preview: "applies everywhere" }], sessions: [], truncated: false },
-  project: { status: "unbound", projectId: null, context: null },
+  project: { status: "unbound" as const, projectId: null, context: null },
 };
 
 describe("fetchStartupContext", () => {

@@ -6,6 +6,7 @@ import {
   runCapabilities,
   runDetect,
   runHeadlessCommand,
+  runMemoryHookRun,
   runPlanMcpInstall,
   runPlanMcpRemove,
   runPlanMcpRepair,
@@ -41,6 +42,12 @@ function flag(args: string[], name: string): string | undefined {
 
 function boolFlag(args: string[], name: string): boolean {
   return args.includes(name);
+}
+
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
+  return Buffer.concat(chunks).toString("utf8");
 }
 
 /**
@@ -80,6 +87,21 @@ export function errorCodeFor(error: unknown): string {
 
 async function main(): Promise<void> {
   const [command, subcommand, ...rest] = process.argv.slice(2);
+
+  if (command === "memory-hook-run") {
+    // Bypasses the generic JSON-error envelope below on purpose: this command's
+    // only contract is the host's own SessionStart hook contract (plain stdout
+    // for Claude Code, structured additionalContext JSON for Codex), and it must
+    // always exit 0 so a failure here never looks like it could block a session.
+    const hookArgs = process.argv.slice(3);
+    const agentId = (flag(hookArgs, "--agent") ?? "claude-code") as AgentId;
+    const stdin = await readStdin();
+    const output = await runMemoryHookRun(agentId, stdin).catch(
+      () => `[Forge614 Engram] Memoria no disponible (motivo: internal-error). La sesión continúa sin contexto precargado.`,
+    );
+    console.log(output);
+    return;
+  }
 
   if (command === "detect") return runDetect();
 

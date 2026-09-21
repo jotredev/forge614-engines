@@ -258,6 +258,41 @@ describe("forge614-engines CLI", () => {
     expect(parsed.verification.mcp.present).toBe(false);
   });
 
+  test("memory-hook-run --agent claude-code prints plain text (not the JSON envelope) and always exits 0", () => {
+    const proc = Bun.spawnSync(["bun", ENTRY, "memory-hook-run", "--agent", "claude-code"], {
+      stdin: Buffer.from(JSON.stringify({ cwd: "/tmp/some-repo-that-is-not-bound", hook_event_name: "SessionStart" })),
+      env: { ...process.env, HOME: home },
+    });
+
+    expect(proc.exitCode).toBe(0);
+    const stdout = proc.stdout.toString();
+    expect(() => JSON.parse(stdout)).toThrow(); // plain text, not the {schemaVersion, ...} envelope
+    expect(stdout.toLowerCase()).toContain("no disponible");
+  });
+
+  test("memory-hook-run --agent codex prints structured hookSpecificOutput.additionalContext and always exits 0", () => {
+    const proc = Bun.spawnSync(["bun", ENTRY, "memory-hook-run", "--agent", "codex"], {
+      stdin: Buffer.from(JSON.stringify({ cwd: "/tmp/some-repo-that-is-not-bound", hook_event_name: "SessionStart" })),
+      env: { ...process.env, HOME: home },
+    });
+
+    expect(proc.exitCode).toBe(0);
+    const parsed = JSON.parse(proc.stdout.toString());
+    expect(parsed.hookSpecificOutput.hookEventName).toBe("SessionStart");
+    expect(parsed.hookSpecificOutput.additionalContext.toLowerCase()).toContain("no disponible");
+    expect(parsed).not.toHaveProperty("systemMessage");
+  });
+
+  test("memory-hook-run exits 0 even with garbage stdin", () => {
+    const proc = Bun.spawnSync(["bun", ENTRY, "memory-hook-run", "--agent", "claude-code"], {
+      stdin: Buffer.from("not json"),
+      env: { ...process.env, HOME: home },
+    });
+
+    expect(proc.exitCode).toBe(0);
+    expect(proc.stdout.toString().toLowerCase()).toContain("no disponible");
+  });
+
   test("the generic apply command refuses an mcp-repair plan with CONFIRMATION_REQUIRED", async () => {
     const configPath = join(home, ".claude.json");
     const before = '{"mcpServers":{"forge614-engram":{"command":"/old/path","args":["serve"]}}}';

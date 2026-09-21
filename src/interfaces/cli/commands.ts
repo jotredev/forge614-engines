@@ -10,6 +10,7 @@ import { planMcpRemove } from "../../app/plan-mcp-remove";
 import { planMcpRepair } from "../../app/plan-mcp-repair";
 import { planMemoryInstall } from "../../app/plan-memory-install";
 import { planMemoryRemove } from "../../app/plan-memory-remove";
+import { runMemoryHook } from "../../app/run-memory-hook";
 import { performUpdate } from "../../app/self-update";
 import { verifyMcpRepair } from "../../app/verify-mcp-repair";
 import { verifyMemoryIntegration } from "../../app/verify-memory-integration";
@@ -109,4 +110,19 @@ export async function runVerifyMcpRepair(agentId: AgentId, planId: string): Prom
   const registry = buildDefaultRegistry();
   const verification = await verifyMcpRepair(registry, { agentId, home: homedir(), planId });
   printJson({ verification });
+}
+
+/**
+ * Serializes the hook's rendered text for the specific host's contract: plain
+ * text for Claude Code (added as context on stdout with exit 0), structured
+ * hookSpecificOutput.additionalContext for Codex (its SessionStart wire rejects
+ * a top-level additionalContext field). Never returns the {schemaVersion, ...}
+ * envelope other commands use — that is not part of either host's hook contract.
+ */
+export async function runMemoryHookRun(agentId: AgentId, stdin: string): Promise<string> {
+  const result = await runMemoryHook({ home: homedir(), agentId, stdin });
+  if (agentId === "codex") {
+    return JSON.stringify({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: result.text } });
+  }
+  return result.text;
 }
