@@ -36,7 +36,7 @@ async function publicCliContract(root) {
   const source = await readFile(join(root, "src", "interfaces", "cli", "main.ts"), "utf8");
   const commands = new Set([...source.matchAll(/command === "([a-z]+)"/g)].map((match) => match[1]));
   for (const subcommand of source.matchAll(
-    /command === "(plan|verify)" && subcommand === "((?:mcp|memory)-(?:install|remove)|memory-integration)"/g,
+    /command === "(plan|verify|apply)" && subcommand === "((?:mcp|memory)-(?:install|remove)|memory-integration|mcp-repair)"/g,
   )) {
     commands.add(`${subcommand[1]} ${subcommand[2]}`);
   }
