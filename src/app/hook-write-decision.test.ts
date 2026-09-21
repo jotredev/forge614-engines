@@ -67,6 +67,30 @@ describe("decideHookInstall", () => {
   });
 });
 
+describe("decideHookInstall with a seed", () => {
+  test("computes afterContent against the seeded content, not the disk content, while still hashing the real disk content for beforeHash", async () => {
+    // Simulates Codex: MCP and hooks share one file. A sibling MCP decision already
+    // computed a new document (seed) that isn't on disk yet; the hook decision must
+    // build on top of that seed, not re-read the still-unmodified file.
+    const { codexAdapter } = await import("../infrastructure/agents/codex");
+    const configPath = codexAdapter.hooks!.configFile(home);
+    mkdirSync(dirname(configPath), { recursive: true });
+    const onDisk = 'model = "gpt-5"\n';
+    writeFileSync(configPath, onDisk);
+    const seededRaw = 'model = "gpt-5"\n\n[mcp_servers.forge614-engram]\ncommand = "/bin/engram"\nargs = ["mcp"]\n';
+
+    const result = await decideHookInstall(codexAdapter, home, '"/bin/x" memory-hook-run --agent codex', { raw: seededRaw });
+
+    expect(result.decision.kind).toBe("write");
+    expect(result.write!.afterContent).toContain("mcp_servers");
+    expect(result.write!.afterContent).toContain("hooks");
+    // beforeHash reflects the true on-disk content (what apply-plan actually
+    // checks against), not the seed.
+    const { createHash } = await import("node:crypto");
+    expect(result.write!.beforeHash).toBe(createHash("sha256").update(onDisk).digest("hex"));
+  });
+});
+
 describe("decideHookRemove", () => {
   test("is a noop when nothing of ours is present", async () => {
     const result = await decideHookRemove(claudeCodeAdapter, home, COMMAND);

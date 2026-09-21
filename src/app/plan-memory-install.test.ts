@@ -54,39 +54,76 @@ afterEach(() => {
 const protocolOptions = () => ({ command: process.execPath, args: [okScript] });
 
 describe("planMemoryInstall", () => {
-  test("is complete for claude-code: installs the MCP entry and the instructions block", async () => {
+  test("is complete for claude-code: installs the MCP entry, instructions block, and the SessionStart hook", async () => {
     const plan = await planMemoryInstall(registry, { agentId: "claude-code", home, protocolOptions: protocolOptions() });
 
     expect(plan.metadata?.overallStatus).toBe("complete");
-    expect(plan.writes.length).toBeGreaterThanOrEqual(3);
+    expect(plan.writes.length).toBeGreaterThanOrEqual(4);
     const mcpWrite = plan.writes.find((w) => w.path === join(home, ".claude.json"))!;
     expect(JSON.parse(mcpWrite.afterContent).mcpServers["forge614-engram"]).toEqual({
       command: resolveEngramMcpServer(home).command,
       args: ["mcp"],
     });
+    const hookWrite = plan.writes.find((w) => w.path === join(home, ".claude", "settings.json"))!;
+    expect(hookWrite).toBeDefined();
+    const written = JSON.parse(hookWrite.afterContent);
+    expect(written.hooks.SessionStart).toHaveLength(1);
+    expect(written.hooks.SessionStart[0].hooks[0].type).toBe("command");
+    expect(written.hooks.SessionStart[0].hooks[0].command).toContain("memory-hook-run --agent claude-code");
+    expect(plan.metadata?.hook.status.kind).toBe("write");
   });
 
-  test("is complete for codex: installs the MCP entry under the canonical name", async () => {
+  test("is partial for codex — a structurally-correct hook still reports needs-user-trust, never complete", async () => {
     const plan = await planMemoryInstall(registry, { agentId: "codex", home, protocolOptions: protocolOptions() });
 
-    expect(plan.metadata?.overallStatus).toBe("complete");
+    expect(plan.metadata?.hook.status.kind).toBe("needs-user-trust");
+    if (plan.metadata!.hook.status.kind === "needs-user-trust") {
+      expect(plan.metadata!.hook.status.agentId).toBe("codex");
+    }
+    expect(plan.metadata?.overallStatus).toBe("partial");
     const mcpWrite = plan.writes.find((w) => w.path === join(home, ".codex", "config.toml"))!;
     expect(tomlConfigFormat.getMcpEntry(mcpWrite.afterContent, ["mcp_servers"], "forge614-engram")).toEqual({
       command: resolveEngramMcpServer(home).command,
       args: ["mcp"],
     });
+    const configWrite = plan.writes.find((w) => w.path === join(home, ".codex", "config.toml"))!;
+    expect(tomlConfigFormat.getValueAtPath(configWrite.afterContent, ["hooks", "SessionStart"])).toEqual([
+      {
+        matcher: "^(startup|resume|clear|compact)$",
+        hooks: [{ type: "command", command: expect.stringContaining("memory-hook-run --agent codex"), additionalContextLimit: 4000 }],
+      },
+    ]);
   });
 
-  test("is partial for cursor: mcp installs under the canonical name, instructions are unsupported", async () => {
+  test("is still partial for cursor after this change: hook is unsupported same as instructions", async () => {
     const plan = await planMemoryInstall(registry, { agentId: "cursor", home, protocolOptions: protocolOptions() });
 
     expect(plan.metadata?.overallStatus).toBe("partial");
     expect(plan.metadata?.instructions.status.kind).toBe("unsupported");
+    expect(plan.metadata?.hook.status.kind).toBe("unsupported");
     const mcpWrite = plan.writes.find((w) => w.path === join(home, ".cursor", "mcp.json"))!;
     expect(JSON.parse(mcpWrite.afterContent).mcpServers["forge614-engram"]).toEqual({
       command: resolveEngramMcpServer(home).command,
       args: ["mcp"],
     });
+  });
+
+  test("an install made before this feature existed (mcp + instructions only) picks up the hook on the next plan + apply", async () => {
+    const firstPlan = await planMemoryInstall(registry, { agentId: "claude-code", home, protocolOptions: protocolOptions() });
+    for (const write of firstPlan.writes) {
+      if (write.path === join(home, ".claude", "settings.json")) continue; // simulate: hook never existed
+      mkdirSync(dirname(write.path), { recursive: true });
+      writeFileSync(write.path, write.afterContent);
+    }
+
+    const secondPlan = await planMemoryInstall(registry, { agentId: "claude-code", home, protocolOptions: protocolOptions() });
+    expect(secondPlan.metadata?.mcp.status.kind).toBe("noop");
+    expect(secondPlan.metadata?.instructions.status.kind).toBe("noop");
+    expect(secondPlan.metadata?.hook.status.kind).toBe("write");
+    // overallStatus describes what applying THIS plan would achieve, not the
+    // current on-disk state — the current on-disk state (hook missing) is what
+    // `verify` reports as partial; that's covered separately in Task 12's tests.
+    expect(secondPlan.metadata?.overallStatus).toBe("complete");
   });
 
   test("recognizes a forge614-engram entry Forge614 Shell already installed at the canonical path (no false conflict)", async () => {

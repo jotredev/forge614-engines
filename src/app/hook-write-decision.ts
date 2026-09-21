@@ -14,6 +14,18 @@ export interface HookInstallDecision {
 
 export type HookRemoveDecision = HookInstallDecision;
 
+export interface HookSeed {
+  /**
+   * Content to compute hook entries and the final afterContent against, instead
+   * of reading the config file from disk. Used when a sibling decision (e.g. MCP
+   * install/remove) targets the very same file — Codex keeps both mcp_servers
+   * and hooks.SessionStart in config.toml — so this decision's output already
+   * includes that sibling change instead of the two independently clobbering
+   * each other when applied in sequence.
+   */
+  raw: string;
+}
+
 function findOwnIndex(entries: unknown[], command: string): number {
   return entries.findIndex((entry) => {
     if (!entry || typeof entry !== "object") return false;
@@ -33,30 +45,53 @@ async function readExistingEntries(
   adapter: AgentAdapter,
   home: string,
   command: string,
+  seed?: HookSeed,
 ): Promise<
   | { blocked: true; configPath: string }
-  | { blocked: false; configPath: string; raw: string; exists: boolean; entries: unknown[]; ownIndex: number }
+  | {
+      blocked: false;
+      configPath: string;
+      sourceRaw: string;
+      hashRaw: string;
+      hashExists: boolean;
+      entries: unknown[];
+      ownIndex: number;
+    }
 > {
   const hooks = adapter.hooks!;
   const format = configFormats[hooks.configFormat];
   const configPath = hooks.configFile(home);
-  const { raw, exists } = await format.readOrDefault(configPath);
-  const existingValue = format.getValueAtPath(raw, hooks.entryPath);
+  const { raw: diskRaw, exists: diskExists } = await format.readOrDefault(configPath);
+  const sourceRaw = seed?.raw ?? diskRaw;
+  const existingValue = format.getValueAtPath(sourceRaw, hooks.entryPath);
 
   if (existingValue !== undefined && !Array.isArray(existingValue)) {
     return { blocked: true, configPath };
   }
 
   const entries: unknown[] = Array.isArray(existingValue) ? existingValue : [];
-  return { blocked: false, configPath, raw, exists, entries, ownIndex: findOwnIndex(entries, command) };
+  return {
+    blocked: false,
+    configPath,
+    sourceRaw,
+    hashRaw: diskRaw,
+    hashExists: diskExists,
+    entries,
+    ownIndex: findOwnIndex(entries, command),
+  };
 }
 
-export async function decideHookInstall(adapter: AgentAdapter, home: string, command: string): Promise<HookInstallDecision> {
+export async function decideHookInstall(
+  adapter: AgentAdapter,
+  home: string,
+  command: string,
+  seed?: HookSeed,
+): Promise<HookInstallDecision> {
   if (!adapter.hooks) return { configPath: "", decision: { kind: "blocked" }, blockedReason: "unsupported" };
-  const state = await readExistingEntries(adapter, home, command);
+  const state = await readExistingEntries(adapter, home, command, seed);
   if (state.blocked) return { configPath: state.configPath, decision: { kind: "blocked" }, blockedReason: "hooks-not-array" };
 
-  const { configPath, raw, exists, entries, ownIndex } = state;
+  const { configPath, sourceRaw, hashRaw, hashExists, entries, ownIndex } = state;
   const hooks = adapter.hooks;
   const format = configFormats[hooks.configFormat];
   const desired = hooks.entryShape(command);
@@ -74,18 +109,23 @@ export async function decideHookInstall(adapter: AgentAdapter, home: string, com
     decision: { kind: "write" },
     write: {
       path: configPath,
-      beforeHash: createHash("sha256").update(exists ? raw : "").digest("hex"),
-      afterContent: format.withValueAtPath(raw, hooks.entryPath, nextEntries),
+      beforeHash: createHash("sha256").update(hashExists ? hashRaw : "").digest("hex"),
+      afterContent: format.withValueAtPath(sourceRaw, hooks.entryPath, nextEntries),
     },
   };
 }
 
-export async function decideHookRemove(adapter: AgentAdapter, home: string, command: string): Promise<HookRemoveDecision> {
+export async function decideHookRemove(
+  adapter: AgentAdapter,
+  home: string,
+  command: string,
+  seed?: HookSeed,
+): Promise<HookRemoveDecision> {
   if (!adapter.hooks) return { configPath: "", decision: { kind: "blocked" }, blockedReason: "unsupported" };
-  const state = await readExistingEntries(adapter, home, command);
+  const state = await readExistingEntries(adapter, home, command, seed);
   if (state.blocked) return { configPath: state.configPath, decision: { kind: "blocked" }, blockedReason: "hooks-not-array" };
 
-  const { configPath, raw, exists, entries, ownIndex } = state;
+  const { configPath, sourceRaw, hashRaw, hashExists, entries, ownIndex } = state;
   if (ownIndex === -1) return { configPath, decision: { kind: "noop" } };
 
   const hooks = adapter.hooks!;
@@ -97,8 +137,8 @@ export async function decideHookRemove(adapter: AgentAdapter, home: string, comm
     decision: { kind: "write" },
     write: {
       path: configPath,
-      beforeHash: createHash("sha256").update(exists ? raw : "").digest("hex"),
-      afterContent: format.withValueAtPath(raw, hooks.entryPath, nextEntries.length === 0 ? undefined : nextEntries),
+      beforeHash: createHash("sha256").update(hashExists ? hashRaw : "").digest("hex"),
+      afterContent: format.withValueAtPath(sourceRaw, hooks.entryPath, nextEntries.length === 0 ? undefined : nextEntries),
     },
   };
 }
