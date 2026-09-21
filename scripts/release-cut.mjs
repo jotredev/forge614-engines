@@ -17,27 +17,40 @@ function compareVersions(a, b) {
   return 0;
 }
 
+function latestReleasedVersion(existingTags) {
+  const versions = existingTags
+    .map((tag) => /^v(\d+\.\d+\.\d+)$/.exec(tag)?.[1])
+    .filter((v) => v !== undefined)
+    .map(parseVersion);
+  if (versions.length === 0) return null;
+  return versions.reduce((max, v) => (compareVersions(v, max) > 0 ? v : max));
+}
+
 /**
  * Pure — no git, no filesystem, no prompts — so it's directly unit-testable.
- * The real lock this exists for: today's release (v1.9.0) got tagged with
- * package.json bumped but docs/notion-map.json still pointing at the old
- * version, because nothing checked the new version against reality before
- * committing. This checks three things a version string alone can't tell you:
- * it parses as semver, it's actually newer than what's released today, and
- * that exact tag hasn't already been cut (a duplicate-release guard).
+ * The real lock this exists for: a first release-cut attempt can bump
+ * package.json and then fail before tagging or pushing (exactly what happened
+ * cutting v1.9.0 — bun test caught docs/notion-map.json out of sync and the
+ * script stopped mid-way). Re-running with the same version must then still
+ * succeed, so "already released" is judged against git tags — the actual
+ * source of truth for what shipped — never against package.json's current
+ * field, which can be mid-bump and not yet real. This checks three things a
+ * version string alone can't tell you: it parses as semver, it's newer than
+ * the highest version any tag actually claims, and that exact tag hasn't
+ * already been cut (a duplicate-release guard).
  */
-export function validateVersion(version, currentVersion, existingTags) {
+export function validateVersion(version, existingTags) {
   const parsed = parseVersion(version);
   if (!parsed) {
     return { ok: false, reason: `"${version}" is not a valid version — expected X.Y.Z (e.g. 1.9.0)` };
   }
-  const current = parseVersion(currentVersion);
-  if (current && compareVersions(parsed, current) <= 0) {
-    return { ok: false, reason: `${version} is not newer than the current version ${currentVersion}` };
-  }
   const tag = `v${version}`;
   if (existingTags.includes(tag)) {
     return { ok: false, reason: `Tag ${tag} already exists — this version was already released` };
+  }
+  const latest = latestReleasedVersion(existingTags);
+  if (latest && compareVersions(parsed, latest) <= 0) {
+    return { ok: false, reason: `${version} is not newer than the latest released version ${latest.join(".")}` };
   }
   return { ok: true };
 }
@@ -80,7 +93,7 @@ async function main() {
   run("git", ["fetch", "--tags"]);
   const existingTags = runCapture("git", ["tag", "--list"]).split("\n").filter(Boolean);
 
-  const validation = validateVersion(version, currentVersion, existingTags);
+  const validation = validateVersion(version, existingTags);
   if (!validation.ok) {
     console.error(`Refusing to release: ${validation.reason}`);
     process.exit(64);
