@@ -113,7 +113,7 @@ test("rejects a missing documented agent", async () => {
 });
 
 test("accepts the complete local documentation index", async () => {
-  await expect(verifyDocumentation(process.cwd())).resolves.toMatchObject({ documents: 16, productVersion: "1.8.0" });
+  await expect(verifyDocumentation(process.cwd())).resolves.toMatchObject({ documents: 16, productVersion: "1.9.0" });
 });
 
 test("rejects a local documentation page that is absent from the map", async () => {
