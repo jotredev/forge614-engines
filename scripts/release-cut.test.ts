@@ -1,5 +1,12 @@
-import { describe, expect, test } from "bun:test";
-import { describeConfirmation, validateVersion } from "./release-cut.mjs";
+import { describe, expect, mock, test } from "bun:test";
+import { describeConfirmation, findReleaseRunId, validateVersion, watchReleaseRun } from "./release-cut.mjs";
+
+function commandNotFoundError() {
+  // Matches what execFileSync actually throws when the binary isn't on PATH.
+  const error = new Error("spawnSync gh ENOENT");
+  error.code = "ENOENT";
+  return error;
+}
 
 describe("describeConfirmation", () => {
   test("says package.json needs a bump when the current and target versions differ", () => {
@@ -67,5 +74,63 @@ describe("validateVersion", () => {
 
   test("ignores tags that don't look like vX.Y.Z when finding the latest released version", () => {
     expect(validateVersion("1.9.0", ["v1.8.0", "not-a-version", "v1.8.0-beta.1"])).toEqual({ ok: true });
+  });
+});
+
+describe("findReleaseRunId — what happens when a user doesn't have gh installed", () => {
+  test("returns null immediately (no 20s of retrying) when gh isn't on PATH", async () => {
+    const runCapture = mock(() => {
+      throw commandNotFoundError();
+    });
+
+    const result = await findReleaseRunId(runCapture, "v1.9.0");
+
+    expect(result).toBeNull();
+    expect(runCapture).toHaveBeenCalledTimes(1); // fails fast — ENOENT isn't a "not registered yet" race to poll through
+  });
+
+  test("finds the run id from gh's real JSON shape when gh works", async () => {
+    const runCapture = mock(() => JSON.stringify([{ databaseId: 35659541863 }]));
+
+    const result = await findReleaseRunId(runCapture, "v1.9.0");
+
+    expect(result).toBe(35659541863);
+  });
+});
+
+describe("watchReleaseRun — the user-facing fallback when gh isn't installed", () => {
+  test("falls back to the static message and never calls run() (gh run watch) when gh isn't on PATH — the tag is already pushed either way, so this must not throw", async () => {
+    const runCapture = mock(() => {
+      throw commandNotFoundError();
+    });
+    const run = mock(() => {
+      throw new Error("run() should never be called when no run id was found");
+    });
+
+    await watchReleaseRun(run, runCapture, "v1.9.0");
+
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  test("reports the release as published only after gh run watch actually succeeds", async () => {
+    const runCapture = mock(() => JSON.stringify([{ databaseId: 35659541863 }]));
+    const run = mock(() => {}); // gh run watch --exit-status exits 0 -> execFileSync doesn't throw
+
+    await watchReleaseRun(run, runCapture, "v1.9.0");
+
+    expect(run).toHaveBeenCalledWith("gh", ["run", "watch", "35659541863", "--exit-status", "-R", "jotredev/forge614-engines"]);
+  });
+
+  test("reports failure, and sets a non-zero exit code, when the run actually failed — never silently 'published'", async () => {
+    const previousExitCode = process.exitCode;
+    const runCapture = mock(() => JSON.stringify([{ databaseId: 35659541863 }]));
+    const run = mock(() => {
+      throw new Error("gh run watch exited non-zero: run failed"); // --exit-status makes execFileSync throw on failure
+    });
+
+    await watchReleaseRun(run, runCapture, "v1.9.0");
+
+    expect(process.exitCode).toBe(1);
+    process.exitCode = previousExitCode;
   });
 });

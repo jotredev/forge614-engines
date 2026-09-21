@@ -104,7 +104,7 @@ async function sleep(ms) {
  * first few list calls right after `git push` can legitimately come back
  * empty — this is not a failure, just a race to poll through.
  */
-async function findReleaseRunId(runCapture, tag) {
+export async function findReleaseRunId(runCapture, tag) {
   for (let attempt = 0; attempt < 10; attempt++) {
     let runs;
     try {
@@ -127,7 +127,7 @@ async function findReleaseRunId(runCapture, tag) {
  * and reports the real GitHub Release URL only once the run has actually
  * succeeded — never claims "published" when the build failed.
  */
-async function watchReleaseRun(run, runCapture, tag) {
+export async function watchReleaseRun(run, runCapture, tag) {
   const runId = await findReleaseRunId(runCapture, tag);
   if (runId === null) {
     console.log(`Could not find the workflow run to watch — check manually: https://github.com/${RELEASE_REPO}/actions`);
