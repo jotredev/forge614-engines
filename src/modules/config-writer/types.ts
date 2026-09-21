@@ -34,12 +34,27 @@ export type MemoryIntegrationComponentStatus =
   | { kind: "write" }
   | { kind: "blocked"; reason: string; details: string };
 
+/**
+ * The hook component's status is a superset of MemoryIntegrationComponentStatus:
+ * a structurally correct hook is not necessarily one the host will actually run.
+ * needs-user-trust reports Codex's real, un-bypassable interactive trust gate —
+ * Engines has no stable, documented way to grant or verify that trust itself, so
+ * it must never be folded into "noop"/"write" as if it were simply ok.
+ */
+export type HookComponentStatus =
+  | { kind: "unsupported"; reason: string }
+  | { kind: "noop" }
+  | { kind: "write" }
+  | { kind: "blocked"; reason: string; details: string }
+  | { kind: "needs-user-trust"; agentId: "codex"; configPath: string; details: string };
+
 export type MemoryIntegrationOverallStatus = "complete" | "partial" | "unsupported";
 
 export interface MemoryIntegrationMetadata {
   protocol?: { source: string; id: string; version: number; fingerprint: string };
   mcp: { path: string; status: MemoryIntegrationComponentStatus };
   instructions: { paths: string[]; status: MemoryIntegrationComponentStatus };
+  hook: { path: string; status: HookComponentStatus };
   overallStatus: MemoryIntegrationOverallStatus;
 }
 

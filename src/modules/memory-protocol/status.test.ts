@@ -1,41 +1,32 @@
 import { describe, expect, test } from "bun:test";
-import type { MemoryIntegrationComponentStatus } from "../config-writer/types";
 import { computeOverallStatus, computeRemovalStatus } from "./status";
 
-const noop: MemoryIntegrationComponentStatus = { kind: "noop" };
-const write: MemoryIntegrationComponentStatus = { kind: "write" };
-const blocked: MemoryIntegrationComponentStatus = { kind: "blocked", reason: "x", details: "x" };
-const unsupported: MemoryIntegrationComponentStatus = { kind: "unsupported", reason: "x" };
+const OK = { kind: "noop" } as const;
+const WRITE = { kind: "write" } as const;
+const UNSUPPORTED = { kind: "unsupported", reason: "x" } as const;
+const NEEDS_TRUST = { kind: "needs-user-trust", agentId: "codex", configPath: "/x", details: "x" } as const;
 
-describe("computeOverallStatus", () => {
-  test("is complete when both components are noop or write", () => {
-    expect(computeOverallStatus(noop, write)).toBe("complete");
-    expect(computeOverallStatus(write, noop)).toBe("complete");
+describe("computeOverallStatus with three components", () => {
+  test("is complete only when mcp, instructions, AND hook are all ok", () => {
+    expect(computeOverallStatus(OK, OK, OK)).toBe("complete");
+    expect(computeOverallStatus(OK, OK, WRITE)).toBe("complete");
   });
 
-  test("is partial when only one component is ok", () => {
-    expect(computeOverallStatus(write, unsupported)).toBe("partial");
-    expect(computeOverallStatus(blocked, noop)).toBe("partial");
+  test("is partial, never complete, when the hook needs user trust", () => {
+    expect(computeOverallStatus(OK, OK, NEEDS_TRUST)).toBe("partial");
   });
 
-  test("is unsupported when neither component is ok", () => {
-    expect(computeOverallStatus(blocked, unsupported)).toBe("unsupported");
+  test("is partial when hook alone is missing", () => {
+    expect(computeOverallStatus(OK, OK, UNSUPPORTED)).toBe("partial");
+  });
+
+  test("is unsupported only when all three are unsupported", () => {
+    expect(computeOverallStatus(UNSUPPORTED, UNSUPPORTED, UNSUPPORTED)).toBe("unsupported");
   });
 });
 
-describe("computeRemovalStatus", () => {
-  test("is complete when a component structurally has nothing to remove (unsupported) and the other is noop or write", () => {
-    expect(computeRemovalStatus(noop, unsupported)).toBe("complete");
-    expect(computeRemovalStatus(write, unsupported)).toBe("complete");
-    expect(computeRemovalStatus(unsupported, noop)).toBe("complete");
-  });
-
-  test("is partial when one component is blocked and the other is ok", () => {
-    expect(computeRemovalStatus(blocked, noop)).toBe("partial");
-    expect(computeRemovalStatus(blocked, unsupported)).toBe("partial");
-  });
-
-  test("is unsupported when neither component is ok", () => {
-    expect(computeRemovalStatus(blocked, blocked)).toBe("unsupported");
+describe("computeRemovalStatus with three components", () => {
+  test("treats unsupported as an ok outcome for removal, same as before", () => {
+    expect(computeRemovalStatus(OK, OK, UNSUPPORTED)).toBe("complete");
   });
 });

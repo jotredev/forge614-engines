@@ -1,17 +1,23 @@
-import type { MemoryIntegrationComponentStatus, MemoryIntegrationOverallStatus } from "../config-writer/types";
+import type { HookComponentStatus, MemoryIntegrationComponentStatus, MemoryIntegrationOverallStatus } from "../config-writer/types";
 
 function isOk(status: MemoryIntegrationComponentStatus): boolean {
+  return status.kind === "noop" || status.kind === "write";
+}
+
+function isHookOk(status: HookComponentStatus): boolean {
   return status.kind === "noop" || status.kind === "write";
 }
 
 export function computeOverallStatus(
   mcp: MemoryIntegrationComponentStatus,
   instructions: MemoryIntegrationComponentStatus,
+  hook: HookComponentStatus,
 ): MemoryIntegrationOverallStatus {
   const mcpOk = isOk(mcp);
   const instructionsOk = isOk(instructions);
-  if (mcpOk && instructionsOk) return "complete";
-  if (!mcpOk && !instructionsOk) return "unsupported";
+  const hookOk = isHookOk(hook);
+  if (mcpOk && instructionsOk && hookOk) return "complete";
+  if (!mcpOk && !instructionsOk && !hookOk) return "unsupported";
   return "partial";
 }
 
@@ -21,13 +27,19 @@ function isRemovalOk(status: MemoryIntegrationComponentStatus): boolean {
   return status.kind === "noop" || status.kind === "write" || status.kind === "unsupported";
 }
 
+function isHookRemovalOk(status: HookComponentStatus): boolean {
+  return status.kind === "noop" || status.kind === "write" || status.kind === "unsupported";
+}
+
 export function computeRemovalStatus(
   mcp: MemoryIntegrationComponentStatus,
   instructions: MemoryIntegrationComponentStatus,
+  hook: HookComponentStatus,
 ): MemoryIntegrationOverallStatus {
   const mcpOk = isRemovalOk(mcp);
   const instructionsOk = isRemovalOk(instructions);
-  if (mcpOk && instructionsOk) return "complete";
-  if (!mcpOk && !instructionsOk) return "unsupported";
+  const hookOk = isHookRemovalOk(hook);
+  if (mcpOk && instructionsOk && hookOk) return "complete";
+  if (!mcpOk && !instructionsOk && !hookOk) return "unsupported";
   return "partial";
 }
