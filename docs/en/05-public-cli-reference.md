@@ -19,6 +19,9 @@ The CLI (command-line interface) is the Engines counter. Every request returns a
 | `forge614-engines headless ...` | `headless` command and arguments | No |
 | `forge614-engines update` | update `result` | Manages Engines only |
 | `forge614-engines verify memory-integration --agent <id>` | current MCP/instructions `verification` | No |
+| `forge614-engines plan mcp-repair --agent <id>` | repair `plan` with status (`not-installed`/`already-correct`/`repairable-conflict`/`blocked`) | Stores the plan only |
+| `forge614-engines apply mcp-repair --plan-id <id> [--confirm]` | confirmed application `result` | Yes, and only with `--confirm` |
+| `forge614-engines verify mcp-repair --agent <id> --plan-id <id>` | `verification` for that one repair | No |
 
 `--args` consumes values until the next flag beginning with `--`. This keeps MCP-server arguments from accidentally swallowing another Engines option.
 
@@ -56,5 +59,6 @@ Every error is JSON with `error.code` and `error.message`.
 | `UNKNOWN_AGENT` | the identifier is not registered |
 | `INTERNAL_ERROR` | an unclassified problem occurred |
 | `ENGRAM_PROTOCOL_UNAVAILABLE` | Engram is not installed, the command failed, or its JSON did not match the protocol shape |
+| `NOT_REPAIRABLE` | the given `planId` is not a `forge614-engram` repair plan |
 
 Do not automate decisions from message prose; use the stable code.

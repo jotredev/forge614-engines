@@ -16,6 +16,20 @@ Para cada escritura real, Engines lee de nuevo el archivo objetivo. Calcula SHA-
 
 Una escritura también puede ser una eliminación —usada para retirar por completo el archivo de contenido de instrucciones dedicado de Claude Code en `plan memory-remove`— y se aplica mediante exactamente el mismo camino de verificación de huella y copia de seguridad que cualquier otra escritura.
 
+## Aplicar una reparación solo con confirmación explícita
+
+```text
+forge614-engines apply mcp-repair --plan-id <id> --confirm
+```
+
+A diferencia de `apply` genérico, `apply mcp-repair` exige la bandera
+`--confirm`. Sin ella, la respuesta trae `confirmed: false` y
+`applied: false`, y Engines no lee, no calcula huellas ni escribe nada.
+Con `--confirm`, aplica el mismo mecanismo que cualquier otro plan: huella
+del contenido anterior, respaldo (snapshot) y escritura atómica. Si el
+archivo cambió desde que se generó el plan, falla con `STALE_PLAN` y no
+sobrescribe nada.
+
 ## Copia y escritura confiable
 
 Antes de cambiar un archivo existente, Engines crea una copia bajo `~/.forge614/engines/snapshots/<planId>/`. El manifiesto (lista estructurada de lo respaldado) guarda ruta original, nombre de copia, fecha y huella.

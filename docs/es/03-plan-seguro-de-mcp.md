@@ -37,6 +37,25 @@ forge614-engines plan memory-remove --agent codex
 
 `plan memory-install` y `plan memory-remove` agrupan dos decisiones —la entrada MCP `forge614-engram` y el o los archivos de instrucciones del agente— en un solo plan, con un único `planId` que cubre ambas. Un conflicto en un solo componente no aborta ese plan: una entrada MCP `forge614-engram` diferente, o un `AGENTS.override.md` no vacío que eclipsa el `AGENTS.md` de Codex, se reporta como `blocked` solo para ese componente, mientras el otro componente sigue su curso normal. El componente de instrucciones de Cursor siempre se reporta como `unsupported`, porque Cursor no tiene un mecanismo global basado en archivos oficialmente documentado para cargar instrucciones automáticamente en cada sesión nueva.
 
+## Reparar un conflicto MCP existente
+
+```text
+forge614-engines plan mcp-repair --agent codex
+```
+
+`plan mcp-repair` clasifica la entrada `forge614-engram` en uno de cuatro
+estados: `not-installed` (no existe), `already-correct` (ya es la
+canónica, no hay nada que hacer), `repairable-conflict` (existe con otro
+contenido y el archivo se puede escribir) o `blocked` (el archivo está
+dañado —`blockedReason: "unparsable-config"`— o no se puede escribir
+—`blockedReason: "not-writable"`—). El plan trae `repair.existing`: una
+vista previa de la entrada conflictiva donde solo `command` y `args` se
+muestran tal cual; cualquier otra clave (por ejemplo un `env` con
+credenciales de otra herramienta) aparece como `"<redacted>"`. Shell debe
+mostrar `plan.repair`, no `plan.writes[].afterContent` (ese campo es
+plomería interna con el archivo completo, igual que en cualquier otro
+plan, y se guarda con acceso restringido).
+
 ## Resolver Engram sin depender de PATH
 
 Forge614 Shell instala el MCP con la ruta pública canónica del binario en `~/.forge614/engram/bin/forge614-engram`. Engines resuelve directamente esa misma ruta: usa `FORGE614_HOME` cuando existe esa variable de entorno; de lo contrario, usa la carpeta personal del usuario más `.forge614`; en Windows el ejecutable termina en `.exe`. Esta resolución se usa para la entrada MCP y para `forge614-engram memory-protocol --json`, de modo que una instalación válida de Shell se reconoce como la misma entrada y `plan memory-install` puede devolver `noop` en vez de un `CONFLICT` falso.

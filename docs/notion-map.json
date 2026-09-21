@@ -52,37 +52,37 @@
       "localPath": "docs/es/03-plan-seguro-de-mcp.md",
       "language": "es",
       "notionUrl": "https://app.notion.com/p/3e121943d12981f79fd1e4fd43e2587c",
-      "sha256": "8ffd44bc35e0ad06fec2ae254f06faa72e0740f3c24701f2548506df6a030fe3"
+      "sha256": "dd6f9dc6379d85371268f1c5a3a5414cd72d5458f3717779b9b499558f5931e2"
     },
     {
       "localPath": "docs/en/03-safe-mcp-planning.md",
       "language": "en",
       "notionUrl": "https://app.notion.com/p/3e121943d129811a822eec896be4b4dc",
-      "sha256": "4fe2ce1802fb30bbdfda2d1305f99ad0e01c32dc3769137979bffcfafb21695f"
+      "sha256": "f47639a1e3961a364cd64e41074a0e6a6ae984696739226047c83e6772b9d6d5"
     },
     {
       "localPath": "docs/es/04-aplicacion-segura-y-recuperacion.md",
       "language": "es",
       "notionUrl": "https://app.notion.com/p/3e121943d1298188a91afcb72465d572",
-      "sha256": "4f4fbf274112e81721586c22e18c7df3be6a4e295ad56d4617f158eb1460dee4"
+      "sha256": "f37813e44b36844a91c8523d2f8a9678626d279befa575bee5458b523ffabc66"
     },
     {
       "localPath": "docs/en/04-safe-application-and-recovery.md",
       "language": "en",
       "notionUrl": "https://app.notion.com/p/3e121943d12981758935cb7ce48535c2",
-      "sha256": "05986f2f6987e51dcc163ddfd16d9df70b1d952de5cd2c9be46c00999067df90"
+      "sha256": "1b918a50dd0fd519140def7e4067d1409824babaf048b4a4833584f3e2e10209"
     },
     {
       "localPath": "docs/es/05-referencia-del-cli-publico.md",
       "language": "es",
       "notionUrl": "https://app.notion.com/p/3e121943d1298178b133f109e29a742f",
-      "sha256": "808e33ead0a7875d3936aed72fd0bbd180a558e8d0b942a488406a5b3d754730"
+      "sha256": "e5ac503e76ef2da9690e295d82b874fab0be023139b178d6ffd4b4f1836ad19b"
     },
     {
       "localPath": "docs/en/05-public-cli-reference.md",
       "language": "en",
       "notionUrl": "https://app.notion.com/p/3e121943d12981c097f7ff61185f3454",
-      "sha256": "721933b8fea90b0a48fa9d960c0c604a51a80625c9f78087fd1a33412670ff80"
+      "sha256": "d22351426aa39607befeecd93ba552b289a3daad3e66033af89d86eb3afdcf79"
     },
     {
       "localPath": "docs/es/06-ejecucion-automatica-e-integraciones.md",

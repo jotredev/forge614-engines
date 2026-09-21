@@ -16,6 +16,20 @@ For every real write, Engines reads the target file again. It calculates SHA-256
 
 A write can also be a deletion — used to fully remove Claude Code's dedicated instructions content file on `plan memory-remove` — and it is applied through that exact same hash-check and snapshot path as every other write.
 
+## Applying a repair only with explicit confirmation
+
+```text
+forge614-engines apply mcp-repair --plan-id <id> --confirm
+```
+
+Unlike generic `apply`, `apply mcp-repair` requires the `--confirm` flag.
+Without it, the response carries `confirmed: false` and `applied: false`,
+and Engines reads nothing, computes no fingerprints, and writes nothing.
+With `--confirm`, it applies through the same mechanism as any other
+plan: fingerprint of the earlier content, backup (snapshot), and atomic
+write. If the file changed since the plan was generated, it fails with
+`STALE_PLAN` and overwrites nothing.
+
 ## Backup and reliable write
 
 Before changing an existing file, Engines creates a backup under `~/.forge614/engines/snapshots/<planId>/`. The manifest (a structured inventory of backups) stores the original path, backup name, date, and fingerprint.
