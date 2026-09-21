@@ -15,11 +15,12 @@ export function headlessCommandFor(
   timeoutMs?: number,
   model?: string,
   reasoningLevel?: ReasoningLevel,
+  stdinPrompt?: boolean,
 ): HeadlessCommand {
   const adapter = registry.get(agentId);
   if (!adapter) throw new Error(`Unknown agent: ${agentId}`);
   if (!adapter.capabilities.supportsHeadlessExec || !adapter.headlessCommand) {
     throw new HeadlessUnsupportedError(agentId);
   }
-  return adapter.headlessCommand(executable, { prompt, timeoutMs, model, reasoningLevel });
+  return adapter.headlessCommand(executable, { prompt, timeoutMs, model, reasoningLevel, stdinPrompt });
 }

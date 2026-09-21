@@ -29,6 +29,27 @@ forge614-engines headless --agent codex --executable codex --prompt "Explain the
 | Claude Code | Appends `--model <model-id>` | Not supported — throws `REASONING_LEVEL_UNSUPPORTED`. Claude Code's CLI has no public, stable flag to select a reasoning/thinking level, so the adapter rejects it explicitly instead of silently building a command that would ignore it. |
 | Codex | Appends `--model <model-id>` | Appends `-c model_reasoning_effort=<level>` |
 
+## Keeping the prompt out of `ps`
+
+By default the prompt is embedded directly in `args` (e.g. `["-p", "<prompt>"]`), which makes it visible to any other process or user on the same machine that can run `ps` — a real risk when the prompt carries sensitive repository content. `--stdin-prompt` is an optional, additive flag: omitting it keeps today's exact behavior (nothing here changes for a caller that never passes it).
+
+When `--stdin-prompt` is passed, the adapter removes the prompt from `args` entirely and the returned command carries `"stdin": true`. The caller (Atlas) already has the prompt it originally sent — it must write that exact text to the spawned process's stdin and close it (send EOF) instead of finding it in `args`:
+
+```text
+forge614-engines headless --agent claude-code --executable claude --prompt "Explain the structure" --stdin-prompt
+```
+
+```json
+{ "command": "claude", "args": ["-p"], "stdin": true }
+```
+
+| Agent | Stdin delivery | Confirmed by |
+| --- | --- | --- |
+| Claude Code | Supported: `claude -p` with no positional prompt reads it from stdin | Live invocation against the real CLI |
+| Codex | Supported: `codex exec` with no positional prompt argument reads it from stdin | `codex exec --help`: "If not provided as an argument (or if `-` is used), instructions are read from stdin" |
+
+Both currently-supported headless agents honor `--stdin-prompt`, so there is no exception to document today. If a future adapter cannot deliver the prompt via stdin, it must throw an explicit error from its own `headlessCommand()` (the same pattern as `REASONING_LEVEL_UNSUPPORTED`) rather than silently leaving the prompt in `args` — silently ignoring the flag would defeat the security goal this flag exists for.
+
 ## Relationship with Atlas
 
 The agreed flow is:

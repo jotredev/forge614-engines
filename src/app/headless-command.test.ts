@@ -46,6 +46,15 @@ describe("headlessCommandFor", () => {
     ).toThrow(ReasoningLevelUnsupportedError);
   });
 
+  test("forwards an optional stdinPrompt to the adapter", () => {
+    const registry = new AgentRegistry();
+    registry.register(claudeCodeAdapter);
+
+    expect(
+      headlessCommandFor(registry, "claude-code", "/bin/claude", "hello", undefined, undefined, undefined, true),
+    ).toEqual({ command: "/bin/claude", args: ["-p"], stdin: true });
+  });
+
   test("throws HeadlessUnsupportedError for an agent that does not support headless exec", () => {
     const registry = new AgentRegistry();
     registry.register(cursorAdapter);

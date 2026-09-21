@@ -35,6 +35,10 @@ function flag(args: string[], name: string): string | undefined {
   return index === -1 ? undefined : args[index + 1];
 }
 
+function boolFlag(args: string[], name: string): boolean {
+  return args.includes(name);
+}
+
 /**
  * `--args` is variadic: it consumes every following token up to (but not
  * including) the next `--flag`, so later CLI flags are never swallowed as
@@ -125,7 +129,8 @@ async function main(): Promise<void> {
     const timeoutMs = timeoutMsRaw === undefined ? undefined : Number(timeoutMsRaw);
     const model = flag(headlessArgs, "--model");
     const reasoningLevel = flag(headlessArgs, "--reasoning-level") as ReasoningLevel | undefined;
-    return runHeadlessCommand(agentId, executable, prompt, timeoutMs, model, reasoningLevel);
+    const stdinPrompt = boolFlag(headlessArgs, "--stdin-prompt");
+    return runHeadlessCommand(agentId, executable, prompt, timeoutMs, model, reasoningLevel, stdinPrompt);
   }
 
   throw new UnknownCommandError(process.argv.slice(2).join(" "));

@@ -40,8 +40,10 @@ export const claudeCodeAdapter: AgentAdapter = {
       // that ignores the caller's requested reasoning level.
       throw new ReasoningLevelUnsupportedError("claude-code");
     }
-    const args = ["-p", opts.prompt];
+    // Confirmed against the real `claude` CLI: with no positional prompt, `-p`
+    // reads it from stdin instead (verified live: `echo "..." | claude -p`).
+    const args = opts.stdinPrompt ? ["-p"] : ["-p", opts.prompt];
     if (opts.model) args.push("--model", opts.model);
-    return { command: executable, args };
+    return opts.stdinPrompt ? { command: executable, args, stdin: true } : { command: executable, args };
   },
 };

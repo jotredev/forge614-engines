@@ -43,6 +43,29 @@ describe("codexAdapter", () => {
     });
   });
 
+  test("omits the prompt from args and marks stdin delivery when stdinPrompt is requested", () => {
+    expect(codexAdapter.headlessCommand?.("/bin/codex", { prompt: "hello", stdinPrompt: true })).toEqual({
+      command: "/bin/codex",
+      args: ["exec"],
+      stdin: true,
+    });
+  });
+
+  test("combines stdin delivery with --model and the reasoning override", () => {
+    expect(
+      codexAdapter.headlessCommand?.("/bin/codex", {
+        prompt: "hello",
+        model: "gpt-5-codex",
+        reasoningLevel: "low",
+        stdinPrompt: true,
+      }),
+    ).toEqual({
+      command: "/bin/codex",
+      args: ["exec", "--model", "gpt-5-codex", "-c", "model_reasoning_effort=low"],
+      stdin: true,
+    });
+  });
+
   test("manages global instructions through AGENTS.md, embedded, watching for AGENTS.override.md", () => {
     const target = codexAdapter.instructions;
     expect(target).toBeDefined();

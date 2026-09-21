@@ -29,6 +29,27 @@ forge614-engines headless --agent codex --executable codex --prompt "Explica la 
 | Claude Code | Agrega `--model <model-id>` | No soportado — lanza `REASONING_LEVEL_UNSUPPORTED`. El CLI de Claude Code no tiene un flag público y estable para elegir un nivel de razonamiento/pensamiento, así que el adaptador lo rechaza de forma explícita en vez de construir en silencio una orden que lo ignoraría. |
 | Codex | Agrega `--model <model-id>` | Agrega `-c model_reasoning_effort=<level>` |
 
+## Mantener el prompt fuera de `ps`
+
+Por defecto el prompt queda embebido directamente en `args` (ej. `["-p", "<prompt>"]`), lo cual lo hace visible para cualquier otro proceso o usuario en la misma máquina que pueda correr `ps` — un riesgo real cuando el prompt lleva contenido sensible del repositorio. `--stdin-prompt` es un flag opcional y aditivo: omitirlo mantiene el comportamiento actual exacto (nada cambia para quien nunca lo pasa).
+
+Cuando se pasa `--stdin-prompt`, el adaptador quita el prompt de `args` por completo y la orden devuelta incluye `"stdin": true`. El llamador (Atlas) ya tiene el prompt que envió originalmente — debe escribir ese mismo texto al stdin del proceso creado y cerrarlo (enviar EOF), en vez de buscarlo en `args`:
+
+```text
+forge614-engines headless --agent claude-code --executable claude --prompt "Explica la estructura" --stdin-prompt
+```
+
+```json
+{ "command": "claude", "args": ["-p"], "stdin": true }
+```
+
+| Agente | Entrega por stdin | Confirmado con |
+| --- | --- | --- |
+| Claude Code | Soportado: `claude -p` sin prompt posicional lo lee de stdin | Invocación real contra el CLI real |
+| Codex | Soportado: `codex exec` sin argumento posicional de prompt lo lee de stdin | `codex exec --help`: "If not provided as an argument (or if `-` is used), instructions are read from stdin" |
+
+Ambos agentes headless soportados hoy honran `--stdin-prompt`, así que no hay ninguna excepción que documentar por ahora. Si en el futuro un adaptador no puede entregar el prompt por stdin, debe lanzar un error explícito desde su propio `headlessCommand()` (mismo patrón que `REASONING_LEVEL_UNSUPPORTED`) en vez de dejar el prompt en `args` en silencio — ignorar el flag en silencio anularía el objetivo de seguridad por el que existe.
+
 ## Relación con Atlas
 
 El flujo acordado es:

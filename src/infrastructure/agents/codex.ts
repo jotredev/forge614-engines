@@ -34,7 +34,9 @@ export const codexAdapter: AgentAdapter = {
     const args = ["exec"];
     if (opts.model) args.push("--model", opts.model);
     if (opts.reasoningLevel) args.push("-c", `model_reasoning_effort=${opts.reasoningLevel}`);
-    args.push(opts.prompt);
-    return { command: executable, args };
+    // Confirmed from `codex exec --help`: with no positional PROMPT, instructions
+    // are read from stdin instead.
+    if (!opts.stdinPrompt) args.push(opts.prompt);
+    return opts.stdinPrompt ? { command: executable, args, stdin: true } : { command: executable, args };
   },
 };

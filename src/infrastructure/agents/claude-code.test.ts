@@ -39,6 +39,20 @@ describe("claudeCodeAdapter", () => {
     ).toThrow(ReasoningLevelUnsupportedError);
   });
 
+  test("omits the prompt from args and marks stdin delivery when stdinPrompt is requested", () => {
+    const headless = claudeCodeAdapter.headlessCommand?.("/bin/claude", { prompt: "hello", stdinPrompt: true });
+    expect(headless).toEqual({ command: "/bin/claude", args: ["-p"], stdin: true });
+  });
+
+  test("combines stdin delivery with --model", () => {
+    const headless = claudeCodeAdapter.headlessCommand?.("/bin/claude", {
+      prompt: "hello",
+      model: "claude-opus-5",
+      stdinPrompt: true,
+    });
+    expect(headless).toEqual({ command: "/bin/claude", args: ["-p", "--model", "claude-opus-5"], stdin: true });
+  });
+
   test("uses claude.exe as the candidate name on windows", () => {
     expect(claudeCodeAdapter.candidateExecutableNames("win32")).toEqual(["claude.exe"]);
     expect(claudeCodeAdapter.candidateExecutableNames("darwin")).toEqual(["claude"]);

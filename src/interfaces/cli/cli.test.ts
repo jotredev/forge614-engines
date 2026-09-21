@@ -125,6 +125,39 @@ describe("forge614-engines CLI", () => {
     expect(parsed.headless).toEqual({ command: "/bin/claude", args: ["-p", "hello", "--model", "claude-haiku-4-5"] });
   });
 
+  test("headless --stdin-prompt omits the prompt from args and marks stdin delivery", async () => {
+    const { stdout, exitCode } = await runCli([
+      "headless",
+      "--agent",
+      "claude-code",
+      "--executable",
+      "/bin/claude",
+      "--prompt",
+      "hello",
+      "--stdin-prompt",
+    ]);
+
+    expect(exitCode).toBe(0);
+    const parsed = JSON.parse(stdout);
+    expect(parsed.headless).toEqual({ command: "/bin/claude", args: ["-p"], stdin: true });
+  });
+
+  test("headless without --stdin-prompt keeps the prompt in args, unchanged", async () => {
+    const { stdout, exitCode } = await runCli([
+      "headless",
+      "--agent",
+      "codex",
+      "--executable",
+      "/bin/codex",
+      "--prompt",
+      "hello",
+    ]);
+
+    expect(exitCode).toBe(0);
+    const parsed = JSON.parse(stdout);
+    expect(parsed.headless).toEqual({ command: "/bin/codex", args: ["exec", "hello"] });
+  });
+
   test("headless forwards --reasoning-level as a codex config override", async () => {
     const { stdout, exitCode } = await runCli([
       "headless",

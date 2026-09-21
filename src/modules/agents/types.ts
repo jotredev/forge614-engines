@@ -21,11 +21,22 @@ export interface HeadlessOptions {
   timeoutMs?: number;
   model?: string;
   reasoningLevel?: ReasoningLevel;
+  /**
+   * When true, the adapter must omit the prompt from `args` and set
+   * `stdin: true` on the returned command instead, so the caller writes the
+   * prompt to the spawned process's stdin rather than leaving it visible to
+   * `ps` as a process argument. An adapter that cannot honor this must throw
+   * explicitly (the same pattern as ReasoningLevelUnsupportedError) rather
+   * than silently leaving the prompt in args.
+   */
+  stdinPrompt?: boolean;
 }
 
 export interface HeadlessCommand {
   command: string;
   args: string[];
+  /** Present and true only when the prompt was deliberately left out of `args` per `stdinPrompt`. */
+  stdin?: boolean;
 }
 
 export interface InstructionsTarget {
