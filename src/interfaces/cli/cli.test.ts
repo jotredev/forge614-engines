@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { ConfirmationRequiredError, NotRepairableError } from "../../app/apply-mcp-repair";
+import { resolveEngramExecutable } from "../../modules/memory-protocol/constants";
 import { errorCodeFor } from "./main";
 
 const ENTRY = "src/interfaces/cli/main.ts";
@@ -16,6 +17,46 @@ beforeEach(() => {
 afterEach(() => {
   rmSync(home, { recursive: true, force: true });
 });
+
+const PROTOCOL_JSON = JSON.stringify({
+  id: "forge614-engram-memory",
+  version: 1,
+  instructions: "Call memory_context.",
+  lifecycle: { start: ["s"], save: ["s"], compact: ["s"], resume: ["s"], end: ["s"] },
+  scopes: { shared: "s", project: "p" },
+  security: { neverSave: ["passwords"] },
+});
+
+const STARTUP_CONTEXT_JSON = JSON.stringify({
+  format: 1,
+  shared: { pinned: [], recent: [], sessions: [], truncated: false },
+  project: { status: "unbound", projectId: null, context: null },
+});
+
+/**
+ * Installs a fake forge614-engram binary at the exact canonical path Engines
+ * resolves under this test's HOME, so the real CLI (with no test seam available
+ * to it) can run `plan memory-install`/`verify memory-integration` end to end.
+ * Responds to both subcommands the CLI actually invokes: memory-protocol --json
+ * (used by plan memory-install) and startup-context --json (used by the hook's
+ * own dry run inside verify memory-integration).
+ */
+function installEngramFixture(testHome: string): void {
+  const canonicalPath = resolveEngramExecutable(testHome);
+  mkdirSync(dirname(canonicalPath), { recursive: true });
+  writeFileSync(
+    canonicalPath,
+    [
+      `#!${process.execPath}`,
+      `const args = process.argv.slice(2);`,
+      `if (args[0] === "memory-protocol") { console.log(${JSON.stringify(PROTOCOL_JSON)}); }`,
+      `else if (args[0] === "startup-context") { console.log(${JSON.stringify(STARTUP_CONTEXT_JSON)}); }`,
+      `else { process.exit(1); }`,
+      "",
+    ].join("\n"),
+  );
+  chmodSync(canonicalPath, 0o755);
+}
 
 async function runCli(args: string[]): Promise<{ stdout: string; exitCode: number }> {
   const proc = Bun.spawn(["bun", ENTRY, ...args], {
@@ -292,6 +333,61 @@ describe("forge614-engines CLI", () => {
     expect(proc.exitCode).toBe(0);
     expect(proc.stdout.toString().toLowerCase()).toContain("no disponible");
   });
+
+  test.skipIf(process.platform === "win32")(
+    "full memory-install cycle for claude-code reaches complete, then removal clears the hook",
+    async () => {
+      installEngramFixture(home);
+
+      const planned = await runCli(["plan", "memory-install", "--agent", "claude-code"]);
+      expect(planned.exitCode).toBe(0);
+      const plan = JSON.parse(planned.stdout).plan;
+      expect(plan.metadata.hook.status.kind).toBe("write");
+
+      const applied = await runCli(["apply", "--plan-id", plan.planId]);
+      expect(applied.exitCode).toBe(0);
+
+      const verified = await runCli(["verify", "memory-integration", "--agent", "claude-code"]);
+      expect(verified.exitCode).toBe(0);
+      const verification = JSON.parse(verified.stdout).verification;
+      expect(verification.hook.present).toBe(true);
+      expect(verification.hook.dryRunOk).toBe(true);
+      expect(verification.hook.trustPending).toBe(false);
+      expect(verification.overallStatus).toBe("complete");
+
+      const removePlanned = await runCli(["plan", "memory-remove", "--agent", "claude-code"]);
+      const removePlan = JSON.parse(removePlanned.stdout).plan;
+      const removeApplied = await runCli(["apply", "--plan-id", removePlan.planId]);
+      expect(removeApplied.exitCode).toBe(0);
+
+      const finalVerified = await runCli(["verify", "memory-integration", "--agent", "claude-code"]);
+      const finalVerification = JSON.parse(finalVerified.stdout).verification;
+      expect(finalVerification.hook.present).toBe(false);
+    },
+  );
+
+  test.skipIf(process.platform === "win32")(
+    "codex install always surfaces needs-user-trust through plan, never complete",
+    async () => {
+      installEngramFixture(home);
+
+      const planned = await runCli(["plan", "memory-install", "--agent", "codex"]);
+      expect(planned.exitCode).toBe(0);
+      const plan = JSON.parse(planned.stdout).plan;
+
+      expect(plan.metadata.hook.status.kind).toBe("needs-user-trust");
+      expect(plan.metadata.hook.status.agentId).toBe("codex");
+      expect(plan.metadata.overallStatus).not.toBe("complete");
+
+      const applied = await runCli(["apply", "--plan-id", plan.planId]);
+      expect(applied.exitCode).toBe(0);
+
+      const verified = await runCli(["verify", "memory-integration", "--agent", "codex"]);
+      const verification = JSON.parse(verified.stdout).verification;
+      expect(verification.hook.trustPending).toBe(true);
+      expect(verification.overallStatus).not.toBe("complete");
+    },
+  );
 
   test("the generic apply command refuses an mcp-repair plan with CONFIRMATION_REQUIRED", async () => {
     const configPath = join(home, ".claude.json");
