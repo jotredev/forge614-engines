@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { AgentRegistry } from "../modules/agents/registry";
 import { claudeCodeAdapter } from "../infrastructure/agents/claude-code";
+import { codexAdapter } from "../infrastructure/agents/codex";
 import { cursorAdapter } from "../infrastructure/agents/cursor";
 import { resolveEngramMcpServer } from "../modules/memory-protocol/constants";
 import { planMemoryInstall } from "./plan-memory-install";
@@ -30,6 +31,7 @@ beforeEach(() => {
   home = mkdtempSync(join(tmpdir(), "engines-planmemoryremove-"));
   registry = new AgentRegistry();
   registry.register(claudeCodeAdapter);
+  registry.register(codexAdapter);
   registry.register(cursorAdapter);
 });
 
@@ -93,8 +95,66 @@ describe("planMemoryRemove", () => {
     const plan = await planMemoryRemove(registry, { agentId: "cursor", home });
 
     expect(plan.metadata?.instructions.status.kind).toBe("unsupported");
+    expect(plan.metadata?.hook.status.kind).toBe("unsupported");
     expect(plan.writes.some((w) => w.path === join(home, ".cursor", "mcp.json"))).toBe(true);
     // Cursor structurally has no instructions to remove, so removing its MCP entry is the whole job.
     expect(plan.metadata?.overallStatus).toBe("complete");
+  });
+
+  test("removes only Forge614's own hook entry, preserving a foreign one already in the file", async () => {
+    const script = join(home, "engram.js");
+    writeFileSync(script, PROTOCOL_SCRIPT_CONTENT);
+    const installed = await planMemoryInstall(registry, {
+      agentId: "claude-code",
+      home,
+      protocolOptions: { command: process.execPath, args: [script] },
+    });
+    for (const write of installed.writes) {
+      mkdirSync(dirname(write.path), { recursive: true });
+      writeFileSync(write.path, write.afterContent);
+    }
+    const hookConfigPath = join(home, ".claude", "settings.json");
+    const before = JSON.parse(readFileSync(hookConfigPath, "utf8"));
+    const foreign = { matcher: "startup", hooks: [{ type: "command", command: "/opt/some-other-tool" }] };
+    before.hooks.SessionStart.push(foreign);
+    writeFileSync(hookConfigPath, JSON.stringify(before));
+
+    const removePlan = await planMemoryRemove(registry, { agentId: "claude-code", home });
+    for (const write of removePlan.writes) {
+      if (write.delete) rmSync(write.path, { force: true });
+      else {
+        mkdirSync(dirname(write.path), { recursive: true });
+        writeFileSync(write.path, write.afterContent);
+      }
+    }
+
+    const after = JSON.parse(readFileSync(hookConfigPath, "utf8"));
+    expect(after.hooks.SessionStart).toEqual([foreign]);
+  });
+
+  test("removal never reports needs-user-trust — trust concerns whether Codex runs a hook, not whether Engines can delete it", async () => {
+    const script = join(home, "engram.js");
+    writeFileSync(script, PROTOCOL_SCRIPT_CONTENT);
+    const installed = await planMemoryInstall(registry, {
+      agentId: "codex",
+      home,
+      protocolOptions: { command: process.execPath, args: [script] },
+    });
+    for (const write of installed.writes) {
+      mkdirSync(dirname(write.path), { recursive: true });
+      writeFileSync(write.path, write.afterContent);
+    }
+
+    const removePlan = await planMemoryRemove(registry, { agentId: "codex", home });
+    expect(removePlan.metadata?.hook.status.kind).toBe("write");
+    // Only one physical write to the shared config.toml, and it reflects both
+    // removals — same shallow-delete convention as MCP removal already uses
+    // (the now-empty mcp_servers/hooks tables are left behind, only their
+    // forge614-owned leaf entries are gone).
+    const configWrites = removePlan.writes.filter((w) => w.path === join(home, ".codex", "config.toml"));
+    expect(configWrites).toHaveLength(1);
+    const { tomlConfigFormat } = await import("../infrastructure/config-io/toml-format");
+    expect(tomlConfigFormat.getMcpEntry(configWrites[0]!.afterContent, ["mcp_servers"], "forge614-engram")).toBeUndefined();
+    expect(tomlConfigFormat.getValueAtPath(configWrites[0]!.afterContent, ["hooks", "SessionStart"])).toBeUndefined();
   });
 });
