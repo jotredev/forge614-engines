@@ -30,6 +30,15 @@ export interface HeadlessOptions {
    * than silently leaving the prompt in args.
    */
   stdinPrompt?: boolean;
+  /**
+   * Grants the spawned process read access to this directory in addition to
+   * the agent's normal working directory, without otherwise loosening
+   * isolation. Maps to `--add-dir` on both Claude Code and Codex; on Codex
+   * this is accepted as a read-only grant only because `codex exec` defaults
+   * to a read-only sandbox unless `--sandbox workspace-write` or
+   * `--sandbox danger-full-access` is also passed (never done here).
+   */
+  readableDir?: string;
 }
 
 export interface HeadlessCommand {

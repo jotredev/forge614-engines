@@ -50,6 +50,27 @@ forge614-engines headless --agent claude-code --executable claude --prompt "Expl
 
 Ambos agentes headless soportados hoy honran `--stdin-prompt`, así que no hay ninguna excepción que documentar por ahora. Si en el futuro un adaptador no puede entregar el prompt por stdin, debe lanzar un error explícito desde su propio `headlessCommand()` (mismo patrón que `REASONING_LEVEL_UNSUPPORTED`) en vez de dejar el prompt en `args` en silencio — ignorar el flag en silencio anularía el objetivo de seguridad por el que existe.
 
+## Dar acceso de lectura a una carpeta real
+
+El proceso creado normalmente queda confinado a su propio directorio de trabajo aislado. `--readable-dir <ruta>` es una bandera opcional y aditiva que le da acceso de lectura a una carpeta real adicional del proyecto sin romper ese aislamiento en lo demás: si no se pasa, el comportamiento es idéntico al actual.
+
+```text
+forge614-engines headless --agent claude-code --executable claude --prompt "Explica la estructura" --readable-dir /ruta/al/proyecto
+```
+
+```json
+{ "command": "claude", "args": ["--add-dir", "/ruta/al/proyecto", "-p", "Explica la estructura"] }
+```
+
+Ambos agentes headless soportados hoy la mapean a `--add-dir <ruta>`, siempre colocada antes del prompt (`--add-dir` es variádico — acepta varias rutas seguidas — así que colocarla después del prompt se comería el texto del prompt como si fuera otra ruta):
+
+| Agente | Comportamiento | Confirmado con |
+| --- | --- | --- |
+| Claude Code | Agrega `--add-dir <ruta>` antes de `-p`. Confirmado que no carga el `CLAUDE.md` de esa carpeta — solo carga el `CLAUDE.md` global del usuario real, que es el comportamiento esperado. | Invocación real contra el CLI real |
+| Codex | Agrega `--add-dir <ruta>` antes del prompt posicional. `--add-dir` técnicamente puede otorgar acceso de escritura en Codex, pero el sandbox por defecto de `codex exec` sigue siendo de solo lectura mientras no se pase también `--sandbox workspace-write` ni `--sandbox danger-full-access` (este adaptador nunca pasa ninguno de los dos). | Invocación real contra el CLI real |
+
+**Limitación aceptada (solo Codex):** a diferencia de Claude Code, Codex puede leer y dejarse influenciar por el `AGENTS.md` de esa carpeta si decide explorarla por su cuenta — Codex no tiene un equivalente al `--allowedTools` de Claude Code para restringir esto más fino. Es una limitación aceptada y de bajo riesgo (Codex sigue sin poder escribir ni dañar nada bajo el sandbox de solo lectura por defecto) y no es algo que esta integración intente resolver.
+
 ## Relación con Atlas
 
 El flujo acordado es:

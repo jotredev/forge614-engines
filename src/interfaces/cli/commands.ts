@@ -83,9 +83,20 @@ export async function runHeadlessCommand(
   model?: string,
   reasoningLevel?: ReasoningLevel,
   stdinPrompt?: boolean,
+  readableDir?: string,
 ): Promise<void> {
   const registry = buildDefaultRegistry();
-  const result = headlessCommandFor(registry, agentId, executable, prompt, timeoutMs, model, reasoningLevel, stdinPrompt);
+  const result = headlessCommandFor(
+    registry,
+    agentId,
+    executable,
+    prompt,
+    timeoutMs,
+    model,
+    reasoningLevel,
+    stdinPrompt,
+    readableDir,
+  );
   printJson({ headless: result });
 }
 

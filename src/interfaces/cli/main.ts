@@ -175,7 +175,8 @@ async function main(): Promise<void> {
     const model = flag(headlessArgs, "--model");
     const reasoningLevel = flag(headlessArgs, "--reasoning-level") as ReasoningLevel | undefined;
     const stdinPrompt = boolFlag(headlessArgs, "--stdin-prompt");
-    return runHeadlessCommand(agentId, executable, prompt, timeoutMs, model, reasoningLevel, stdinPrompt);
+    const readableDir = flag(headlessArgs, "--readable-dir");
+    return runHeadlessCommand(agentId, executable, prompt, timeoutMs, model, reasoningLevel, stdinPrompt, readableDir);
   }
 
   throw new UnknownCommandError(process.argv.slice(2).join(" "));

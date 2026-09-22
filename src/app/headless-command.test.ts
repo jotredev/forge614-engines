@@ -55,6 +55,44 @@ describe("headlessCommandFor", () => {
     ).toEqual({ command: "/bin/claude", args: ["-p"], stdin: true });
   });
 
+  test("forwards an optional readableDir to claude-code's args, before -p", () => {
+    const registry = new AgentRegistry();
+    registry.register(claudeCodeAdapter);
+
+    expect(
+      headlessCommandFor(
+        registry,
+        "claude-code",
+        "/bin/claude",
+        "hello",
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        "/tmp/project",
+      ),
+    ).toEqual({ command: "/bin/claude", args: ["--add-dir", "/tmp/project", "-p", "hello"] });
+  });
+
+  test("forwards an optional readableDir to codex's args, before the prompt", () => {
+    const registry = new AgentRegistry();
+    registry.register(codexAdapter);
+
+    expect(
+      headlessCommandFor(
+        registry,
+        "codex",
+        "/bin/codex",
+        "hello",
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        "/tmp/project",
+      ),
+    ).toEqual({ command: "/bin/codex", args: ["exec", "--add-dir", "/tmp/project", "hello"] });
+  });
+
   test("throws HeadlessUnsupportedError for an agent that does not support headless exec", () => {
     const registry = new AgentRegistry();
     registry.register(cursorAdapter);

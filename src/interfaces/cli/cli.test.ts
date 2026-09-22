@@ -240,6 +240,42 @@ describe("forge614-engines CLI", () => {
     expect(parsed.error.code).toBe("REASONING_LEVEL_UNSUPPORTED");
   });
 
+  test("headless forwards --readable-dir to claude-code's args, before -p", async () => {
+    const { stdout, exitCode } = await runCli([
+      "headless",
+      "--agent",
+      "claude-code",
+      "--executable",
+      "/bin/claude",
+      "--prompt",
+      "hello",
+      "--readable-dir",
+      "/tmp/project",
+    ]);
+
+    expect(exitCode).toBe(0);
+    const parsed = JSON.parse(stdout);
+    expect(parsed.headless).toEqual({ command: "/bin/claude", args: ["--add-dir", "/tmp/project", "-p", "hello"] });
+  });
+
+  test("headless forwards --readable-dir to codex's args, before the prompt", async () => {
+    const { stdout, exitCode } = await runCli([
+      "headless",
+      "--agent",
+      "codex",
+      "--executable",
+      "/bin/codex",
+      "--prompt",
+      "hello",
+      "--readable-dir",
+      "/tmp/project",
+    ]);
+
+    expect(exitCode).toBe(0);
+    const parsed = JSON.parse(stdout);
+    expect(parsed.headless).toEqual({ command: "/bin/codex", args: ["exec", "--add-dir", "/tmp/project", "hello"] });
+  });
+
   test("headless for an agent without headless support reports HEADLESS_UNSUPPORTED", async () => {
     const { stdout, exitCode } = await runCli([
       "headless",

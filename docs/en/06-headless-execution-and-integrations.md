@@ -50,6 +50,27 @@ forge614-engines headless --agent claude-code --executable claude --prompt "Expl
 
 Both currently-supported headless agents honor `--stdin-prompt`, so there is no exception to document today. If a future adapter cannot deliver the prompt via stdin, it must throw an explicit error from its own `headlessCommand()` (the same pattern as `REASONING_LEVEL_UNSUPPORTED`) rather than silently leaving the prompt in `args` — silently ignoring the flag would defeat the security goal this flag exists for.
 
+## Granting read access to a real directory
+
+The spawned process is normally confined to its own isolated working directory. `--readable-dir <path>` is an optional, additive flag that grants it read access to one additional real project folder without otherwise loosening that isolation: omitting it keeps today's exact behavior.
+
+```text
+forge614-engines headless --agent claude-code --executable claude --prompt "Explain the structure" --readable-dir /path/to/project
+```
+
+```json
+{ "command": "claude", "args": ["--add-dir", "/path/to/project", "-p", "Explain the structure"] }
+```
+
+Both currently-supported headless agents map it to `--add-dir <path>`, always placed before the prompt (`--add-dir` is variadic — it accepts several paths in a row — so placing it after the prompt would swallow the prompt text as another path):
+
+| Agent | Behavior | Confirmed by |
+| --- | --- | --- |
+| Claude Code | Appends `--add-dir <path>` before `-p`. Confirmed not to load that folder's `CLAUDE.md` — only the real user's global `CLAUDE.md` loads, which is the expected behavior. | Live invocation against the real CLI |
+| Codex | Appends `--add-dir <path>` before the positional prompt. `--add-dir` can technically grant write access on Codex, but `codex exec`'s default sandbox stays read-only as long as neither `--sandbox workspace-write` nor `--sandbox danger-full-access` is also passed (this adapter never passes either). | Live invocation against the real CLI |
+
+**Accepted limitation (Codex only):** unlike Claude Code, Codex may read and be influenced by that folder's `AGENTS.md` if it decides to explore the directory on its own — Codex has no equivalent to Claude Code's `--allowedTools` to restrict this further. This is a low-risk, accepted limitation (Codex still cannot write to or damage anything under the default read-only sandbox) and is not something this integration attempts to solve.
+
 ## Relationship with Atlas
 
 The agreed flow is:

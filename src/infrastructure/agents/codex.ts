@@ -55,6 +55,11 @@ export const codexAdapter: AgentAdapter = {
   },
   headlessCommand(executable, opts) {
     const args = ["exec"];
+    // Codex's --add-dir can technically grant write access, but as long as neither
+    // --sandbox workspace-write nor --sandbox danger-full-access is passed (never
+    // done here), `codex exec`'s default sandbox stays read-only. Placed before
+    // the prompt for the same reason as Claude Code: it must not swallow it.
+    if (opts.readableDir) args.push("--add-dir", opts.readableDir);
     if (opts.model) args.push("--model", opts.model);
     if (opts.reasoningLevel) args.push("-c", `model_reasoning_effort=${opts.reasoningLevel}`);
     // Confirmed from `codex exec --help`: with no positional PROMPT, instructions

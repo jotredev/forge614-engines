@@ -54,9 +54,13 @@ export const claudeCodeAdapter: AgentAdapter = {
       // that ignores the caller's requested reasoning level.
       throw new ReasoningLevelUnsupportedError("claude-code");
     }
+    // --add-dir must come before -p: it's variadic (accepts multiple paths in a
+    // row), so placed after -p it would swallow the prompt text as another path.
+    const args: string[] = [];
+    if (opts.readableDir) args.push("--add-dir", opts.readableDir);
     // Confirmed against the real `claude` CLI: with no positional prompt, `-p`
     // reads it from stdin instead (verified live: `echo "..." | claude -p`).
-    const args = opts.stdinPrompt ? ["-p"] : ["-p", opts.prompt];
+    args.push(...(opts.stdinPrompt ? ["-p"] : ["-p", opts.prompt]));
     if (opts.model) args.push("--model", opts.model);
     return opts.stdinPrompt ? { command: executable, args, stdin: true } : { command: executable, args };
   },
