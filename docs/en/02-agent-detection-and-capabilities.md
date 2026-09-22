@@ -32,7 +32,7 @@ The response has an `agents` list. Each item includes `id`, `label`, `installed`
 forge614-engines capabilities --agent codex
 ```
 
-The response reports `supportsMcp`, `supportsHooks`, and `supportsHeadlessExec`. It is an explicit adapter promise, not an inference from an agent's name. If an adapter claims headless support but cannot build its command, registration is rejected at startup.
+The response reports `supportsMcp`, `supportsHooks`, `supportsHeadlessExec`, and `supportsReasoningLevel`. The latter indicates whether the engine's headless mode accepts a configurable reasoning level through `--reasoning-level` (`claude-code`: `false`, `codex`: `true`, `cursor`: `false`). It is an explicit adapter promise, not an inference from an agent's name. If an adapter claims headless support but cannot build its command, registration is rejected at startup.
 
 ## Limits and diagnosis
 

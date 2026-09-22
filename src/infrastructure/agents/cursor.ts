@@ -4,7 +4,7 @@ import type { AgentAdapter, McpServerDefinition } from "../../modules/agents/typ
 export const cursorAdapter: AgentAdapter = {
   id: "cursor",
   label: "Cursor",
-  capabilities: { supportsMcp: true, supportsHooks: false, supportsHeadlessExec: false },
+  capabilities: { supportsMcp: true, supportsHooks: false, supportsHeadlessExec: false, supportsReasoningLevel: false },
   configFormat: "json",
   mcpEntryPath: ["mcpServers"],
   candidateExecutableNames() {

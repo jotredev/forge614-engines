@@ -22,7 +22,7 @@ function fakeAdapter(overrides: Partial<AgentAdapter> = {}): AgentAdapter {
   return {
     id: "claude-code",
     label: "Fake",
-    capabilities: { supportsMcp: true, supportsHooks: false, supportsHeadlessExec: false },
+    capabilities: { supportsMcp: true, supportsHooks: false, supportsHeadlessExec: false, supportsReasoningLevel: false },
     configFormat: "json",
     mcpEntryPath: ["mcpServers"],
     candidateExecutableNames: () => ["fake-agent"],

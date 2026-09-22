@@ -1,10 +1,10 @@
 import { join } from "node:path";
-import { ReasoningLevelUnsupportedError, type AgentAdapter, type McpServerDefinition } from "../../modules/agents/types";
+import type { AgentAdapter, McpServerDefinition } from "../../modules/agents/types";
 
 export const claudeCodeAdapter: AgentAdapter = {
   id: "claude-code",
   label: "Claude Code",
-  capabilities: { supportsMcp: true, supportsHooks: true, supportsHeadlessExec: true },
+  capabilities: { supportsMcp: true, supportsHooks: true, supportsHeadlessExec: true, supportsReasoningLevel: false },
   configFormat: "json",
   mcpEntryPath: ["mcpServers"],
   candidateExecutableNames(platform) {
@@ -48,12 +48,9 @@ export const claudeCodeAdapter: AgentAdapter = {
     requiresUserTrust: false,
   },
   headlessCommand(executable, opts) {
-    if (opts.reasoningLevel) {
-      // Claude Code's CLI has no public, stable flag to select a reasoning/thinking
-      // level (unlike --model). Rejecting explicitly avoids silently building a command
-      // that ignores the caller's requested reasoning level.
-      throw new ReasoningLevelUnsupportedError("claude-code");
-    }
+    // Claude Code's CLI has no public, stable flag to select a reasoning/thinking level
+    // (unlike --model). capabilities.supportsReasoningLevel: false is what makes
+    // headlessCommandFor() reject opts.reasoningLevel before this is ever called.
     // --add-dir must come before -p: it's variadic (accepts multiple paths in a
     // row), so placed after -p it would swallow the prompt text as another path.
     const args: string[] = [];

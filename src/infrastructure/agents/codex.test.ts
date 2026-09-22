@@ -3,6 +3,12 @@ import { join } from "node:path";
 import { codexAdapter } from "./codex";
 import { MEMORY_HOOK_CONTEXT_TOKEN_LIMIT } from "../../modules/agents/hook-command";
 
+describe("codexAdapter.capabilities", () => {
+  test("supports a configurable reasoning level in headless mode", () => {
+    expect(codexAdapter.capabilities.supportsReasoningLevel).toBe(true);
+  });
+});
+
 describe("codexAdapter.hooks", () => {
   test("declares hooks in the same config.toml used for MCP servers", () => {
     const home = "/home/jorge";

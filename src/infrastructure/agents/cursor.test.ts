@@ -5,6 +5,7 @@ import { cursorAdapter } from "./cursor";
 describe("cursorAdapter", () => {
   test("has no headless support and a dedicated mcp.json", () => {
     expect(cursorAdapter.capabilities.supportsHeadlessExec).toBe(false);
+    expect(cursorAdapter.capabilities.supportsReasoningLevel).toBe(false);
     expect(cursorAdapter.headlessCommand).toBeUndefined();
     expect(cursorAdapter.configFile("/home/u")).toBe(join("/home/u", ".cursor", "mcp.json"));
   });

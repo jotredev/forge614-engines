@@ -93,4 +93,4 @@ Shell consumes `detect`, `capabilities`, plans, and `apply` for its visual flow.
 
 ## Adding a future agent
 
-A new adapter declares an identifier, executable names, known locations, configuration file and format, MCP shape, and capabilities. If it marks `supportsHeadlessExec: true`, it must provide a function that builds the command. Registry tests reject an incomplete capability promise.
+A new adapter declares an identifier, executable names, known locations, configuration file and format, MCP shape, and capabilities. If it marks `supportsHeadlessExec: true`, it must provide a function that builds the command. It also declares `supportsReasoningLevel` to indicate whether it accepts `HeadlessOptions.reasoningLevel` (the `--reasoning-level` flag); `headlessCommandFor()` uses that capability to return `REASONING_LEVEL_UNSUPPORTED` when appropriate. Registry tests reject an incomplete capability promise.

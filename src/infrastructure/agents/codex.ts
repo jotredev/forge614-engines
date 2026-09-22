@@ -5,7 +5,7 @@ import { MEMORY_HOOK_CONTEXT_TOKEN_LIMIT } from "../../modules/agents/hook-comma
 export const codexAdapter: AgentAdapter = {
   id: "codex",
   label: "Codex",
-  capabilities: { supportsMcp: true, supportsHooks: true, supportsHeadlessExec: true },
+  capabilities: { supportsMcp: true, supportsHooks: true, supportsHeadlessExec: true, supportsReasoningLevel: true },
   configFormat: "toml",
   mcpEntryPath: ["mcp_servers"],
   candidateExecutableNames(platform) {

@@ -2,6 +2,12 @@ import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { claudeCodeAdapter } from "./claude-code";
 
+describe("claudeCodeAdapter.capabilities", () => {
+  test("does not support a configurable reasoning level in headless mode", () => {
+    expect(claudeCodeAdapter.capabilities.supportsReasoningLevel).toBe(false);
+  });
+});
+
 describe("claudeCodeAdapter.hooks", () => {
   test("declares hooks in ~/.claude/settings.json, separate from the MCP config file", () => {
     const home = "/home/jorge";

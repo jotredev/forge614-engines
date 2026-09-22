@@ -87,9 +87,30 @@ describe("forge614-engines CLI", () => {
     const parsed = JSON.parse(stdout);
     expect(parsed.schemaVersion).toBe(1);
     expect(parsed.agents).toEqual([
-      { id: "claude-code", label: "Claude Code", supportsMcp: true, supportsHooks: true, supportsHeadlessExec: true },
-      { id: "codex", label: "Codex", supportsMcp: true, supportsHooks: true, supportsHeadlessExec: true },
-      { id: "cursor", label: "Cursor", supportsMcp: true, supportsHooks: false, supportsHeadlessExec: false },
+      {
+        id: "claude-code",
+        label: "Claude Code",
+        supportsMcp: true,
+        supportsHooks: true,
+        supportsHeadlessExec: true,
+        supportsReasoningLevel: false,
+      },
+      {
+        id: "codex",
+        label: "Codex",
+        supportsMcp: true,
+        supportsHooks: true,
+        supportsHeadlessExec: true,
+        supportsReasoningLevel: true,
+      },
+      {
+        id: "cursor",
+        label: "Cursor",
+        supportsMcp: true,
+        supportsHooks: false,
+        supportsHeadlessExec: false,
+        supportsReasoningLevel: false,
+      },
     ]);
   });
 

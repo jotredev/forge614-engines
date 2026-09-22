@@ -32,7 +32,7 @@ La salida contiene una lista `agents`; cada elemento incluye `id`, `label`, `ins
 forge614-engines capabilities --agent codex
 ```
 
-La respuesta indica `supportsMcp`, `supportsHooks` y `supportsHeadlessExec`. Es una promesa explícita del adaptador, no una suposición basada en el nombre del agente. Si se registra un adaptador que dice soportar ejecución automática pero no sabe construir su comando, el registro se rechaza al iniciar.
+La respuesta indica `supportsMcp`, `supportsHooks`, `supportsHeadlessExec` y `supportsReasoningLevel`. Este último indica si el modo headless del motor acepta un nivel de razonamiento configurable mediante `--reasoning-level` (`claude-code`: `false`, `codex`: `true`, `cursor`: `false`). Es una promesa explícita del adaptador, no una suposición basada en el nombre del agente. Si se registra un adaptador que dice soportar ejecución automática pero no sabe construir su comando, el registro se rechaza al iniciar.
 
 ## Límites y diagnóstico
 

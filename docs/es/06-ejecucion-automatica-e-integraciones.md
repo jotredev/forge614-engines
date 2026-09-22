@@ -93,4 +93,4 @@ Shell consume `detect`, `capabilities`, planes y `apply` para su flujo visual. P
 
 ## Añadir un agente futuro
 
-Un adaptador nuevo declara un identificador, nombres de ejecutable, rutas conocidas, archivo y formato de configuración, forma MCP y capacidades. Si marca `supportsHeadlessExec: true`, debe proporcionar una función que construya el comando. Las pruebas de registro rechazan una promesa de capacidad incompleta.
+Un adaptador nuevo declara un identificador, nombres de ejecutable, rutas conocidas, archivo y formato de configuración, forma MCP y capacidades. Si marca `supportsHeadlessExec: true`, debe proporcionar una función que construya el comando. También declara `supportsReasoningLevel` para indicar si acepta `HeadlessOptions.reasoningLevel` (el flag `--reasoning-level`); `headlessCommandFor()` usa esa capacidad para devolver `REASONING_LEVEL_UNSUPPORTED` cuando corresponde. Las pruebas de registro rechazan una promesa de capacidad incompleta.

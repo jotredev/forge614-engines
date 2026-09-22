@@ -16,6 +16,7 @@ describe("capabilitiesFor", () => {
       supportsMcp: true,
       supportsHooks: true,
       supportsHeadlessExec: true,
+      supportsReasoningLevel: false,
     });
   });
 
@@ -33,9 +34,30 @@ describe("listAgents", () => {
     registry.register(cursorAdapter);
 
     expect(listAgents(registry)).toEqual([
-      { id: "claude-code", label: "Claude Code", supportsMcp: true, supportsHooks: true, supportsHeadlessExec: true },
-      { id: "codex", label: "Codex", supportsMcp: true, supportsHooks: true, supportsHeadlessExec: true },
-      { id: "cursor", label: "Cursor", supportsMcp: true, supportsHooks: false, supportsHeadlessExec: false },
+      {
+        id: "claude-code",
+        label: "Claude Code",
+        supportsMcp: true,
+        supportsHooks: true,
+        supportsHeadlessExec: true,
+        supportsReasoningLevel: false,
+      },
+      {
+        id: "codex",
+        label: "Codex",
+        supportsMcp: true,
+        supportsHooks: true,
+        supportsHeadlessExec: true,
+        supportsReasoningLevel: true,
+      },
+      {
+        id: "cursor",
+        label: "Cursor",
+        supportsMcp: true,
+        supportsHooks: false,
+        supportsHeadlessExec: false,
+        supportsReasoningLevel: false,
+      },
     ]);
   });
 

@@ -1,5 +1,5 @@
 import type { AgentRegistry } from "../modules/agents/registry";
-import type { AgentId, HeadlessCommand, ReasoningLevel } from "../modules/agents/types";
+import { ReasoningLevelUnsupportedError, type AgentId, type HeadlessCommand, type ReasoningLevel } from "../modules/agents/types";
 
 export class HeadlessUnsupportedError extends Error {
   constructor(agentId: AgentId) {
@@ -22,6 +22,9 @@ export function headlessCommandFor(
   if (!adapter) throw new Error(`Unknown agent: ${agentId}`);
   if (!adapter.capabilities.supportsHeadlessExec || !adapter.headlessCommand) {
     throw new HeadlessUnsupportedError(agentId);
+  }
+  if (reasoningLevel && !adapter.capabilities.supportsReasoningLevel) {
+    throw new ReasoningLevelUnsupportedError(agentId);
   }
   return adapter.headlessCommand(executable, { prompt, timeoutMs, model, reasoningLevel, stdinPrompt, readableDir });
 }

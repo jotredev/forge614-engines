@@ -61,6 +61,8 @@ export interface AgentCapabilities {
   supportsMcp: boolean;
   supportsHooks: boolean;
   supportsHeadlessExec: boolean;
+  /** Whether headlessCommand() accepts HeadlessOptions.reasoningLevel instead of rejecting it via ReasoningLevelUnsupportedError. The single source of truth headlessCommandFor() and the capabilities report both read. */
+  supportsReasoningLevel: boolean;
 }
 
 export interface HookTarget {

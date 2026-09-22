@@ -6,7 +6,7 @@ function baseAdapter(overrides: Partial<AgentAdapter> = {}): AgentAdapter {
   return {
     id: "claude-code",
     label: "Test Agent",
-    capabilities: { supportsMcp: false, supportsHooks: false, supportsHeadlessExec: false },
+    capabilities: { supportsMcp: false, supportsHooks: false, supportsHeadlessExec: false, supportsReasoningLevel: false },
     configFormat: "json",
     mcpEntryPath: [],
     candidateExecutableNames: () => [],
@@ -21,14 +21,16 @@ function baseAdapter(overrides: Partial<AgentAdapter> = {}): AgentAdapter {
 describe("validateCapabilityManifest — hooks", () => {
   test("rejects supportsHooks: true with no hooks target implemented", () => {
     const registry = new AgentRegistry();
-    const adapter = baseAdapter({ capabilities: { supportsMcp: false, supportsHooks: true, supportsHeadlessExec: false } });
+    const adapter = baseAdapter({
+      capabilities: { supportsMcp: false, supportsHooks: true, supportsHeadlessExec: false, supportsReasoningLevel: false },
+    });
     expect(() => registry.register(adapter)).toThrow(InvalidCapabilityManifestError);
   });
 
   test("accepts supportsHooks: true with a hooks target implemented", () => {
     const registry = new AgentRegistry();
     const adapter = baseAdapter({
-      capabilities: { supportsMcp: false, supportsHooks: true, supportsHeadlessExec: false },
+      capabilities: { supportsMcp: false, supportsHooks: true, supportsHeadlessExec: false, supportsReasoningLevel: false },
       hooks: {
         configFile: (home) => home,
         configFormat: "json",

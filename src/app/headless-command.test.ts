@@ -3,6 +3,7 @@ import { AgentRegistry } from "../modules/agents/registry";
 import { claudeCodeAdapter } from "../infrastructure/agents/claude-code";
 import { codexAdapter } from "../infrastructure/agents/codex";
 import { cursorAdapter } from "../infrastructure/agents/cursor";
+import type { AgentAdapter } from "../modules/agents/types";
 import { ReasoningLevelUnsupportedError } from "../modules/agents/types";
 import { HeadlessUnsupportedError, headlessCommandFor } from "./headless-command";
 
@@ -103,5 +104,27 @@ describe("headlessCommandFor", () => {
   test("throws for an unregistered agent", () => {
     const registry = new AgentRegistry();
     expect(() => headlessCommandFor(registry, "codex", "/bin/codex", "hello")).toThrow("Unknown agent: codex");
+  });
+
+  test("rejects reasoningLevel based solely on capabilities.supportsReasoningLevel, even when the adapter's own headlessCommand doesn't guard against it", () => {
+    const registry = new AgentRegistry();
+    const noGuardAdapter: AgentAdapter = {
+      id: "cursor",
+      label: "No-guard test adapter",
+      capabilities: { supportsMcp: false, supportsHooks: false, supportsHeadlessExec: true, supportsReasoningLevel: false },
+      configFormat: "json",
+      mcpEntryPath: [],
+      candidateExecutableNames: () => [],
+      knownInstallPaths: () => [],
+      configDir: (home) => home,
+      configFile: (home) => home,
+      mcpEntryShape: () => ({}),
+      headlessCommand: (executable, opts) => ({ command: executable, args: [opts.prompt] }),
+    };
+    registry.register(noGuardAdapter);
+
+    expect(() =>
+      headlessCommandFor(registry, "cursor", "/bin/fake", "hello", undefined, undefined, "high"),
+    ).toThrow(ReasoningLevelUnsupportedError);
   });
 });

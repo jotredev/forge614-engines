@@ -7,7 +7,7 @@ function fakeAdapter(id: AgentAdapter["id"]): AgentAdapter {
   return {
     id,
     label: id,
-    capabilities: { supportsMcp: true, supportsHooks: false, supportsHeadlessExec: false },
+    capabilities: { supportsMcp: true, supportsHooks: false, supportsHeadlessExec: false, supportsReasoningLevel: false },
     configFormat: "json",
     mcpEntryPath: ["mcpServers"],
     candidateExecutableNames: () => [],
