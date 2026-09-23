@@ -23,6 +23,14 @@ export function describeConfirmation(currentVersion, version) {
 }
 
 /**
+ * Pure. The release commit message is exactly this and nothing else: owner rule — no commit,
+ * tag, PR or note carries any attribution line or names an assistant (release-cut.test.ts guards it).
+ */
+export function releaseCommitMessage(version) {
+  return `chore: release v${version}`;
+}
+
+/**
  * Pure. Guards against typing a version "just because" instead of one the
  * actual changes warrant — validateVersion alone would happily accept
  * jumping from 1.9.0 straight to 5.0.0 (it's syntactically valid, newer, and
@@ -261,7 +269,7 @@ async function main() {
   const status = runCapture("git", ["status", "--porcelain", "--", "package.json", "bun.lock", "docs/notion-map.json"]);
   if (status) {
     run("git", ["add", "package.json", "bun.lock", "docs/notion-map.json"]);
-    run("git", ["commit", "-m", `chore: release v${version}\n\nCo-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>`]);
+    run("git", ["commit", "-m", releaseCommitMessage(version)]);
   }
 
   const tag = `v${version}`;

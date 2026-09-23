@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, posix, win32 } from "node:path";
 import { resolveEngramExecutable } from "../../modules/memory-protocol/constants";
 import { EngramProtocolUnavailableError, fetchMemoryProtocol } from "./memory-protocol-client";
 
@@ -122,12 +122,25 @@ describe("fetchMemoryProtocol (canonical path, no PATH dependency)", () => {
     },
   );
 
-  test("respects a custom FORGE614_HOME when resolving the default binary", async () => {
+  // The .exe suffix is part of the contract on Windows, so the expectation follows the platform.
+  test.each([
+    ["linux", "forge614-engram"],
+    ["darwin", "forge614-engram"],
+    ["win32", "forge614-engram.exe"],
+  ] as const)("respects a custom FORGE614_HOME when resolving the default binary (%s)", (platform, binary) => {
     const customForgeHome = join(dir, "custom-forge-home");
     process.env.FORGE614_HOME = customForgeHome;
-    const canonicalPath = resolveEngramExecutable(dir);
+    const pathFor = platform === "win32" ? win32 : posix;
 
-    expect(canonicalPath).toBe(join(customForgeHome, "engram", "bin", "forge614-engram"));
+    expect(resolveEngramExecutable(dir, platform)).toBe(pathFor.join(customForgeHome, "engram", "bin", binary));
+  });
+
+  test("respects a custom FORGE614_HOME for the host platform too", () => {
+    const customForgeHome = join(dir, "custom-forge-home");
+    process.env.FORGE614_HOME = customForgeHome;
+    const suffix = process.platform === "win32" ? ".exe" : "";
+
+    expect(resolveEngramExecutable(dir)).toBe(join(customForgeHome, "engram", "bin", `forge614-engram${suffix}`));
   });
 
   test("resolves a .exe suffix on Windows regardless of host platform", () => {

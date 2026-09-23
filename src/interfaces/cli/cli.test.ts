@@ -58,16 +58,33 @@ function installEngramFixture(testHome: string): void {
   chmodSync(canonicalPath, 0o755);
 }
 
+/**
+ * Environment for a spawned CLI whose home must be the temp `home`. os.homedir() reads HOME on
+ * POSIX but USERPROFILE on Windows, so setting only HOME made the child resolve the runner's real
+ * profile there (evidence written and .claude.json read from the wrong folder).
+ */
+function homeEnv(testHome: string, extra: Record<string, string> = {}): Record<string, string | undefined> {
+  return { ...process.env, HOME: testHome, USERPROFILE: testHome, ...extra };
+}
+
 async function runCli(args: string[]): Promise<{ stdout: string; exitCode: number }> {
   const proc = Bun.spawn(["bun", ENTRY, ...args], {
     stdout: "pipe",
     stderr: "pipe",
-    env: { ...process.env, HOME: home },
+    env: homeEnv(home),
   });
   const stdout = await new Response(proc.stdout).text();
   const exitCode = await proc.exited;
   return { stdout, exitCode };
 }
+
+describe("child-process environment", () => {
+  test("points HOME and USERPROFILE at the temp home, so os.homedir() is the temp home on POSIX and on Windows alike", () => {
+    const env = homeEnv(home);
+    expect(env.HOME).toBe(home);
+    expect(env.USERPROFILE).toBe(home);
+  });
+});
 
 describe("forge614-engines CLI", () => {
   test("detect --json outputs a schemaVersion and an agents array", async () => {
@@ -329,7 +346,7 @@ describe("forge614-engines CLI", () => {
     const proc = Bun.spawn([process.execPath, ENTRY, "plan", "memory-install", "--agent", "claude-code"], {
       stdout: "pipe",
       stderr: "pipe",
-      env: { ...process.env, HOME: home, PATH: emptyPathDir },
+      env: homeEnv(home, { PATH: emptyPathDir }),
     });
     const stdout = await new Response(proc.stdout).text();
     const exitCode = await proc.exited;
@@ -359,7 +376,7 @@ describe("forge614-engines CLI", () => {
   test("memory-hook-run --agent claude-code prints plain text (not the JSON envelope) and always exits 0", () => {
     const proc = Bun.spawnSync(["bun", ENTRY, "memory-hook-run", "--agent", "claude-code"], {
       stdin: Buffer.from(JSON.stringify({ cwd: "/tmp/some-repo-that-is-not-bound", hook_event_name: "SessionStart" })),
-      env: { ...process.env, HOME: home },
+      env: homeEnv(home),
     });
 
     expect(proc.exitCode).toBe(0);
@@ -371,7 +388,7 @@ describe("forge614-engines CLI", () => {
   test("memory-hook-run --agent codex prints structured hookSpecificOutput.additionalContext and always exits 0", () => {
     const proc = Bun.spawnSync(["bun", ENTRY, "memory-hook-run", "--agent", "codex"], {
       stdin: Buffer.from(JSON.stringify({ cwd: "/tmp/some-repo-that-is-not-bound", hook_event_name: "SessionStart" })),
-      env: { ...process.env, HOME: home },
+      env: homeEnv(home),
     });
 
     expect(proc.exitCode).toBe(0);
@@ -384,7 +401,7 @@ describe("forge614-engines CLI", () => {
   test("memory-hook-run exits 0 even with garbage stdin", () => {
     const proc = Bun.spawnSync(["bun", ENTRY, "memory-hook-run", "--agent", "claude-code"], {
       stdin: Buffer.from("not json"),
-      env: { ...process.env, HOME: home },
+      env: homeEnv(home),
     });
 
     expect(proc.exitCode).toBe(0);
@@ -398,7 +415,7 @@ describe("forge614-engines CLI", () => {
 
     const proc = Bun.spawnSync(["bun", ENTRY, "memory-hook-run", "--agent", "claude-code"], {
       stdin: Buffer.from(JSON.stringify({ cwd: "/tmp/some-repo", hook_event_name: "SessionStart" })),
-      env: { ...process.env, HOME: home },
+      env: homeEnv(home),
     });
     expect(proc.exitCode).toBe(0);
 
@@ -416,7 +433,7 @@ describe("forge614-engines CLI", () => {
 
     const proc = Bun.spawnSync(["bun", ENTRY, "memory-hook-run", "--agent", "codex"], {
       stdin: Buffer.from("not json"),
-      env: { ...process.env, HOME: home },
+      env: homeEnv(home),
     });
 
     expect(proc.exitCode).toBe(0);
@@ -449,7 +466,7 @@ describe("forge614-engines CLI", () => {
       // evidence for verify to find.
       const hookRun = Bun.spawnSync(["bun", ENTRY, "memory-hook-run", "--agent", "claude-code"], {
         stdin: Buffer.from(JSON.stringify({ cwd: "/tmp/some-repo", hook_event_name: "SessionStart" })),
-        env: { ...process.env, HOME: home },
+        env: homeEnv(home),
       });
       expect(hookRun.exitCode).toBe(0);
 
@@ -497,7 +514,7 @@ describe("forge614-engines CLI", () => {
       // can drive — see the spec's Codex section).
       const hookRun = Bun.spawnSync(["bun", ENTRY, "memory-hook-run", "--agent", "codex"], {
         stdin: Buffer.from(JSON.stringify({ cwd: "/tmp/some-repo", hook_event_name: "SessionStart" })),
-        env: { ...process.env, HOME: home },
+        env: homeEnv(home),
       });
       expect(hookRun.exitCode).toBe(0);
 
