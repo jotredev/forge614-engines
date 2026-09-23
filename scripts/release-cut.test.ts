@@ -1,9 +1,13 @@
 import { describe, expect, mock, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   describeConfirmation,
   describeVersionMismatch,
   findReleaseRunId,
   interpretReleaseAnswer,
+  releaseCommitMessage,
   validateVersion,
   watchReleaseRun,
 } from "./release-cut.mjs";
@@ -183,5 +187,25 @@ describe("watchReleaseRun — the user-facing fallback when gh isn't installed",
     // therefore release-cut.mjs's own `bun test` step) exit non-zero despite
     // every test passing. Restore to a real 0 default, not undefined.
     process.exitCode = previousExitCode ?? 0;
+  });
+});
+
+// Critical owner rule: no commit, tag, PR or note mentions any AI or carries a Co-Authored-By trailer.
+const ATTRIBUTION_PATTERN = /co-authored-by|generated with|claude|anthropic|openai|chatgpt|copilot|gemini|noreply@/i;
+
+describe("releaseCommitMessage — the release commit never carries attribution", () => {
+  test("is exactly 'chore: release v<version>', with no trailer or body", () => {
+    expect(releaseCommitMessage("1.12.1")).toBe("chore: release v1.12.1");
+  });
+
+  test("never matches an attribution or assistant-name pattern", () => {
+    expect(releaseCommitMessage("1.12.1")).not.toMatch(ATTRIBUTION_PATTERN);
+  });
+});
+
+describe("release-cut.mjs source — nothing in it can put attribution into a commit again", () => {
+  test("contains no Co-Authored-By trailer and no assistant name", () => {
+    const source = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "release-cut.mjs"), "utf8");
+    expect(source.match(ATTRIBUTION_PATTERN)?.[0]).toBeUndefined();
   });
 });
