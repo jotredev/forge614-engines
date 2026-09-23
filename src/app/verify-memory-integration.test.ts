@@ -239,4 +239,41 @@ describe("verifyMemoryIntegration", () => {
     expect(result.instructions.present).toBe(false);
     expect(result.overallStatus).toBe("partial");
   });
+
+  describe("engram ecosystem block (structural, never by version)", () => {
+    const withStartupContext = (payload: unknown) => {
+      const script = join(home, "startup-context-variant.js");
+      writeFileSync(script, `console.log(${JSON.stringify(JSON.stringify(payload))});`);
+      return { command: process.execPath, args: [script] };
+    };
+
+    test("reports published when startup-context carries a valid ecosystem block (member)", async () => {
+      const options = withStartupContext({ ...STARTUP_CONTEXT_RESULT, ecosystem: { status: "member", group: { id: "g", name: "forge614" }, context: { pinned: [], recent: [] } } });
+      const result = await verifyMemoryIntegration(registry, { agentId: "claude-code", home, startupContextOptions: options });
+      expect(result.engram.ecosystemBlock).toBe("published");
+    });
+
+    test("reports published for status none too: the block exists even for a project without a group", async () => {
+      const options = withStartupContext({ ...STARTUP_CONTEXT_RESULT, ecosystem: { status: "none" } });
+      const result = await verifyMemoryIntegration(registry, { agentId: "claude-code", home, startupContextOptions: options });
+      expect(result.engram.ecosystemBlock).toBe("published");
+    });
+
+    test("reports not-published for an Engram whose startup-context has no ecosystem block", async () => {
+      const result = await verifyMemoryIntegration(registry, { agentId: "claude-code", home, startupContextOptions: startupContextOptions() });
+      expect(result.engram.ecosystemBlock).toBe("not-published");
+    });
+
+    test("reports unavailable, without failing, when Engram cannot be run", async () => {
+      const result = await verifyMemoryIntegration(registry, { agentId: "claude-code", home });
+      expect(result.engram.ecosystemBlock).toBe("unavailable");
+    });
+
+    test("never changes overallStatus", async () => {
+      const options = withStartupContext({ ...STARTUP_CONTEXT_RESULT, ecosystem: { status: "none" } });
+      const withBlock = await verifyMemoryIntegration(registry, { agentId: "claude-code", home, startupContextOptions: options });
+      const without = await verifyMemoryIntegration(registry, { agentId: "claude-code", home, startupContextOptions: startupContextOptions() });
+      expect(withBlock.overallStatus).toBe(without.overallStatus);
+    });
+  });
 });

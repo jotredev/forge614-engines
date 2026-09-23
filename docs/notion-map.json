@@ -76,13 +76,13 @@
       "localPath": "docs/es/05-referencia-del-cli-publico.md",
       "language": "es",
       "notionUrl": "https://app.notion.com/p/3e121943d1298178b133f109e29a742f",
-      "sha256": "21981f91a044e938d3e14311aa6ad59fd21b8fb7c0d5155cecc99d8a77b355c5"
+      "sha256": "1bce1cbc6182711d918bb2174bcd7e388504330f0e48b5af4fc14e5507adcf24"
     },
     {
       "localPath": "docs/en/05-public-cli-reference.md",
       "language": "en",
       "notionUrl": "https://app.notion.com/p/3e121943d12981c097f7ff61185f3454",
-      "sha256": "2e1ce85d5ff7570e9ab1c01b1d02554f0ac44c2c45963ab453aff426de2ccd59"
+      "sha256": "b1663d87489ce0f60ede9b1965688d5475db5a78e3eaf5f7b7f80d572067866b"
     },
     {
       "localPath": "docs/es/06-ejecucion-automatica-e-integraciones.md",
