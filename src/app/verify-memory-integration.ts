@@ -6,7 +6,7 @@ import { resolveEngramMcpServer } from "../modules/memory-protocol/constants";
 import { extractBlock } from "../modules/instructions-writer/block";
 import { MEMORY_PROTOCOL_BLOCK_ID } from "../modules/memory-protocol/constants";
 import type { HookRuntimeStatus } from "../modules/config-writer/types";
-import type { StartupContextFetchOptions } from "../infrastructure/engram/startup-context-client";
+import { fetchStartupContext, type StartupContextFetchOptions } from "../infrastructure/engram/startup-context-client";
 import { readHookEvidence } from "./hook-evidence";
 import { computeHookRuntimeStatus } from "./hook-runtime-status";
 import { decideHookRemove } from "./hook-write-decision";
@@ -34,7 +34,24 @@ export interface MemoryIntegrationVerification {
     dryRunOk: boolean;
     runtimeStatus: HookRuntimeStatus;
   };
+  /**
+   * What the installed Engram actually publishes, probed structurally (never by version).
+   * Informational: it never drives overallStatus.
+   */
+  engram: { ecosystemBlock: EcosystemBlockState };
   overallStatus: "complete" | "partial" | "absent";
+}
+
+export type EcosystemBlockState = "published" | "not-published" | "unavailable";
+
+async function probeEcosystemBlock(home: string, options?: StartupContextFetchOptions): Promise<EcosystemBlockState> {
+  try {
+    // cwd = home is always "unbound" (no project bind, no file write): a read-only probe.
+    const result = await fetchStartupContext(home, home, options);
+    return result.ecosystem ? "published" : "not-published";
+  } catch {
+    return "unavailable";
+  }
 }
 
 async function readOrEmpty(path: string): Promise<{ raw: string; exists: boolean }> {
@@ -110,6 +127,7 @@ export async function verifyMemoryIntegration(
     mcp: { path: mcpDecision.configPath, present: mcpPresent },
     instructions: { supported: instructionsSupported, paths: instructionsPaths, present: instructionsPresent },
     hook: { supported: hookSupported, path: hookRemoveDecision.configPath, present: hookPresent, dryRunOk, runtimeStatus },
+    engram: { ecosystemBlock: await probeEcosystemBlock(input.home, input.startupContextOptions) },
     overallStatus,
   };
 }

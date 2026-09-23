@@ -18,8 +18,8 @@ export function resolveEnginesExecutable(home: string, platform: NodeJS.Platform
 /** Tokens: the ceiling passed to Codex's own `additionalContextLimit` hook field. */
 export const MEMORY_HOOK_CONTEXT_TOKEN_LIMIT = 4000;
 
-/** Characters: the ceiling run-memory-hook.ts enforces itself, independent of any host-side limit — never rely solely on the host to bound an untrusted-size render. */
-export const MEMORY_HOOK_CONTEXT_CHAR_LIMIT = 16000;
+/** Characters: the ceiling run-memory-hook.ts enforces itself (about 3 000 tokens at chars / 3.5, ruling R32 of acta 0020), independent of any host-side limit — never rely solely on the host to bound an untrusted-size render. */
+export const MEMORY_HOOK_CONTEXT_CHAR_LIMIT = 10500;
 
 /**
  * The exact shell command a SessionStart hook must run: Engines' own launcher

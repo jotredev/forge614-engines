@@ -19,20 +19,74 @@ export interface StartupContextFetchOptions {
   args: string[];
 }
 
+export interface StartupContextNotice {
+  code: string;
+  message: string;
+  backup?: string;
+}
+
+export type StartupContextEcosystem =
+  | { status: "member"; group: { id?: string; name: string }; context: unknown }
+  | { status: "none" };
+
 export interface StartupContextResult {
   format: 1;
   shared: unknown;
-  project: { status: "bound" | "unbound"; projectId: string | null; context: unknown };
+  /** Absent for an Engram that predates the ecosystem scope (< 1.6.0), or when its block is not understood. */
+  ecosystem?: StartupContextEcosystem;
+  project: {
+    status: "bound" | "unbound";
+    projectId: string | null;
+    context: unknown;
+    source?: "file" | "path" | "unbound";
+    notices?: StartupContextNotice[];
+  };
 }
 
-function isStartupContextResult(value: unknown): value is StartupContextResult {
-  return (
-    !!value &&
-    typeof value === "object" &&
-    (value as Record<string, unknown>).format === 1 &&
-    "shared" in (value as object) &&
-    "project" in (value as object)
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+// R31 (acta 0024): this reads ANOTHER node's output, so it is strict only about the fields
+// this node uses and ignores everything else (unknown root/block fields pass through untouched).
+function readEcosystem(value: unknown): StartupContextEcosystem | undefined {
+  if (!isRecord(value)) return undefined;
+  if (value.status === "none") return { status: "none" };
+  if (value.status !== "member" || !isRecord(value.group) || typeof value.group.name !== "string") return undefined;
+  if (!isRecord(value.context)) return undefined;
+  const id = typeof value.group.id === "string" ? value.group.id : undefined;
+  return { status: "member", group: { ...(id ? { id } : {}), name: value.group.name }, context: value.context };
+}
+
+function readNotices(value: unknown): StartupContextNotice[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const notices = value.flatMap((n): StartupContextNotice[] =>
+    isRecord(n) && typeof n.code === "string" && typeof n.message === "string"
+      ? [{ code: n.code, message: n.message, ...(typeof n.backup === "string" ? { backup: n.backup } : {}) }]
+      : [],
   );
+  return notices.length > 0 ? notices : undefined;
+}
+
+function readStartupContext(value: unknown): StartupContextResult | undefined {
+  if (!isRecord(value) || value.format !== 1 || !("shared" in value) || !isRecord(value.project)) return undefined;
+  const project = value.project;
+  if (project.status !== "bound" && project.status !== "unbound") return undefined;
+  const source = project.source === "file" || project.source === "path" || project.source === "unbound" ? project.source : undefined;
+  const notices = readNotices(project.notices);
+  const ecosystem = readEcosystem(value.ecosystem);
+  return {
+    format: 1,
+    shared: value.shared,
+    ...(ecosystem ? { ecosystem } : {}),
+    project: {
+      status: project.status,
+      projectId: typeof project.projectId === "string" ? project.projectId : null,
+      context: project.context ?? null,
+      ...(source ? { source } : {}),
+      ...(notices ? { notices } : {}),
+    },
+  };
 }
 
 /**
@@ -62,6 +116,7 @@ export async function fetchStartupContext(
     throw new StartupContextUnavailableError("invalid-json");
   }
 
-  if (!isStartupContextResult(parsed)) throw new StartupContextUnavailableError("invalid-json");
-  return parsed;
+  const result = readStartupContext(parsed);
+  if (!result) throw new StartupContextUnavailableError("invalid-json");
+  return result;
 }
