@@ -58,10 +58,8 @@ describe("renderProtocolMarkdown (version 4)", () => {
     expect(markdown).toContain(protocolV4.instructions);
   });
 
-  test("includes the identifying id/version header line, same as v1", () => {
-    const markdown = renderProtocolMarkdown(protocolV4);
-    expect(markdown).toContain("forge614-engram-memory");
-    expect(markdown).toContain("version 4");
+  test("installs exactly `instructions`, byte for byte, with nothing added (new-agent checklist)", () => {
+    expect(renderProtocolMarkdown(protocolV4)).toBe(protocolV4.instructions);
   });
 
   test("never synthesizes Lifecycle/Scopes/Security sections v4 does not carry", () => {
