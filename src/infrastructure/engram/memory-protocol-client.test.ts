@@ -41,9 +41,43 @@ const VALID_PROTOCOL = {
   security: { neverSave: ["passwords"] },
 };
 
+const VALID_PROTOCOL_V4 = {
+  id: "forge614-engram-memory",
+  version: 4,
+  instructions: "Call memory_context at the start of a conversation.",
+  mcpInstructions: "Call memory_context at the start of a conversation.",
+  startupContext: { command: "forge614-engram startup-context --directory <dir> --json --format 2", format: 2, description: "d" },
+};
+
+/**
+ * Builds a fake forge614-engram binary that mimics the real CLI's
+ * `--protocol-version` negotiation: an Engram 1.7.0+ double answers `4` with a
+ * v4 payload and anything else with v1; `rejectV4: true` instead mimics an
+ * Engram older than 1.7.0, which rejects the flag outright with the exact
+ * `{code:"INVALID_INPUT",...}` envelope forge614-engram's own CLI writes to
+ * stderr on a non-zero exit.
+ */
+function versionedFixture(name: string, options?: { rejectV4?: boolean }): string {
+  const lines = [
+    "const args = process.argv.slice(2);",
+    'const idx = args.indexOf("--protocol-version");',
+    'const wantsV4 = idx !== -1 && args[idx + 1] === "4";',
+    options?.rejectV4
+      ? [
+          "if (wantsV4) {",
+          `  process.stderr.write(${JSON.stringify(JSON.stringify({ code: "INVALID_INPUT", error: "protocol-version debe ser 1, 2, 3 o 4." }))});`,
+          "  process.exit(1);",
+          "}",
+        ].join("\n")
+      : "",
+    `console.log(wantsV4 ? ${JSON.stringify(JSON.stringify(VALID_PROTOCOL_V4))} : ${JSON.stringify(JSON.stringify(VALID_PROTOCOL))});`,
+  ].join("\n");
+  return fixture(name, lines);
+}
+
 describe("fetchMemoryProtocol", () => {
   test("returns the protocol and a stable fingerprint on success", async () => {
-    const script = fixture("ok.js", `console.log(${JSON.stringify(JSON.stringify(VALID_PROTOCOL))});`);
+    const script = versionedFixture("ok.js");
 
     const result = await fetchMemoryProtocol(dir, { command: process.execPath, args: [script] });
 
@@ -51,6 +85,68 @@ describe("fetchMemoryProtocol", () => {
     expect(result.fingerprint).toMatch(/^[0-9a-f]{64}$/);
     const again = await fetchMemoryProtocol(dir, { command: process.execPath, args: [script] });
     expect(again.fingerprint).toBe(result.fingerprint);
+  });
+
+  test("prefers protocol v4 on the first try when Engram supports it, with no legacy notice", async () => {
+    const script = versionedFixture("ok-v4.js");
+
+    const result = await fetchMemoryProtocol(dir, { command: process.execPath, args: [script] });
+
+    expect(result.protocol.version).toBe(4);
+    expect(result.legacyProtocolNotice).toBeUndefined();
+  });
+
+  test("falls back to protocol v1 and surfaces a bilingual notice when Engram rejects --protocol-version 4 with INVALID_INPUT", async () => {
+    const script = versionedFixture("legacy-engram.js", { rejectV4: true });
+
+    const result = await fetchMemoryProtocol(dir, { command: process.execPath, args: [script] });
+
+    expect(result.protocol.version).toBe(1);
+    expect(result.legacyProtocolNotice).toBeDefined();
+    expect(result.legacyProtocolNotice).toContain("1.7.0");
+    expect(result.legacyProtocolNotice).toContain("actualiza Engram"); // Spanish half
+    expect(result.legacyProtocolNotice).toContain("upgrade Engram"); // English half
+  });
+
+  test("does not fall back to v1 when the v4 attempt fails with an error other than INVALID_INPUT", async () => {
+    const script = fixture(
+      "other-error.js",
+      [
+        "const args = process.argv.slice(2);",
+        'if (args.includes("--protocol-version")) {',
+        `  process.stderr.write(${JSON.stringify(JSON.stringify({ code: "STORAGE_ERROR", error: "boom" }))});`,
+        "  process.exit(1);",
+        "}",
+        // If Engines incorrectly fell back and called again without --protocol-version, this
+        // branch would succeed — proving the fallback firing, not just a generic failure.
+        `console.log(${JSON.stringify(JSON.stringify(VALID_PROTOCOL))});`,
+      ].join("\n"),
+    );
+
+    const error = await fetchMemoryProtocol(dir, { command: process.execPath, args: [script] }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(EngramProtocolUnavailableError);
+    expect((error as EngramProtocolUnavailableError).reason).toBe("command-failed");
+  });
+
+  test("accepts a v4 response that carries extra, unknown fields", async () => {
+    const script = fixture(
+      "v4-extra-fields.js",
+      `console.log(${JSON.stringify(JSON.stringify({ ...VALID_PROTOCOL_V4, extra: "future field" }))});`,
+    );
+
+    const result = await fetchMemoryProtocol(dir, { command: process.execPath, args: [script] });
+
+    expect(result.protocol.version).toBe(4);
+  });
+
+  test("throws invalid-schema, with no v1 retry, when the v4 call succeeds but the payload is not v4-shaped", async () => {
+    const script = fixture("v4-bad-shape.js", `console.log(${JSON.stringify(JSON.stringify({ id: "forge614-engram-memory", version: 4 }))});`);
+
+    const error = await fetchMemoryProtocol(dir, { command: process.execPath, args: [script] }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(EngramProtocolUnavailableError);
+    expect((error as EngramProtocolUnavailableError).reason).toBe("invalid-schema");
   });
 
   test("throws not-installed when the executable does not exist", async () => {
@@ -112,7 +208,7 @@ describe("fetchMemoryProtocol (canonical path, no PATH dependency)", () => {
       // not even for the interpreter, let alone for forge614-engram itself.
       writeFileSync(
         canonicalPath,
-        `#!${process.execPath}\nconsole.log(${JSON.stringify(JSON.stringify(VALID_PROTOCOL))});\n`,
+        `#!${process.execPath}\nconsole.log(${JSON.stringify(JSON.stringify(VALID_PROTOCOL_V4))});\n`,
       );
       chmodSync(canonicalPath, 0o755);
 

@@ -40,7 +40,27 @@ function writeProtocolFixtureScript(home: string): string {
     scopes: { shared: "s", project: "p" },
     security: { neverSave: ["passwords"] },
   };
-  writeFileSync(script, `console.log(${JSON.stringify(JSON.stringify(protocol))});`);
+  const protocolV4 = {
+    id: "forge614-engram-memory",
+    version: 4,
+    instructions: protocol.instructions,
+    mcpInstructions: protocol.instructions,
+    startupContext: { command: "x", format: 2, description: "d" },
+  };
+  // Argv-aware, like the real forge614-engram 1.7.0+: answers --protocol-version 4 with a v4
+  // payload, and anything else (including no flag at all) with v1 — see memory-protocol-client.ts.
+  writeFileSync(
+    script,
+    [
+      "const args = process.argv.slice(2);",
+      'const idx = args.indexOf("--protocol-version");',
+      'if (idx !== -1 && args[idx + 1] === "4") {',
+      `  console.log(${JSON.stringify(JSON.stringify(protocolV4))});`,
+      "} else {",
+      `  console.log(${JSON.stringify(JSON.stringify(protocol))});`,
+      "}",
+    ].join("\n"),
+  );
   return script;
 }
 

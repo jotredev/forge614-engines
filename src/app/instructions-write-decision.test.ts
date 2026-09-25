@@ -25,15 +25,14 @@ describe("decideInstructionsInstall", () => {
     expect(decision.kind).toBe("unsupported");
   });
 
-  test("claude-code proposes writes for the satellite file and a one-line import in CLAUDE.md", async () => {
+  // D5: Claude Code embeds the manual directly, the same as Codex — no more satellite file.
+  test("claude-code embeds the manual directly in CLAUDE.md, same as Codex", async () => {
     const decision = await decideInstructionsInstall(claudeCodeAdapter, home, markdown);
     expect(decision.kind).toBe("write");
     if (decision.kind !== "write") throw new Error("unreachable");
-    expect(decision.writes).toHaveLength(2);
-    const claudeMdWrite = decision.writes.find((w) => w.path === join(home, ".claude", "CLAUDE.md"))!;
-    expect(claudeMdWrite.afterContent).toContain("@forge614-engram-memory-protocol.md");
-    const contentWrite = decision.writes.find((w) => w.path === join(home, ".claude", "forge614-engram-memory-protocol.md"))!;
-    expect(contentWrite.afterContent).toContain("Call memory_context.");
+    expect(decision.writes).toHaveLength(1);
+    expect(decision.writes[0].path).toBe(join(home, ".claude", "CLAUDE.md"));
+    expect(decision.writes[0].afterContent).toContain("Call memory_context.");
   });
 
   test("claude-code preserves unrelated existing content in CLAUDE.md", async () => {
@@ -43,7 +42,57 @@ describe("decideInstructionsInstall", () => {
     if (decision.kind !== "write") throw new Error("unreachable");
     const claudeMdWrite = decision.writes.find((w) => w.path === join(home, ".claude", "CLAUDE.md"))!;
     expect(claudeMdWrite.afterContent).toContain("@RTK.md");
-    expect(claudeMdWrite.afterContent).toContain("@forge614-engram-memory-protocol.md");
+    expect(claudeMdWrite.afterContent).toContain("Call memory_context.");
+  });
+
+  describe("D5 migration: a legacy '@<file>' satellite reference on disk", () => {
+    const MANAGED_HEADER = "<!-- Managed by Forge614 Engines. Do not edit by hand; changes are overwritten on the next apply. -->";
+    const BEGIN = "<!-- forge614-engines:begin engram-memory-protocol -->";
+    const END = "<!-- forge614-engines:end engram-memory-protocol -->";
+    const legacyClaudeMd = `${BEGIN}\n@forge614-engram-memory-protocol.md\n${END}\n`;
+
+    test("replaces the reference block with the embedded manual and deletes the satellite when it carries Engines' own managed-header marker", async () => {
+      mkdirSync(join(home, ".claude"), { recursive: true });
+      writeFileSync(join(home, ".claude", "CLAUDE.md"), legacyClaudeMd);
+      writeFileSync(join(home, ".claude", "forge614-engram-memory-protocol.md"), `${MANAGED_HEADER}\n\nOld manual text.`);
+
+      const decision = await decideInstructionsInstall(claudeCodeAdapter, home, markdown);
+
+      expect(decision.kind).toBe("write");
+      if (decision.kind !== "write") throw new Error("unreachable");
+      expect(decision.notice).toBeUndefined();
+      const claudeMdWrite = decision.writes.find((w) => w.path === join(home, ".claude", "CLAUDE.md"))!;
+      expect(claudeMdWrite.afterContent).toContain("Call memory_context.");
+      expect(claudeMdWrite.afterContent).not.toContain("@forge614-engram-memory-protocol.md");
+      const satelliteWrite = decision.writes.find((w) => w.path === join(home, ".claude", "forge614-engram-memory-protocol.md"))!;
+      expect(satelliteWrite.delete).toBe(true);
+    });
+
+    test("leaves a hand-authored satellite file untouched and reports a notice instead of deleting it", async () => {
+      mkdirSync(join(home, ".claude"), { recursive: true });
+      writeFileSync(join(home, ".claude", "CLAUDE.md"), legacyClaudeMd);
+      writeFileSync(join(home, ".claude", "forge614-engram-memory-protocol.md"), "My own private notes about Engram, written by hand.");
+
+      const decision = await decideInstructionsInstall(claudeCodeAdapter, home, markdown);
+
+      expect(decision.kind).toBe("write");
+      if (decision.kind !== "write") throw new Error("unreachable");
+      expect(decision.writes.some((w) => w.path === join(home, ".claude", "forge614-engram-memory-protocol.md"))).toBe(false);
+      expect(decision.notice).toContain(join(home, ".claude", "forge614-engram-memory-protocol.md"));
+    });
+
+    test("migrates cleanly, with no notice, when the referenced satellite file is already gone", async () => {
+      mkdirSync(join(home, ".claude"), { recursive: true });
+      writeFileSync(join(home, ".claude", "CLAUDE.md"), legacyClaudeMd);
+      // No satellite file written at all.
+
+      const decision = await decideInstructionsInstall(claudeCodeAdapter, home, markdown);
+
+      expect(decision.kind).toBe("write");
+      if (decision.kind !== "write") throw new Error("unreachable");
+      expect(decision.notice).toBeUndefined();
+      expect(decision.writes.some((w) => w.path === join(home, ".claude", "forge614-engram-memory-protocol.md"))).toBe(false);
+    });
   });
 
   test("claude-code is a noop the second time nothing changed", async () => {
@@ -98,7 +147,7 @@ describe("decideInstructionsRemove", () => {
     expect((await decideInstructionsRemove(claudeCodeAdapter, home)).kind).toBe("noop");
   });
 
-  test("removes the managed block and marks the satellite file for deletion for claude-code", async () => {
+  test("removes the embedded block for claude-code (D5: same shape as codex, no satellite file)", async () => {
     const installDecision = await decideInstructionsInstall(claudeCodeAdapter, home, markdown);
     if (installDecision.kind !== "write") throw new Error("unreachable");
     mkdirSync(join(home, ".claude"), { recursive: true });
@@ -108,14 +157,36 @@ describe("decideInstructionsRemove", () => {
     const removeDecision = await decideInstructionsRemove(claudeCodeAdapter, home);
     expect(removeDecision.kind).toBe("write");
     if (removeDecision.kind !== "write") throw new Error("unreachable");
-    const claudeMdWrite = removeDecision.writes.find((w) => w.path === join(home, ".claude", "CLAUDE.md"))!;
+    expect(removeDecision.writes).toHaveLength(1);
     // installDecision was computed against an empty CLAUDE.md (the file did not exist yet when
     // decideInstructionsInstall ran), so its own write for CLAUDE.md — applied below — overwrites
     // the "@RTK.md\n" set just before the loop. The primary file's real state going into removal is
     // therefore "installed onto empty content", so removal restores that exact original: "".
-    expect(claudeMdWrite.afterContent).toBe("");
-    const contentWrite = removeDecision.writes.find((w) => w.path === join(home, ".claude", "forge614-engram-memory-protocol.md"))!;
-    expect(contentWrite.delete).toBe(true);
+    expect(removeDecision.writes[0].afterContent).toBe("");
+  });
+
+  test("D5 migration: removal also deletes a legacy satellite it can prove is its own, and warns instead when it cannot", async () => {
+    const MANAGED_HEADER = "<!-- Managed by Forge614 Engines. Do not edit by hand; changes are overwritten on the next apply. -->";
+    const legacyClaudeMd =
+      "<!-- forge614-engines:begin engram-memory-protocol -->\n@forge614-engram-memory-protocol.md\n<!-- forge614-engines:end engram-memory-protocol -->\n";
+    mkdirSync(join(home, ".claude"), { recursive: true });
+    writeFileSync(join(home, ".claude", "CLAUDE.md"), legacyClaudeMd);
+    writeFileSync(join(home, ".claude", "forge614-engram-memory-protocol.md"), `${MANAGED_HEADER}\n\nOld manual text.`);
+
+    const provable = await decideInstructionsRemove(claudeCodeAdapter, home);
+    expect(provable.kind).toBe("write");
+    if (provable.kind !== "write") throw new Error("unreachable");
+    expect(provable.notice).toBeUndefined();
+    const satelliteWrite = provable.writes.find((w) => w.path === join(home, ".claude", "forge614-engram-memory-protocol.md"))!;
+    expect(satelliteWrite.delete).toBe(true);
+
+    writeFileSync(join(home, ".claude", "CLAUDE.md"), legacyClaudeMd);
+    writeFileSync(join(home, ".claude", "forge614-engram-memory-protocol.md"), "Hand-authored notes, not Engines' own.");
+
+    const unprovable = await decideInstructionsRemove(claudeCodeAdapter, home);
+    if (unprovable.kind !== "write") throw new Error("unreachable");
+    expect(unprovable.writes.some((w) => w.path === join(home, ".claude", "forge614-engram-memory-protocol.md"))).toBe(false);
+    expect(unprovable.notice).toContain(join(home, ".claude", "forge614-engram-memory-protocol.md"));
   });
 
   test("removes the embedded block for codex", async () => {

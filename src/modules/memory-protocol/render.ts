@@ -1,10 +1,27 @@
-import type { MemoryProtocol } from "./types";
+import type { AnyMemoryProtocol, MemoryProtocol, MemoryProtocolV4 } from "./types";
 
 function section(title: string, lines: string[]): string {
   return [`### ${title}`, "", ...lines.map((line) => `- ${line}`)].join("\n");
 }
 
-export function renderProtocolMarkdown(protocol: MemoryProtocol): string {
+/** Dispatches on `version`: v1 keeps its existing rendered shape (kept as the fallback render for an old Engram); v4 installs `instructions` as-is. */
+export function renderProtocolMarkdown(protocol: AnyMemoryProtocol): string {
+  return protocol.version === 4 ? renderProtocolMarkdownV4(protocol) : renderProtocolMarkdownV1(protocol);
+}
+
+/**
+ * Version 4 carries no lifecycle/scopes/security: `instructions` is already the
+ * complete manual, so it is installed verbatim — never rewritten or summarized.
+ * Only the identifying header line (id + version) is added, matching v1's own
+ * header, since that line is Engines' own bookkeeping, not part of the manual.
+ */
+function renderProtocolMarkdownV4(protocol: MemoryProtocolV4): string {
+  return ["## Forge614 Engram memory protocol", "", `Protocol: ${protocol.id} (version ${protocol.version})`, "", protocol.instructions].join(
+    "\n",
+  );
+}
+
+function renderProtocolMarkdownV1(protocol: MemoryProtocol): string {
   return [
     "## Forge614 Engram memory protocol",
     "",

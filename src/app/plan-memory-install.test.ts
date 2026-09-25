@@ -33,6 +33,14 @@ const PROTOCOL = {
   security: { neverSave: ["passwords"] },
 };
 
+const PROTOCOL_V4 = {
+  id: "forge614-engram-memory",
+  version: 4,
+  instructions: PROTOCOL.instructions,
+  mcpInstructions: PROTOCOL.instructions,
+  startupContext: { command: "forge614-engram startup-context --directory <dir> --json --format 2", format: 2, description: "d" },
+};
+
 beforeEach(() => {
   previousForgeHome = process.env.FORGE614_HOME;
   delete process.env.FORGE614_HOME;
@@ -42,7 +50,20 @@ beforeEach(() => {
   registry.register(codexAdapter);
   registry.register(cursorAdapter);
   okScript = join(home, "ok-engram.js");
-  writeFileSync(okScript, `console.log(${JSON.stringify(JSON.stringify(PROTOCOL))});`);
+  // Argv-aware, like the real forge614-engram 1.7.0+: answers --protocol-version 4 with a v4
+  // payload, and anything else (including no flag at all) with v1 — see memory-protocol-client.ts.
+  writeFileSync(
+    okScript,
+    [
+      "const args = process.argv.slice(2);",
+      'const idx = args.indexOf("--protocol-version");',
+      'if (idx !== -1 && args[idx + 1] === "4") {',
+      `  console.log(${JSON.stringify(JSON.stringify(PROTOCOL_V4))});`,
+      "} else {",
+      `  console.log(${JSON.stringify(JSON.stringify(PROTOCOL))});`,
+      "}",
+    ].join("\n"),
+  );
   missingCommand = join(home, "does-not-exist-engram");
 });
 
@@ -61,7 +82,9 @@ describe("planMemoryInstall", () => {
     // config write itself is entirely correct.
     const plan = await planMemoryInstall(registry, { agentId: "claude-code", home, protocolOptions: protocolOptions() });
 
-    expect(plan.writes.length).toBeGreaterThanOrEqual(4);
+    // D5: Claude Code now embeds the manual directly (one CLAUDE.md write, not a satellite-file
+    // write plus a one-line CLAUDE.md reference), so the floor drops by one: mcp + instructions + hook.
+    expect(plan.writes.length).toBeGreaterThanOrEqual(3);
     const mcpWrite = plan.writes.find((w) => w.path === join(home, ".claude.json"))!;
     expect(JSON.parse(mcpWrite.afterContent).mcpServers["forge614-engram"]).toEqual({
       command: resolveEngramMcpServer(home).command,
@@ -212,7 +235,7 @@ describe("planMemoryInstall", () => {
     async () => {
       const canonicalPath = resolveEngramExecutable(home);
       mkdirSync(dirname(canonicalPath), { recursive: true });
-      writeFileSync(canonicalPath, `#!${process.execPath}\nconsole.log(${JSON.stringify(JSON.stringify(PROTOCOL))});\n`);
+      writeFileSync(canonicalPath, `#!${process.execPath}\nconsole.log(${JSON.stringify(JSON.stringify(PROTOCOL_V4))});\n`);
       chmodSync(canonicalPath, 0o755);
 
       const plan = await planMemoryInstall(registry, { agentId: "claude-code", home });

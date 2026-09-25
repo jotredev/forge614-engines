@@ -56,3 +56,37 @@ export function isMemoryProtocol(value: unknown): value is MemoryProtocol {
 
   return true;
 }
+
+/**
+ * Version 4 of the protocol: one master text with two outputs (see Engram's own
+ * design). `instructions` is the complete manual Engines installs verbatim;
+ * `mcpInstructions` is the short text meant for Engram's own MCP server, never
+ * written by Engines into any file. Version 4 carries no lifecycle, scopes or
+ * security lists — the manual is the single source.
+ */
+export interface MemoryProtocolV4 {
+  id: "forge614-engram-memory";
+  version: 4;
+  instructions: string;
+  mcpInstructions: string;
+  startupContext: { command: string; format: 2; description: string };
+}
+
+/** Either shape Engines knows how to fetch and install today. */
+export type AnyMemoryProtocol = MemoryProtocol | MemoryProtocolV4;
+
+// R31-style leniency (see startup-context-client.ts): this reads another node's
+// output, so it is strict only about the fields Engines actually consumes
+// (id, version, instructions) and ignores unknown/additive fields such as a
+// future addition to startupContext.
+export function isMemoryProtocolV4(value: unknown): value is MemoryProtocolV4 {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Record<string, unknown>;
+
+  if (candidate.id !== "forge614-engram-memory") return false;
+  if (candidate.version !== 4) return false;
+  if (typeof candidate.instructions !== "string" || candidate.instructions.length === 0) return false;
+  if (typeof candidate.mcpInstructions !== "string") return false;
+
+  return true;
+}
