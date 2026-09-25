@@ -29,7 +29,7 @@ export interface PlanMemoryRemoveInput {
 }
 
 function instructionsComponentStatus(decision: InstructionsDecision): MemoryIntegrationComponentStatus {
-  return decision.kind === "write" ? { kind: "write" } : decision;
+  return decision.kind === "write" ? { kind: "write", ...(decision.notice ? { notice: decision.notice } : {}) } : decision;
 }
 
 export async function planMemoryRemove(registry: AgentRegistry, input: PlanMemoryRemoveInput): Promise<Plan> {

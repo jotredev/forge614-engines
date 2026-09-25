@@ -21,7 +21,7 @@ export interface PlanMemoryInstallInput {
 }
 
 function instructionsComponentStatus(decision: InstructionsDecision): MemoryIntegrationComponentStatus {
-  return decision.kind === "write" ? { kind: "write" } : decision;
+  return decision.kind === "write" ? { kind: "write", ...(decision.notice ? { notice: decision.notice } : {}) } : decision;
 }
 
 export async function planMemoryInstall(registry: AgentRegistry, input: PlanMemoryInstallInput): Promise<Plan> {
@@ -29,7 +29,7 @@ export async function planMemoryInstall(registry: AgentRegistry, input: PlanMemo
   if (!adapter) throw new Error(`Unknown agent: ${input.agentId}`);
   if (!adapter.capabilities.supportsMcp) throw new Error(`${input.agentId} does not support MCP servers`);
 
-  const { protocol, fingerprint } = await fetchMemoryProtocol(input.home, input.protocolOptions);
+  const { protocol, fingerprint, legacyProtocolNotice } = await fetchMemoryProtocol(input.home, input.protocolOptions);
   const protocolMarkdown = renderProtocolMarkdown(protocol);
 
   const engramServer = resolveEngramMcpServer(input.home);
@@ -109,7 +109,13 @@ export async function planMemoryInstall(registry: AgentRegistry, input: PlanMemo
     noop: writes.length === 0,
     writes,
     metadata: {
-      protocol: { source: "forge614-engram memory-protocol --json", id: protocol.id, version: protocol.version, fingerprint: fingerprint },
+      protocol: {
+        source: "forge614-engram memory-protocol --json",
+        id: protocol.id,
+        version: protocol.version,
+        fingerprint: fingerprint,
+        ...(legacyProtocolNotice ? { legacyNotice: legacyProtocolNotice } : {}),
+      },
       mcp: { path: mcpDecision.configPath, status: mcpStatus },
       instructions: { paths: instructionsPaths, status: instructionsStatus },
       hook: { path: hookDecision.configPath, status: hookStatus, runtimeStatus: hookRuntimeStatus },

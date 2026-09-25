@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { basename } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { readFile } from "node:fs/promises";
 import type { AgentAdapter } from "../modules/agents/types";
 import { blockMarkers, extractBlock, withBlock } from "../modules/instructions-writer/block";
@@ -12,7 +12,7 @@ const MANAGED_HEADER =
 export type InstructionsDecision =
   | { kind: "unsupported"; reason: string }
   | { kind: "noop" }
-  | { kind: "write"; writes: PlanWrite[] }
+  | { kind: "write"; writes: PlanWrite[]; notice?: string }
   | { kind: "blocked"; reason: string; details: string };
 
 async function readOrEmpty(path: string): Promise<{ raw: string; exists: boolean }> {
@@ -26,6 +26,34 @@ async function readOrEmpty(path: string): Promise<{ raw: string; exists: boolean
 
 function hashOf(content: string): string {
   return createHash("sha256").update(content).digest("hex");
+}
+
+// D5: an agent that no longer declares a contentFile (Claude Code, as of this change — see
+// claude-code.ts) may still carry a pre-D5 "@<file>" reference block on disk, pointing at a
+// satellite instructions file. matches that shape so the embed path below can migrate it.
+const SATELLITE_REFERENCE_PATTERN = /^@(.+)$/;
+
+/**
+ * D5 migration: when a block being replaced or removed turns out to be a legacy "@<file>"
+ * satellite reference, decides what becomes of that satellite file. It is deleted only when
+ * Engines can prove it wrote it — its content starts with the exact MANAGED_HEADER marker every
+ * satellite file Engines ever wrote always carried. Content Engines cannot vouch for (hand-authored,
+ * hand-edited past recognition, or simply a coincidentally-named file) is left in place and reported
+ * as a notice instead: never a failure, and never silently destroyed on the strength of a stale
+ * block pointing at it.
+ */
+async function resolveLegacySatellite(currentBlock: string | undefined, primaryPath: string): Promise<{ write?: PlanWrite; notice?: string }> {
+  const match = currentBlock?.match(SATELLITE_REFERENCE_PATTERN);
+  if (!match) return {};
+  const satellitePath = join(dirname(primaryPath), match[1]!);
+  const satellite = await readOrEmpty(satellitePath);
+  if (!satellite.exists) return {};
+  if (satellite.raw.startsWith(MANAGED_HEADER)) {
+    return { write: { path: satellitePath, beforeHash: hashOf(satellite.raw), afterContent: "", delete: true } };
+  }
+  return {
+    notice: `A legacy satellite instructions file at ${satellitePath} could not be confirmed as Engines' own (it does not start with Engines' managed-header marker) and was left in place; delete it manually if it is no longer needed.`,
+  };
 }
 
 export async function decideInstructionsInstall(
@@ -85,12 +113,19 @@ export async function decideInstructionsInstall(
         details: `The memory protocol's content contains a string that collides with ${adapter.label}'s managed-block markers, so it cannot be safely embedded in ${primaryPath}`,
       };
     }
-    if (extractBlock(primary.raw, MEMORY_PROTOCOL_BLOCK_ID) !== desiredBlock) {
+    const currentBlock = extractBlock(primary.raw, MEMORY_PROTOCOL_BLOCK_ID);
+    if (currentBlock !== desiredBlock) {
       writes.push({
         path: primaryPath,
         beforeHash: hashOf(primary.raw),
         afterContent: withBlock(primary.raw, MEMORY_PROTOCOL_BLOCK_ID, desiredBlock),
       });
+      // D5: currentBlock may be a pre-migration "@<file>" reference (this agent used to have a
+      // contentFile, or one day will lose it the way Claude Code just did) — resolve its satellite
+      // file's fate alongside the block rewrite.
+      const legacy = await resolveLegacySatellite(currentBlock, primaryPath);
+      if (legacy.write) writes.push(legacy.write);
+      if (legacy.notice) return { kind: "write", writes, notice: legacy.notice };
     }
   }
 
@@ -103,7 +138,8 @@ export async function decideInstructionsRemove(adapter: AgentAdapter, home: stri
 
   const primaryPath = target.primaryFile(home);
   const primary = await readOrEmpty(primaryPath);
-  if (extractBlock(primary.raw, MEMORY_PROTOCOL_BLOCK_ID) === undefined) return { kind: "noop" };
+  const currentBlock = extractBlock(primary.raw, MEMORY_PROTOCOL_BLOCK_ID);
+  if (currentBlock === undefined) return { kind: "noop" };
 
   const writes: PlanWrite[] = [
     {
@@ -119,7 +155,12 @@ export async function decideInstructionsRemove(adapter: AgentAdapter, home: stri
     if (content.exists) {
       writes.push({ path: contentPath, beforeHash: hashOf(content.raw), afterContent: "", delete: true });
     }
+    return { kind: "write", writes };
   }
 
-  return { kind: "write", writes };
+  // D5: this agent has no contentFile today, but the block being removed may still be a pre-D5
+  // "@<file>" reference — same ownership-proof rule as the install/migration path.
+  const legacy = await resolveLegacySatellite(currentBlock, primaryPath);
+  if (legacy.write) writes.push(legacy.write);
+  return { kind: "write", writes, ...(legacy.notice ? { notice: legacy.notice } : {}) };
 }

@@ -31,7 +31,7 @@ export interface Plan {
 export type MemoryIntegrationComponentStatus =
   | { kind: "unsupported"; reason: string }
   | { kind: "noop" }
-  | { kind: "write" }
+  | { kind: "write"; notice?: string }
   | { kind: "blocked"; reason: string; details: string };
 
 /**
@@ -77,7 +77,14 @@ export type HookRuntimeStatus =
 export type MemoryIntegrationOverallStatus = "complete" | "partial" | "unsupported";
 
 export interface MemoryIntegrationMetadata {
-  protocol?: { source: string; id: string; version: number; fingerprint: string };
+  protocol?: {
+    source: string;
+    id: string;
+    version: number;
+    fingerprint: string;
+    /** Present only when Engram was too old for --protocol-version 4 and Engines fell back to v1. */
+    legacyNotice?: string;
+  };
   mcp: { path: string; status: MemoryIntegrationComponentStatus };
   instructions: { paths: string[]; status: MemoryIntegrationComponentStatus };
   hook: {

@@ -1,15 +1,18 @@
 import { readFile } from "node:fs/promises";
 import type { AgentRegistry } from "../modules/agents/registry";
-import type { AgentId } from "../modules/agents/types";
-import { resolveMemoryHookCommand } from "../modules/agents/hook-command";
+import type { AgentAdapter, AgentId } from "../modules/agents/types";
+import { resolveEnginesExecutable, resolveMemoryHookCommand } from "../modules/agents/hook-command";
 import { resolveEngramMcpServer } from "../modules/memory-protocol/constants";
 import { extractBlock } from "../modules/instructions-writer/block";
 import { MEMORY_PROTOCOL_BLOCK_ID } from "../modules/memory-protocol/constants";
+import { renderProtocolMarkdown } from "../modules/memory-protocol/render";
 import type { HookRuntimeStatus } from "../modules/config-writer/types";
+import { fetchMemoryProtocol, type MemoryProtocolFetchOptions } from "../infrastructure/engram/memory-protocol-client";
 import { fetchStartupContext, type StartupContextFetchOptions } from "../infrastructure/engram/startup-context-client";
 import { readHookEvidence } from "./hook-evidence";
 import { computeHookRuntimeStatus } from "./hook-runtime-status";
 import { decideHookRemove } from "./hook-write-decision";
+import { decideInstructionsInstall } from "./instructions-write-decision";
 import { decideMcpRemove } from "./mcp-write-decision";
 import { runMemoryHook } from "./run-memory-hook";
 
@@ -20,12 +23,27 @@ export interface VerifyMemoryIntegrationInput {
   home: string;
   /** Test seam for the hook's dry-run Engram subprocess invocation; production callers omit this. */
   startupContextOptions?: StartupContextFetchOptions;
+  /** Test seam for the drift check's Engram memory-protocol subprocess invocation; production callers omit this. */
+  protocolOptions?: MemoryProtocolFetchOptions;
 }
 
 export interface MemoryIntegrationVerification {
   agentId: AgentId;
   mcp: { path: string; present: boolean };
-  instructions: { supported: boolean; paths: string[]; present: boolean };
+  instructions: {
+    supported: boolean;
+    paths: string[];
+    present: boolean;
+    /**
+     * Present only when `present` is true and Engram could be reached to
+     * compare: whether the installed manual still matches what Engram serves
+     * today. Absent (not false) when there is nothing installed to compare, or
+     * Engram could not be reached — never a failure, see probeInstructionsDrift.
+     */
+    upToDate?: boolean;
+    /** Present only when `upToDate` is false: the exact command to refresh it. */
+    driftNotice?: string;
+  };
   hook: {
     supported: boolean;
     path: string;
@@ -38,7 +56,11 @@ export interface MemoryIntegrationVerification {
    * What the installed Engram actually publishes, probed structurally (never by version).
    * Informational: it never drives overallStatus.
    */
-  engram: { ecosystemBlock: EcosystemBlockState };
+  engram: {
+    ecosystemBlock: EcosystemBlockState;
+    /** Present only when the drift check itself needed the v1 fallback (Engram older than 1.7.0). */
+    protocolNotice?: string;
+  };
   overallStatus: "complete" | "partial" | "absent";
 }
 
@@ -51,6 +73,50 @@ async function probeEcosystemBlock(home: string, options?: StartupContextFetchOp
     return result.ecosystem ? "published" : "not-published";
   } catch {
     return "unavailable";
+  }
+}
+
+interface InstructionsDrift {
+  upToDate?: boolean;
+  driftNotice?: string;
+  protocolNotice?: string;
+}
+
+/**
+ * D3: re-fetches the protocol fresh (same v4-then-v1 fallback fetchMemoryProtocol
+ * always does) and computes the desired block exactly as `plan memory-install`
+ * would, to warn — never fail — when the manual installed on disk has drifted
+ * from what Engram serves today. Only meaningful when something is already
+ * installed; when Engram cannot be reached at all, this stays silent (absent
+ * fields), the same "degrade without breaking the session" rule as everywhere
+ * else Engines calls Engram.
+ */
+async function probeInstructionsDrift(
+  adapter: AgentAdapter,
+  home: string,
+  agentId: AgentId,
+  instructionsPresent: boolean,
+  options?: MemoryProtocolFetchOptions,
+): Promise<InstructionsDrift> {
+  if (!instructionsPresent) return {};
+  try {
+    const { protocol, legacyProtocolNotice } = await fetchMemoryProtocol(home, options);
+    const decision = await decideInstructionsInstall(adapter, home, renderProtocolMarkdown(protocol));
+    // A blocked or unsupported install could not refresh the manual either, so suggesting the
+    // refresh command would mislead: stay silent on drift, exactly as when Engram is unreachable.
+    if (decision.kind !== "noop" && decision.kind !== "write") return legacyProtocolNotice ? { protocolNotice: legacyProtocolNotice } : {};
+    const upToDate = decision.kind === "noop";
+    return {
+      upToDate,
+      ...(upToDate
+        ? {}
+        : {
+            driftNotice: `The installed memory protocol manual no longer matches what Engram serves today. Run "${resolveEnginesExecutable(home)}" plan memory-install --agent ${agentId} and apply the resulting plan to refresh it.`,
+          }),
+      ...(legacyProtocolNotice ? { protocolNotice: legacyProtocolNotice } : {}),
+    };
+  } catch {
+    return {};
   }
 }
 
@@ -122,12 +188,23 @@ export async function verifyMemoryIntegration(
       ? "absent"
       : "partial";
 
+  const drift = await probeInstructionsDrift(adapter, input.home, input.agentId, instructionsPresent, input.protocolOptions);
+
   return {
     agentId: input.agentId,
     mcp: { path: mcpDecision.configPath, present: mcpPresent },
-    instructions: { supported: instructionsSupported, paths: instructionsPaths, present: instructionsPresent },
+    instructions: {
+      supported: instructionsSupported,
+      paths: instructionsPaths,
+      present: instructionsPresent,
+      ...(drift.upToDate !== undefined ? { upToDate: drift.upToDate } : {}),
+      ...(drift.driftNotice ? { driftNotice: drift.driftNotice } : {}),
+    },
     hook: { supported: hookSupported, path: hookRemoveDecision.configPath, present: hookPresent, dryRunOk, runtimeStatus },
-    engram: { ecosystemBlock: await probeEcosystemBlock(input.home, input.startupContextOptions) },
+    engram: {
+      ecosystemBlock: await probeEcosystemBlock(input.home, input.startupContextOptions),
+      ...(drift.protocolNotice ? { protocolNotice: drift.protocolNotice } : {}),
+    },
     overallStatus,
   };
 }

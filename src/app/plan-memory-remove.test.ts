@@ -16,16 +16,34 @@ let home: string;
 let registry: AgentRegistry;
 let previousForgeHome: string | undefined;
 
-const PROTOCOL_SCRIPT_CONTENT = `console.log(${JSON.stringify(
-  JSON.stringify({
-    id: "forge614-engram-memory",
-    version: 1,
-    instructions: "Call memory_context.",
-    lifecycle: { start: ["s"], save: ["s"], compact: ["s"], resume: ["s"], end: ["s"] },
-    scopes: { shared: "s", project: "p" },
-    security: { neverSave: ["passwords"] },
-  }),
-)});`;
+// Argv-aware, like the real forge614-engram 1.7.0+: answers --protocol-version 4 with a v4
+// payload, and anything else (including no flag at all) with v1 — see memory-protocol-client.ts.
+const PROTOCOL_SCRIPT_CONTENT = [
+  "const args = process.argv.slice(2);",
+  'const idx = args.indexOf("--protocol-version");',
+  'if (idx !== -1 && args[idx + 1] === "4") {',
+  `  console.log(${JSON.stringify(
+    JSON.stringify({
+      id: "forge614-engram-memory",
+      version: 4,
+      instructions: "Call memory_context.",
+      mcpInstructions: "Call memory_context.",
+      startupContext: { command: "x", format: 2, description: "d" },
+    }),
+  )});`,
+  "} else {",
+  `  console.log(${JSON.stringify(
+    JSON.stringify({
+      id: "forge614-engram-memory",
+      version: 1,
+      instructions: "Call memory_context.",
+      lifecycle: { start: ["s"], save: ["s"], compact: ["s"], resume: ["s"], end: ["s"] },
+      scopes: { shared: "s", project: "p" },
+      security: { neverSave: ["passwords"] },
+    }),
+  )});`,
+  "}",
+].join("\n");
 
 beforeEach(() => {
   previousForgeHome = process.env.FORGE614_HOME;
@@ -71,8 +89,10 @@ describe("planMemoryRemove", () => {
     expect(plan.noop).toBe(false);
     const claudeMdWrite = plan.writes.find((w) => w.path === join(home, ".claude.json"))!;
     expect(JSON.parse(claudeMdWrite.afterContent).mcpServers?.["forge614-engram"]).toBeUndefined();
-    const contentWrite = plan.writes.find((w) => w.path === join(home, ".claude", "forge614-engram-memory-protocol.md"))!;
-    expect(contentWrite.delete).toBe(true);
+    // D5: Claude Code embeds the manual directly now, so removal is a single CLAUDE.md
+    // block-strip — no satellite file to delete (see instructions-write-decision.test.ts for
+    // the legacy-satellite migration/removal cleanup path).
+    expect(plan.writes.some((w) => w.path === join(home, ".claude", "forge614-engram-memory-protocol.md"))).toBe(false);
   });
 
   test("blocks the mcp component as data (not a thrown error) when the entry is unrecognized", async () => {

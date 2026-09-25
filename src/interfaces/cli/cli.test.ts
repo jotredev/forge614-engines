@@ -27,6 +27,14 @@ const PROTOCOL_JSON = JSON.stringify({
   security: { neverSave: ["passwords"] },
 });
 
+const PROTOCOL_V4_JSON = JSON.stringify({
+  id: "forge614-engram-memory",
+  version: 4,
+  instructions: "Call memory_context.",
+  mcpInstructions: "Call memory_context.",
+  startupContext: { command: "forge614-engram startup-context --directory <dir> --json --format 2", format: 2, description: "d" },
+});
+
 const STARTUP_CONTEXT_JSON = JSON.stringify({
   format: 1,
   shared: { pinned: [], recent: [], sessions: [], truncated: false },
@@ -49,7 +57,8 @@ function installEngramFixture(testHome: string): void {
     [
       `#!${process.execPath}`,
       `const args = process.argv.slice(2);`,
-      `if (args[0] === "memory-protocol") { console.log(${JSON.stringify(PROTOCOL_JSON)}); }`,
+      `if (args[0] === "memory-protocol" && args.includes("--protocol-version")) { console.log(${JSON.stringify(PROTOCOL_V4_JSON)}); }`,
+      `else if (args[0] === "memory-protocol") { console.log(${JSON.stringify(PROTOCOL_JSON)}); }`,
       `else if (args[0] === "startup-context") { console.log(${JSON.stringify(STARTUP_CONTEXT_JSON)}); }`,
       `else { process.exit(1); }`,
       "",

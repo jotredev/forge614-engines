@@ -23,14 +23,15 @@ export const claudeCodeAdapter: AgentAdapter = {
     return { command: server.command, args: server.args };
   },
   instructions: {
+    // D5: the manual embeds directly between the managed-block markers in CLAUDE.md, the same as
+    // Codex — no contentFile. Engines still knows how to migrate a machine that has the old
+    // "@forge614-engram-memory-protocol.md" reference plus that satellite file on disk (see
+    // instructions-write-decision.ts's resolveLegacySatellite); it just never writes that shape again.
     primaryFile(home) {
       return join(home, ".claude", "CLAUDE.md");
     },
     shadowingFiles() {
       return [];
-    },
-    contentFile(home) {
-      return join(home, ".claude", "forge614-engram-memory-protocol.md");
     },
   },
   hooks: {

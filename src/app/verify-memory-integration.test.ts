@@ -23,16 +23,63 @@ const STARTUP_CONTEXT_RESULT = {
   project: { status: "unbound", projectId: null, context: null },
 };
 
-const PROTOCOL_SCRIPT_CONTENT = `console.log(${JSON.stringify(
-  JSON.stringify({
+/**
+ * Argv-aware, like the real forge614-engram 1.7.0+: answers --protocol-version 4 with a v4
+ * payload built from `instructions`, and anything else (including no flag at all) with v1 —
+ * see memory-protocol-client.ts. `rejectV4` instead mimics an Engram older than 1.7.0, which
+ * rejects the flag outright with Engram's own `{code:"INVALID_INPUT",...}` stderr envelope.
+ */
+function protocolScript(instructions: string, options?: { rejectV4?: boolean }): string {
+  const v1 = {
     id: "forge614-engram-memory",
     version: 1,
-    instructions: "Call memory_context.",
+    instructions,
     lifecycle: { start: ["s"], save: ["s"], compact: ["s"], resume: ["s"], end: ["s"] },
     scopes: { shared: "s", project: "p" },
     security: { neverSave: ["passwords"] },
-  }),
-)});`;
+  };
+  const v4 = {
+    id: "forge614-engram-memory",
+    version: 4,
+    instructions,
+    mcpInstructions: instructions,
+    startupContext: { command: "x", format: 2, description: "d" },
+  };
+  return [
+    "const args = process.argv.slice(2);",
+    'const idx = args.indexOf("--protocol-version");',
+    'const wantsV4 = idx !== -1 && args[idx + 1] === "4";',
+    options?.rejectV4
+      ? [
+          "if (wantsV4) {",
+          `  process.stderr.write(${JSON.stringify(JSON.stringify({ code: "INVALID_INPUT", error: "protocol-version debe ser 1, 2, 3 o 4." }))});`,
+          "  process.exit(1);",
+          "}",
+        ].join("\n")
+      : "",
+    `console.log(wantsV4 ? ${JSON.stringify(JSON.stringify(v4))} : ${JSON.stringify(JSON.stringify(v1))});`,
+  ].join("\n");
+}
+
+const PROTOCOL_SCRIPT_CONTENT = protocolScript("Call memory_context.");
+
+/**
+ * Argv-aware, like the real forge614-engram 1.7.0+: rejects --format 2 with Engram's own
+ * INVALID_INPUT envelope (this fixture always plays a pre-1.7.0 Engram — see startup-context-client.ts's
+ * fetchStartupBlock), so a caller that goes through the hook (fetchStartupBlock) falls back to
+ * format 1, exactly as it did before format 2 existed. A direct format-1 caller (probeEcosystemBlock)
+ * is unaffected either way, since it never requests --format at all.
+ */
+function startupScript(payload: unknown): string {
+  return [
+    "const args = process.argv.slice(2);",
+    'if (args.includes("--format")) {',
+    `  process.stderr.write(${JSON.stringify(JSON.stringify({ code: "INVALID_INPUT", error: "format debe ser 1 o 2." }))});`,
+    "  process.exit(1);",
+    "}",
+    `console.log(${JSON.stringify(JSON.stringify(payload))});`,
+  ].join("\n");
+}
 
 beforeEach(() => {
   previousForgeHome = process.env.FORGE614_HOME;
@@ -43,7 +90,7 @@ beforeEach(() => {
   registry.register(codexAdapter);
   registry.register(cursorAdapter);
   startupContextScript = join(home, "startup-context.js");
-  writeFileSync(startupContextScript, `console.log(${JSON.stringify(JSON.stringify(STARTUP_CONTEXT_RESULT))});`);
+  writeFileSync(startupContextScript, startupScript(STARTUP_CONTEXT_RESULT));
 });
 
 afterEach(() => {
@@ -229,15 +276,33 @@ describe("verifyMemoryIntegration", () => {
     expect(result.overallStatus).toBe("complete");
   });
 
-  test("reports instructions absent when the satellite content file is missing, even though CLAUDE.md still references it", async () => {
-    await installFor("claude-code");
+  // D5: Claude Code embeds the manual directly now (no satellite file — see
+  // instructions-write-decision.test.ts for the migration itself). A machine that still has the
+  // pre-D5 "@<file>" reference block is reported present (the block is there) but D3's drift check
+  // must treat that reference shape as an outdated manual, never as up to date.
+  test("treats a pre-D5 '@<file>' reference block as present but outdated, with the exact refresh command", async () => {
+    mkdirSync(join(home, ".claude"), { recursive: true });
+    writeFileSync(
+      join(home, ".claude", "CLAUDE.md"),
+      "<!-- forge614-engines:begin engram-memory-protocol -->\n@forge614-engram-memory-protocol.md\n<!-- forge614-engines:end engram-memory-protocol -->\n",
+    );
+    writeFileSync(
+      join(home, ".claude", "forge614-engram-memory-protocol.md"),
+      "<!-- Managed by Forge614 Engines. Do not edit by hand; changes are overwritten on the next apply. -->\n\nOld manual text.",
+    );
 
-    rmSync(join(home, ".claude", "forge614-engram-memory-protocol.md"));
+    const d5Script = join(home, "d5-drift.js");
+    writeFileSync(d5Script, protocolScript("Call memory_context."));
 
-    const result = await verifyMemoryIntegration(registry, { agentId: "claude-code", home });
+    const result = await verifyMemoryIntegration(registry, {
+      agentId: "claude-code",
+      home,
+      protocolOptions: { command: process.execPath, args: [d5Script] },
+    });
 
-    expect(result.instructions.present).toBe(false);
-    expect(result.overallStatus).toBe("partial");
+    expect(result.instructions.present).toBe(true);
+    expect(result.instructions.upToDate).toBe(false);
+    expect(result.instructions.driftNotice).toContain("plan memory-install --agent claude-code");
   });
 
   describe("engram ecosystem block (structural, never by version)", () => {
@@ -274,6 +339,104 @@ describe("verifyMemoryIntegration", () => {
       const withBlock = await verifyMemoryIntegration(registry, { agentId: "claude-code", home, startupContextOptions: options });
       const without = await verifyMemoryIntegration(registry, { agentId: "claude-code", home, startupContextOptions: startupContextOptions() });
       expect(withBlock.overallStatus).toBe(without.overallStatus);
+    });
+  });
+
+  // D3: verify never trusted the installed manual's content before — it only checked block
+  // presence. Now it re-fetches the protocol fresh and warns (never fails) when what's on
+  // disk has drifted from what Engram serves today.
+  describe("instructions drift against Engram's current protocol (never a failure, never overallStatus)", () => {
+    function scriptPath(name: string, content: string): string {
+      const path = join(home, name);
+      writeFileSync(path, content);
+      return path;
+    }
+
+    test("does not compute drift when nothing is installed (behaves as before)", async () => {
+      const result = await verifyMemoryIntegration(registry, {
+        agentId: "claude-code",
+        home,
+        protocolOptions: { command: process.execPath, args: [scriptPath("unused.js", protocolScript("Call memory_context."))] },
+      });
+      expect(result.instructions.present).toBe(false);
+      expect(result.instructions.upToDate).toBeUndefined();
+      expect(result.instructions.driftNotice).toBeUndefined();
+    });
+
+    test("reports upToDate true when the installed manual still matches what Engram serves", async () => {
+      await installFor("claude-code");
+
+      const result = await verifyMemoryIntegration(registry, {
+        agentId: "claude-code",
+        home,
+        protocolOptions: { command: process.execPath, args: [scriptPath("same.js", protocolScript("Call memory_context."))] },
+      });
+
+      expect(result.instructions.present).toBe(true);
+      expect(result.instructions.upToDate).toBe(true);
+      expect(result.instructions.driftNotice).toBeUndefined();
+    });
+
+    test("reports upToDate false with the exact refresh command when Engram's manual changed since install", async () => {
+      await installFor("claude-code");
+
+      const result = await verifyMemoryIntegration(registry, {
+        agentId: "claude-code",
+        home,
+        protocolOptions: { command: process.execPath, args: [scriptPath("changed.js", protocolScript("A brand-new manual text."))] },
+      });
+
+      expect(result.instructions.upToDate).toBe(false);
+      expect(result.instructions.driftNotice).toContain("plan memory-install --agent claude-code");
+      expect(result.overallStatus).not.toBe("absent"); // informational only: never demotes overallStatus
+    });
+
+    test("stays silent (no upToDate, no refresh command) when a refresh would be blocked anyway", async () => {
+      await installFor("codex");
+      writeFileSync(join(home, ".codex", "AGENTS.override.md"), "some override content");
+
+      const result = await verifyMemoryIntegration(registry, {
+        agentId: "codex",
+        home,
+        protocolOptions: { command: process.execPath, args: [scriptPath("blocked.js", protocolScript("A brand-new manual text."))] },
+      });
+
+      expect(result.instructions.present).toBe(true);
+      expect(result.instructions.upToDate).toBeUndefined();
+      expect(result.instructions.driftNotice).toBeUndefined();
+    });
+
+    test("stays silent (no upToDate, no failure) when Engram cannot be reached for the comparison", async () => {
+      await installFor("claude-code");
+
+      const result = await verifyMemoryIntegration(registry, { agentId: "claude-code", home }); // no protocolOptions, no canonical binary either
+
+      expect(result.instructions.present).toBe(true);
+      expect(result.instructions.upToDate).toBeUndefined();
+      expect(result.instructions.driftNotice).toBeUndefined();
+    });
+
+    test("surfaces the bilingual legacy-protocol notice when the drift check itself needs the v1 fallback", async () => {
+      // Installed originally against a v4-serving Engram (installFor's default script succeeds
+      // at --protocol-version 4); now Engram behind it has regressed to pre-1.7.0, so re-fetching
+      // for the drift check itself needs the fallback. The v1 render legitimately differs in shape
+      // from the v4 render (it adds Lifecycle/Scopes/Security sections v4 has none of), so drift is
+      // correctly reported too — the point of this test is the notice, not upToDate's value.
+      await installFor("claude-code");
+
+      const result = await verifyMemoryIntegration(registry, {
+        agentId: "claude-code",
+        home,
+        protocolOptions: {
+          command: process.execPath,
+          args: [scriptPath("legacy.js", protocolScript("Call memory_context.", { rejectV4: true }))],
+        },
+      });
+
+      expect(result.instructions.upToDate).toBe(false);
+      expect(result.engram.protocolNotice).toBeDefined();
+      expect(result.engram.protocolNotice).toContain("actualiza Engram");
+      expect(result.engram.protocolNotice).toContain("upgrade Engram");
     });
   });
 });
