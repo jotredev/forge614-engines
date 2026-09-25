@@ -14,7 +14,7 @@ El identificador debe corresponder a un archivo en `~/.forge614/engines/plans/`.
 
 Para cada escritura real, Engines lee de nuevo el archivo objetivo. Calcula SHA-256 y exige que sea idéntico al valor `beforeHash` del plan. Una diferencia produce `STALE_PLAN` (plan vencido), sin escribir nada. La solución segura es crear otro plan, mostrarlo de nuevo y volver a pedir confirmación.
 
-Una escritura también puede ser una eliminación —usada para retirar por completo el archivo de contenido de instrucciones dedicado de Claude Code en `plan memory-remove`— y se aplica mediante exactamente el mismo camino de verificación de huella y copia de seguridad que cualquier otra escritura.
+Una escritura también puede ser una eliminación —usada para borrar el archivo aparte de instrucciones que la versión anterior creaba para Claude Code; ya no se crea, y solo se borra al migrar (al instalar o al retirar la memoria) y solo si empieza con la marca de Engines— y se aplica mediante exactamente el mismo camino de verificación de huella y copia de seguridad que cualquier otra escritura.
 
 ## Aplicar una reparación solo con confirmación explícita
 

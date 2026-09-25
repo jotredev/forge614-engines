@@ -37,6 +37,12 @@ forge614-engines plan memory-remove --agent codex
 
 `plan memory-install` and `plan memory-remove` bundle two decisions — the `forge614-engram` MCP entry and the agent's instructions file(s) — into one plan, with one `planId` that covers both. A per-component conflict does not abort that plan: a different `forge614-engram` MCP entry, or a non-empty `AGENTS.override.md` shadowing Codex's `AGENTS.md`, is reported as `blocked` for that one component while the other component still proceeds normally. Cursor's instructions component is always reported `unsupported`, because Cursor has no officially documented global, file-based mechanism for loading instructions automatically in every new session.
 
+**The manual that gets installed.** Engines asks Engram for the manual with `forge614-engram memory-protocol --json --protocol-version 4` (the "v4 manual"). Only if Engram answers with the INVALID_INPUT error — the sign of an Engram older than 1.7.0, which does not know that option — does Engines repeat the call it has always made (protocol v1) and add a Spanish-and-English notice to the plan (`metadata.protocol.legacyNotice`) asking to upgrade Engram. Any other error is reported as before, with no retry. With v4, the `instructions` text Engram delivers is installed as-is, with no heading or anything else added by Engines.
+
+**Where it lives.** The manual is embedded inside each agent's main file, between the markers Engines manages (Claude Code: `~/.claude/CLAUDE.md`; Codex: `~/.codex/AGENTS.md`). Inside the markers comes first Engines' own mark line (`<!-- Managed by Forge614 Engines. … -->`, which proves the block is theirs) and then `instructions`, identical to Engram's. Claude Code no longer uses a separate file.
+
+**Migrating from the previous version.** If the block already installed is not the manual but an `@file` reference (Claude Code's old form, which pointed at a separate file), `plan memory-install` replaces it with the embedded manual. That separate file is deleted only if it starts with Engines' mark; if it does not (for example, someone else wrote or edited it), it is left where it is and the plan says so in `metadata.instructions.status.notice`. `plan memory-remove` applies the same rule when it removes the block.
+
 ## Repairing an existing MCP conflict
 
 ```text
