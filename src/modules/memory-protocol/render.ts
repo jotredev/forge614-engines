@@ -11,14 +11,12 @@ export function renderProtocolMarkdown(protocol: AnyMemoryProtocol): string {
 
 /**
  * Version 4 carries no lifecycle/scopes/security: `instructions` is already the
- * complete manual, so it is installed verbatim — never rewritten or summarized.
- * Only the identifying header line (id + version) is added, matching v1's own
- * header, since that line is Engines' own bookkeeping, not part of the manual.
+ * complete manual, so it is installed exactly as Engram serves it — byte for byte,
+ * with nothing added (the new-agent checklist verifies it that way). Around it
+ * Engines writes only its own block markers and managed-header comment line.
  */
 function renderProtocolMarkdownV4(protocol: MemoryProtocolV4): string {
-  return ["## Forge614 Engram memory protocol", "", `Protocol: ${protocol.id} (version ${protocol.version})`, "", protocol.instructions].join(
-    "\n",
-  );
+  return protocol.instructions;
 }
 
 function renderProtocolMarkdownV1(protocol: MemoryProtocol): string {
