@@ -1,7 +1,7 @@
 import type { AgentId } from "../modules/agents/types";
 import { MEMORY_HOOK_CONTEXT_CHAR_LIMIT } from "../modules/agents/hook-command";
 import {
-  fetchStartupContext,
+  fetchStartupBlock,
   StartupContextUnavailableError,
   type StartupContextFetchOptions,
   type StartupContextResult,
@@ -42,6 +42,18 @@ const FRAME_PREAMBLE =
 
 function unavailableMessage(reason: string): string {
   return `${FRAME_PREAMBLE} Memoria no disponible (motivo: ${reason}). La sesión continúa sin contexto precargado.`;
+}
+
+/**
+ * D4's defensive backstop: every text this module hands back to the CLI layer passes through
+ * here, format 2's relayed block included. A compliant Engram already stays within its own
+ * 5 000-character format-2 budget and the format-1 path budgets itself precisely below, so this
+ * should never actually fire — it exists only so a future or misbehaving Engram can never hand an
+ * unbounded string to the host. A hard cut here may fall mid-row; that trade-off is accepted only
+ * as a last resort, never the normal path.
+ */
+function capText(text: string): string {
+  return text.length <= MEMORY_HOOK_CONTEXT_CHAR_LIMIT ? text : text.slice(0, MEMORY_HOOK_CONTEXT_CHAR_LIMIT);
 }
 
 // Strings that could make a saved memory row read as an instruction/role marker
@@ -165,8 +177,13 @@ export interface StartupContextRender {
  * startup memory counts inside the 3 000-token budget). Space is granted by precedence — preamble,
  * notices and project first, then ecosystem, then shared — and each section sheds whole rows from
  * the end of its list; nothing is ever cut mid-row. Paint order stays shared, ecosystem, project, notices.
+ *
+ * `reserve` holds back extra characters up front — used only for the legacy-fallback bilingual
+ * notice (see runMemoryHook) so appending it after this text still keeps the total within budget,
+ * with no need for a hard, potentially row-splitting truncation. Defaults to 0: every existing
+ * caller keeps its exact prior budget.
  */
-export function renderStartupContext(result: StartupContextResult): StartupContextRender {
+export function renderStartupContext(result: StartupContextResult, reserve = 0): StartupContextRender {
   const member = result.ecosystem?.status === "member" ? result.ecosystem : undefined;
   const { rows, removed } = dedupeRows([
     { name: "shared", rows: rowsOf(result.shared) },
@@ -175,7 +192,7 @@ export function renderStartupContext(result: StartupContextResult): StartupConte
   ]);
 
   const notices = result.project.notices ? renderNotices(result.project.notices) : undefined;
-  let available = MEMORY_HOOK_CONTEXT_CHAR_LIMIT - FRAME_PREAMBLE.length - (notices ? SEPARATOR.length + notices.length : 0);
+  let available = MEMORY_HOOK_CONTEXT_CHAR_LIMIT - reserve - FRAME_PREAMBLE.length - (notices ? SEPARATOR.length + notices.length : 0);
   const omitted: Record<SectionName, number> = { shared: 0, ecosystem: 0, project: 0 };
   const fit = (name: SectionName, label: string): string | undefined => {
     const fitted = fitSection(label, rows.get(name) ?? [], available - SEPARATOR.length);
@@ -232,15 +249,25 @@ export async function runMemoryHook(input: RunMemoryHookInput): Promise<RunMemor
   }
 
   try {
-    const result = await fetchStartupContext(input.home, cwd, input.startupContextOptions);
+    const fetched = await fetchStartupBlock(input.home, cwd, input.startupContextOptions);
+    const text =
+      fetched.format === 2
+        ? // D4: Engram already rendered this block (its own framing preamble included) — relay it
+          // verbatim, never re-derived through the dedupe/fitSection pipeline below, which is now
+          // only the legacy-fallback path. Still sanitized: an instruction-marker string inside a
+          // saved memory row is exactly as dangerous coming through Engram's own renderer.
+          sanitize(fetched.block.text)
+        : [renderStartupContext(fetched.result, SEPARATOR.length + fetched.legacyStartupNotice.length).text, fetched.legacyStartupNotice].join(
+            SEPARATOR,
+          );
     return {
       agentId: input.agentId,
-      text: renderStartupContext(result).text,
+      text: capText(text),
       available: true,
       recognizedInvocation,
     };
   } catch (error) {
     const reason = error instanceof StartupContextUnavailableError ? error.reason : "command-failed";
-    return { agentId: input.agentId, text: unavailableMessage(reason), available: false, recognizedInvocation };
+    return { agentId: input.agentId, text: capText(unavailableMessage(reason)), available: false, recognizedInvocation };
   }
 }

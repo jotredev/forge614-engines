@@ -59,6 +59,9 @@ function installEngramFixture(testHome: string): void {
       `const args = process.argv.slice(2);`,
       `if (args[0] === "memory-protocol" && args.includes("--protocol-version")) { console.log(${JSON.stringify(PROTOCOL_V4_JSON)}); }`,
       `else if (args[0] === "memory-protocol") { console.log(${JSON.stringify(PROTOCOL_JSON)}); }`,
+      // Legacy Engram double: rejects --format 2 with INVALID_INPUT, forcing the hook's own
+      // fallback to format 1, exercised end to end through the real CLI here.
+      `else if (args[0] === "startup-context" && args.includes("--format")) { process.stderr.write(${JSON.stringify(JSON.stringify({ code: "INVALID_INPUT", error: "format debe ser 1 o 2." }))}); process.exit(1); }`,
       `else if (args[0] === "startup-context") { console.log(${JSON.stringify(STARTUP_CONTEXT_JSON)}); }`,
       `else { process.exit(1); }`,
       "",

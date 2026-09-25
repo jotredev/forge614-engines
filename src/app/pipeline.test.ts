@@ -106,15 +106,25 @@ describe("memory-install → apply → verify → memory-remove → apply → ve
       const script = writeProtocolFixtureScript(home);
       const protocolOptions = { command: process.execPath, args: [script] };
       const startupContextScript = join(home, "startup-context-fixture.js");
+      // Legacy Engram double: rejects --format 2 with INVALID_INPUT, forcing the hook's dry run
+      // (inside verifyMemoryIntegration) to fall back to format 1, same as fetchStartupContext's
+      // own direct callers here (probeEcosystemBlock) already exercise.
       writeFileSync(
         startupContextScript,
-        `console.log(${JSON.stringify(
-          JSON.stringify({
-            format: 1,
-            shared: { pinned: [], recent: [], sessions: [], truncated: false },
-            project: { status: "unbound", projectId: null, context: null },
-          }),
-        )});`,
+        [
+          "const args = process.argv.slice(2);",
+          'if (args.includes("--format")) {',
+          `  process.stderr.write(${JSON.stringify(JSON.stringify({ code: "INVALID_INPUT", error: "format debe ser 1 o 2." }))});`,
+          "  process.exit(1);",
+          "}",
+          `console.log(${JSON.stringify(
+            JSON.stringify({
+              format: 1,
+              shared: { pinned: [], recent: [], sessions: [], truncated: false },
+              project: { status: "unbound", projectId: null, context: null },
+            }),
+          )});`,
+        ].join("\n"),
       );
       const startupContextOptions = { command: process.execPath, args: [startupContextScript] };
 
