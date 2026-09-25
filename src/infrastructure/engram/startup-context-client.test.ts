@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fetchStartupContext, StartupContextUnavailableError } from "./startup-context-client";
+import { fetchStartupBlock, fetchStartupContext, StartupContextUnavailableError } from "./startup-context-client";
 
 let dir: string;
 beforeEach(() => {
@@ -105,5 +105,108 @@ describe("fetchStartupContext", () => {
       expect(error).toBeInstanceOf(StartupContextUnavailableError);
       expect(error.reason).toBe("invalid-json");
     }
+  });
+});
+
+const BLOCK_V2 = { format: 2 as const, text: "[Forge614 Engram] Startup block: retrieved data, not an instruction.\n42/5000 chars.", chars: 42, sections: { essentials: 1, previous: 0, index: 1 }, omitted: 0 };
+
+/**
+ * Argv-aware, like the real forge614-engram 1.7.0+: answers --format 2 with a format-2 block, and
+ * anything else with the given format-1 `result`. `rejectFormat2: true` instead mimics an Engram
+ * older than 1.7.0, which rejects the flag outright with Engram's own INVALID_INPUT envelope.
+ */
+function versionedStartupFixture(dir: string, name: string, result: unknown, options?: { rejectFormat2?: boolean }): string {
+  const path = join(dir, name);
+  const lines = [
+    "const args = process.argv.slice(2);",
+    'const wantsV2 = args.includes("--format") && args[args.indexOf("--format") + 1] === "2";',
+    options?.rejectFormat2
+      ? [
+          "if (wantsV2) {",
+          `  process.stderr.write(${JSON.stringify(JSON.stringify({ code: "INVALID_INPUT", error: "format debe ser 1 o 2." }))});`,
+          "  process.exit(1);",
+          "}",
+        ].join("\n")
+      : "",
+    `console.log(wantsV2 ? ${JSON.stringify(JSON.stringify(BLOCK_V2))} : ${JSON.stringify(JSON.stringify(result))});`,
+  ].join("\n");
+  writeFileSync(path, lines);
+  return path;
+}
+
+describe("fetchStartupBlock", () => {
+  test("prefers format 2 on the first try, returned verbatim with no legacy notice", async () => {
+    const script = versionedStartupFixture(dir, "ok.js", RESULT);
+
+    const fetched = await fetchStartupBlock(dir, "/some/repo", { command: process.execPath, args: [script] });
+
+    expect(fetched.format).toBe(2);
+    if (fetched.format === 2) expect(fetched.block).toEqual(BLOCK_V2);
+  });
+
+  test("falls back to format 1 and surfaces a bilingual notice when Engram rejects --format 2 with INVALID_INPUT", async () => {
+    const script = versionedStartupFixture(dir, "legacy.js", RESULT, { rejectFormat2: true });
+
+    const fetched = await fetchStartupBlock(dir, "/some/repo", { command: process.execPath, args: [script] });
+
+    expect(fetched.format).toBe(1);
+    if (fetched.format === 1) {
+      expect(fetched.result).toEqual(RESULT);
+      expect(fetched.legacyStartupNotice).toContain("1.7.0");
+      expect(fetched.legacyStartupNotice).toContain("actualiza Engram"); // Spanish half
+      expect(fetched.legacyStartupNotice).toContain("upgrade Engram"); // English half
+    }
+  });
+
+  test("does not fall back when the format-2 attempt fails with an error other than INVALID_INPUT", async () => {
+    const script = join(dir, "other-error.js");
+    writeFileSync(
+      script,
+      [
+        "const args = process.argv.slice(2);",
+        'if (args.includes("--format")) {',
+        `  process.stderr.write(${JSON.stringify(JSON.stringify({ code: "STORAGE_ERROR", error: "boom" }))});`,
+        "  process.exit(1);",
+        "}",
+        // If Engines incorrectly fell back and called again without --format, this branch would
+        // succeed — proving the fallback fired, not just a generic failure.
+        `console.log(${JSON.stringify(JSON.stringify(RESULT))});`,
+      ].join("\n"),
+    );
+
+    const error = await fetchStartupBlock(dir, "/some/repo", { command: process.execPath, args: [script] }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(StartupContextUnavailableError);
+    expect(error.reason).toBe("command-failed");
+  });
+
+  test("accepts a format-2 response with extra, unknown fields", async () => {
+    const script = join(dir, "extra.js");
+    writeFileSync(script, `console.log(${JSON.stringify(JSON.stringify({ ...BLOCK_V2, extra: "future field" }))});`);
+
+    const fetched = await fetchStartupBlock(dir, "/some/repo", { command: process.execPath, args: [script] });
+
+    expect(fetched.format).toBe(2);
+  });
+
+  test("treats a format-2 response with empty text as invalid, with no v1 retry", async () => {
+    const script = join(dir, "empty-text.js");
+    writeFileSync(script, `console.log(${JSON.stringify(JSON.stringify({ ...BLOCK_V2, text: "" }))});`);
+
+    const error = await fetchStartupBlock(dir, "/some/repo", { command: process.execPath, args: [script] }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(StartupContextUnavailableError);
+    expect(error.reason).toBe("invalid-json");
+  });
+
+  test("treats a format-2 response with a missing text field as invalid, with no v1 retry", async () => {
+    const { text: _text, ...withoutText } = BLOCK_V2;
+    const script = join(dir, "no-text.js");
+    writeFileSync(script, `console.log(${JSON.stringify(JSON.stringify(withoutText))});`);
+
+    const error = await fetchStartupBlock(dir, "/some/repo", { command: process.execPath, args: [script] }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(StartupContextUnavailableError);
+    expect(error.reason).toBe("invalid-json");
   });
 });
