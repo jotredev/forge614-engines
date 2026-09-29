@@ -35,7 +35,7 @@ forge614-engines headless --agent codex --executable codex --prompt "Summarize t
 forge614-engines plan mcp-install --agent claude-code --name engram --command forge614-engram --args mcp
 ```
 
-`agents list` reports the static, built-in agent registry — every agent the code supports, whatever is or is not installed on this machine. `detect` answers a different question: which of those agents are actually present right now.
+`agents list` reports the static, built-in agent registry — every agent the code supports, whatever is or is not installed on this machine. `detect` answers a different question: which of those agents are actually present right now. Both `agents list` and `capabilities` include `fullySupported`, which reports whether Engines supports the agent completely (today `true` for `claude-code` and `codex`, `false` for `cursor`; see chapter 02).
 
 `headless` output does not run Codex or Claude Code: it produces the safe order that Atlas may decide to start. For Codex the order is `codex exec <prompt>`; for Claude Code it is `claude -p <prompt>`. Optional `--model <model-id>` and `--reasoning-level <low|medium|high>` are additive: each adapter decides how to fold them into its own order, and Claude Code rejects `--reasoning-level` with `REASONING_LEVEL_UNSUPPORTED` (see 06). Optional `--stdin-prompt` moves the prompt out of `args` and into `stdin: true` on the returned command, so it never becomes visible to `ps` on the machine running it (see 06). Optional `--readable-dir <path>` is additive and maps to `--add-dir <path>` on both adapters, granting read access to one real project folder without loosening isolation otherwise (see 06).
 
