@@ -32,7 +32,7 @@ The response has an `agents` list. Each item includes `id`, `label`, `installed`
 forge614-engines capabilities --agent codex
 ```
 
-The response reports `supportsMcp`, `supportsHooks`, `supportsHeadlessExec`, and `supportsReasoningLevel`. The latter indicates whether the engine's headless mode accepts a configurable reasoning level through `--reasoning-level` (`claude-code`: `false`, `codex`: `true`, `cursor`: `false`). It is an explicit adapter promise, not an inference from an agent's name. If an adapter claims headless support but cannot build its command, registration is rejected at startup.
+The response reports `supportsMcp`, `supportsHooks`, `supportsHeadlessExec`, `supportsReasoningLevel`, and `fullySupported`. `supportsReasoningLevel` indicates whether the engine's headless mode accepts a configurable reasoning level through `--reasoning-level` (`claude-code`: `false`, `codex`: `true`, `cursor`: `false`). It is an explicit adapter promise, not an inference from an agent's name. `fullySupported` reports whether Engines supports the agent completely. An adapter does not declare it: it is derived and is `true` only when the agent has MCP, session-start hooks, headless execution, and an instructions target (`supportsMcp && supportsHooks && supportsHeadlessExec` and an instructions target present); `supportsReasoningLevel` does not count because it is optional. Today `claude-code` and `codex` report `true` and `cursor` reports `false`. Forge614 Shell filters the agent lists it shows by this field; Engines, never Shell, decides. It is an additive field: `schemaVersion` stays at 1. If an adapter claims headless support but cannot build its command, registration is rejected at startup.
 
 ## Limits and diagnosis
 

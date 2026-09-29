@@ -40,13 +40,13 @@
       "localPath": "docs/es/02-deteccion-de-agentes-y-capacidades.md",
       "language": "es",
       "notionUrl": "https://app.notion.com/p/3e121943d129813c80f5c12edff4a9d4",
-      "sha256": "5bd56452a3a6b0c25ca5ec1764d04ea021c8fb9b7657987fb8778758abdb206f"
+      "sha256": "a0ae6e038585880f2499894de8580ec6291f4d7b0bfba0c8ec5cc8ef736900c4"
     },
     {
       "localPath": "docs/en/02-agent-detection-and-capabilities.md",
       "language": "en",
       "notionUrl": "https://app.notion.com/p/3e121943d129818a8d6ffcd3cf3537e8",
-      "sha256": "9164e1edd85c919d2e6c7c21a6ffb3c5d9792209a7ca15ac0cca6e6ea15c7530"
+      "sha256": "b2266dde2bdfc7e1b2d8677f06d6a536f96466c7789b1b62d941e1aad9443f78"
     },
     {
       "localPath": "docs/es/03-plan-seguro-de-mcp.md",
@@ -76,13 +76,13 @@
       "localPath": "docs/es/05-referencia-del-cli-publico.md",
       "language": "es",
       "notionUrl": "https://app.notion.com/p/3e121943d1298178b133f109e29a742f",
-      "sha256": "c0e2a90692d59e2ebd58703e6a072a84306a3df738453f72fe712b704230f7b9"
+      "sha256": "e3ca6c47f9ed51d5e7248dac79c87b91be40473dbe4d4ee61b9a5812697a4695"
     },
     {
       "localPath": "docs/en/05-public-cli-reference.md",
       "language": "en",
       "notionUrl": "https://app.notion.com/p/3e121943d12981c097f7ff61185f3454",
-      "sha256": "a5ba4ab3da0fea2aa496cfddeaba05036ef89fbf12311e3843fce0b9132cd3c3"
+      "sha256": "f96ae36dc12f063c291f68bde5f4f2a7425e8a9adb4103c54e58d9bac889101e"
     },
     {
       "localPath": "docs/es/06-ejecucion-automatica-e-integraciones.md",

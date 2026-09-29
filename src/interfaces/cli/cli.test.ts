@@ -123,6 +123,7 @@ describe("forge614-engines CLI", () => {
         supportsHooks: true,
         supportsHeadlessExec: true,
         supportsReasoningLevel: false,
+        fullySupported: true,
       },
       {
         id: "codex",
@@ -131,6 +132,7 @@ describe("forge614-engines CLI", () => {
         supportsHooks: true,
         supportsHeadlessExec: true,
         supportsReasoningLevel: true,
+        fullySupported: true,
       },
       {
         id: "cursor",
@@ -139,6 +141,7 @@ describe("forge614-engines CLI", () => {
         supportsHooks: false,
         supportsHeadlessExec: false,
         supportsReasoningLevel: false,
+        fullySupported: false,
       },
     ]);
   });

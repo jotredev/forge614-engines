@@ -8,6 +8,14 @@ export interface CapabilitiesReport {
   supportsHooks: boolean;
   supportsHeadlessExec: boolean;
   supportsReasoningLevel: boolean;
+  /**
+   * Whether Engines supports this agent completely: MCP, session-start hooks, headless execution and an
+   * instructions target. Derived in `toCapabilitiesReport`, never declared by an adapter, so a new agent
+   * cannot forget it or promise it without actually having the pieces. `supportsReasoningLevel` does not
+   * count (it is optional). Forge614 Shell filters every agent list it shows by this field; Engines, not
+   * Shell, decides who qualifies.
+   */
+  fullySupported: boolean;
 }
 
 function toCapabilitiesReport(adapter: AgentAdapter): CapabilitiesReport {
@@ -18,6 +26,11 @@ function toCapabilitiesReport(adapter: AgentAdapter): CapabilitiesReport {
     supportsHooks: adapter.capabilities.supportsHooks,
     supportsHeadlessExec: adapter.capabilities.supportsHeadlessExec,
     supportsReasoningLevel: adapter.capabilities.supportsReasoningLevel,
+    fullySupported:
+      adapter.capabilities.supportsMcp &&
+      adapter.capabilities.supportsHooks &&
+      adapter.capabilities.supportsHeadlessExec &&
+      adapter.instructions !== undefined,
   };
 }
 
