@@ -357,12 +357,25 @@ describe("forge614-engines CLI", () => {
   });
 
   /**
-   * What is left in the temp HOME after a run, minus `Library`: on macOS Bun itself writes its
-   * transpiler cache to ~/Library/Caches/bun on any run of a .ts entry (a `detect` run does the
-   * same), which is not Engines creating anything — Engines' own folders are .forge614, .claude, .codex...
+   * Folders Bun itself creates in HOME when it runs a .ts entry, on any system: `Library` on macOS
+   * (~/Library/Caches/bun) and `.bun` on Linux and Windows (~/.bun). CI on ubuntu and windows saw
+   * `.bun` here, so ignoring only `Library` was not enough. None of these is Engines creating anything.
    */
+  const BUN_OWN_HOME_FOLDERS = ["Library", ".bun"];
+
+  /** Folders Engines itself would create in HOME; none may exist after `--version` or `--help`. */
+  const ENGINES_HOME_FOLDERS = [".forge614", ".claude", ".codex", ".cursor"];
+
+  /** What is left in the temp HOME after a run, minus the folders Bun creates by itself. */
   function homeEntriesCreatedByEngines(): string[] {
-    return readdirSync(home).filter((name) => name !== "Library");
+    return readdirSync(home).filter((name) => !BUN_OWN_HOME_FOLDERS.includes(name));
+  }
+
+  function expectNothingCreatedByEngines(): void {
+    expect(homeEntriesCreatedByEngines()).toEqual([]);
+    for (const folder of ENGINES_HOME_FOLDERS) {
+      expect(existsSync(join(home, folder))).toBe(false);
+    }
   }
 
   for (const flagName of ["--version", "-v"]) {
@@ -371,7 +384,7 @@ describe("forge614-engines CLI", () => {
 
       expect(exitCode).toBe(0);
       expect(stdout).toBe(`forge614-engines ${pkg.version}\n`);
-      expect(homeEntriesCreatedByEngines()).toEqual([]);
+      expectNothingCreatedByEngines();
     });
   }
 
@@ -381,7 +394,7 @@ describe("forge614-engines CLI", () => {
 
       expect(exitCode).toBe(0);
       expect(stdout).toBe(`${HELP}\n`);
-      expect(homeEntriesCreatedByEngines()).toEqual([]);
+      expectNothingCreatedByEngines();
     });
   }
 
