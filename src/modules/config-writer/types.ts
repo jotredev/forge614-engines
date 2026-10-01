@@ -93,6 +93,12 @@ export interface MemoryIntegrationMetadata {
     /** Absent for memory-remove, where runtime proof is not the question — only memory-install populates this. */
     runtimeStatus?: HookRuntimeStatus;
   };
+  /**
+   * Whether the Engram tools are approved "always" in the agent (so they work in permission modes
+   * that cannot prompt). A sibling key on purpose: `overallStatus` keeps its three values, and a
+   * missing approval on an agent that supports it only makes it "partial".
+   */
+  approval: { path: string; status: MemoryIntegrationComponentStatus };
   overallStatus: MemoryIntegrationOverallStatus;
 }
 

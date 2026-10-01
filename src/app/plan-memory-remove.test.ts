@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { parse as parseToml } from "smol-toml";
 import { AgentRegistry } from "../modules/agents/registry";
 import { claudeCodeAdapter } from "../infrastructure/agents/claude-code";
 import { codexAdapter } from "../infrastructure/agents/codex";
@@ -242,5 +243,117 @@ describe("planMemoryRemove", () => {
   test("removal is a noop for evidence when none was ever recorded", async () => {
     const plan = await planMemoryRemove(registry, { agentId: "claude-code", home });
     expect(plan.writes.some((w) => w.path === resolveHookEvidencePath(home, "claude-code"))).toBe(false);
+  });
+});
+
+describe("planMemoryRemove — tool approval", () => {
+  const SETTINGS = () => join(home, ".claude", "settings.json");
+  const CODEX_CONFIG = () => join(home, ".codex", "config.toml");
+  const OTHER_RULES = ["Bash(git status)", "mcp__pencil", 'Bash(echo "a \\"b\\"")'];
+
+  function writeAt(path: string, content: string): void {
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, content);
+  }
+
+  function applyWrites(writes: { path: string; afterContent: string; delete?: boolean }[]): void {
+    for (const write of writes) {
+      if (write.delete) rmSync(write.path, { force: true });
+      else writeAt(write.path, write.afterContent);
+    }
+  }
+
+  test("claude-code: removes only the Engram allow rules (all three forms) and leaves the other rules and keys", async () => {
+    writeAt(
+      SETTINGS(),
+      JSON.stringify({
+        defaultMode: "auto",
+        permissions: {
+          allow: ["mcp__forge614-engram", OTHER_RULES[0], "mcp__forge614-engram__*", OTHER_RULES[1], "mcp__forge614-engram__memory_save", OTHER_RULES[2]],
+          deny: ["Bash(rm -rf:*)"],
+        },
+      }),
+    );
+
+    const plan = await planMemoryRemove(registry, { agentId: "claude-code", home });
+
+    expect(plan.metadata?.approval).toEqual({ path: SETTINGS(), status: { kind: "write" } });
+    const settingsWrites = plan.writes.filter((w) => w.path === SETTINGS());
+    expect(settingsWrites).toHaveLength(1);
+    expect(JSON.parse(settingsWrites[0]!.afterContent)).toEqual({
+      defaultMode: "auto",
+      permissions: { allow: OTHER_RULES, deny: ["Bash(rm -rf:*)"] },
+    });
+  });
+
+  test("claude-code: when the Engram rule was the only one, allow stays as an empty array", async () => {
+    writeAt(SETTINGS(), JSON.stringify({ permissions: { allow: ["mcp__forge614-engram"] } }));
+
+    const plan = await planMemoryRemove(registry, { agentId: "claude-code", home });
+
+    expect(JSON.parse(plan.writes.find((w) => w.path === SETTINGS())!.afterContent)).toEqual({ permissions: { allow: [] } });
+  });
+
+  test("claude-code: hook and approval removal share ONE write to settings.json", async () => {
+    const script = join(home, "engram.js");
+    writeFileSync(script, PROTOCOL_SCRIPT_CONTENT);
+    const installed = await planMemoryInstall(registry, { agentId: "claude-code", home, protocolOptions: { command: process.execPath, args: [script] } });
+    applyWrites(installed.writes);
+    expect(JSON.parse(readFileSync(SETTINGS(), "utf8")).permissions.allow).toEqual(["mcp__forge614-engram"]);
+
+    const plan = await planMemoryRemove(registry, { agentId: "claude-code", home });
+
+    expect(plan.writes.filter((w) => w.path === SETTINGS())).toHaveLength(1);
+    applyWrites(plan.writes);
+    const after = JSON.parse(readFileSync(SETTINGS(), "utf8"));
+    expect(after.hooks.SessionStart).toBeUndefined();
+    expect(after.permissions).toEqual({ allow: [] });
+  });
+
+  test("does not put back deny or ask rules that install removed", async () => {
+    const script = join(home, "engram.js");
+    writeFileSync(script, PROTOCOL_SCRIPT_CONTENT);
+    writeAt(SETTINGS(), JSON.stringify({ permissions: { deny: ["mcp__forge614-engram"], ask: ["mcp__forge614-engram__memory_save"] } }));
+    const installed = await planMemoryInstall(registry, { agentId: "claude-code", home, protocolOptions: { command: process.execPath, args: [script] } });
+    applyWrites(installed.writes);
+
+    const plan = await planMemoryRemove(registry, { agentId: "claude-code", home });
+    applyWrites(plan.writes);
+
+    expect(JSON.parse(readFileSync(SETTINGS(), "utf8")).permissions).toEqual({ allow: [], deny: [], ask: [] });
+  });
+
+  test("claude-code: approval is a noop when no Engram rule is present", async () => {
+    writeAt(SETTINGS(), JSON.stringify({ permissions: { allow: OTHER_RULES } }));
+
+    const plan = await planMemoryRemove(registry, { agentId: "claude-code", home });
+
+    expect(plan.metadata?.approval.status).toEqual({ kind: "noop" });
+    expect(plan.writes.some((w) => w.path === SETTINGS())).toBe(false);
+  });
+
+  test("codex: removes the MCP entry even though it carries the approval key, in one write that leaves the rest", async () => {
+    writeAt(
+      CODEX_CONFIG(),
+      `model = "gpt-5"\n\n[mcp_servers.forge614-engram]\ncommand = ${JSON.stringify(resolveEngramMcpServer(home).command)}\nargs = ["mcp"]\ndefault_tools_approval_mode = "approve"\n\n[mcp_servers.other]\ncommand = "o"\n`,
+    );
+
+    const plan = await planMemoryRemove(registry, { agentId: "codex", home });
+
+    expect(plan.metadata?.mcp.status).toEqual({ kind: "write" });
+    expect(plan.metadata?.approval.status).toEqual({ kind: "noop" }); // the key left together with the entry
+    const configWrites = plan.writes.filter((w) => w.path === CODEX_CONFIG());
+    expect(configWrites).toHaveLength(1);
+    expect(parseToml(configWrites[0]!.afterContent)).toEqual({ model: "gpt-5", mcp_servers: { other: { command: "o" } } });
+  });
+
+  test("cursor: approval is unsupported and removal status is unchanged", async () => {
+    const plan = await planMemoryRemove(registry, { agentId: "cursor", home });
+
+    expect(plan.metadata?.approval).toEqual({
+      path: "",
+      status: { kind: "unsupported", reason: "Cursor has no tool-approval setting to remove" },
+    });
+    expect(plan.metadata?.overallStatus).toBe("complete");
   });
 });

@@ -124,6 +124,7 @@ describe("planMemoryInstall", () => {
     expect(tomlConfigFormat.getMcpEntry(mcpWrite.afterContent, ["mcp_servers"], "forge614-engram")).toEqual({
       command: resolveEngramMcpServer(home).command,
       args: ["mcp"],
+      default_tools_approval_mode: "approve", // 1.15.0: the install also approves the tools
     });
     const configWrite = plan.writes.find((w) => w.path === join(home, ".codex", "config.toml"))!;
     expect(tomlConfigFormat.getValueAtPath(configWrite.afterContent, ["hooks", "SessionStart"])).toEqual([
@@ -256,5 +257,160 @@ describe("planMemoryInstall", () => {
     );
 
     expect(readFileSync(join(home, ".claude.json"), "utf8")).toBe("{}");
+  });
+});
+
+describe("planMemoryInstall — tool approval", () => {
+  const SETTINGS = () => join(home, ".claude", "settings.json");
+  const CODEX_CONFIG = () => join(home, ".codex", "config.toml");
+
+  function writeAt(path: string, content: string): void {
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, content);
+  }
+
+  test("claude-code: hook and permission land in ONE write to settings.json", async () => {
+    const plan = await planMemoryInstall(registry, { agentId: "claude-code", home, protocolOptions: protocolOptions() });
+
+    const settingsWrites = plan.writes.filter((w) => w.path === SETTINGS());
+    expect(settingsWrites).toHaveLength(1);
+    const written = JSON.parse(settingsWrites[0]!.afterContent);
+    expect(written.permissions.allow).toEqual(["mcp__forge614-engram"]);
+    expect(written.hooks.SessionStart).toHaveLength(1);
+    expect(plan.metadata?.approval).toEqual({ path: SETTINGS(), status: { kind: "write" } });
+  });
+
+  test("claude-code: existing rules stay in order and the Engram rule goes last, in the same single write", async () => {
+    const rules = ["Bash(git status)", "mcp__pencil", 'Bash(echo "a \\"b\\"")'];
+    writeAt(SETTINGS(), JSON.stringify({ permissions: { allow: rules, defaultMode: "dontAsk" } }));
+
+    const plan = await planMemoryInstall(registry, { agentId: "claude-code", home, protocolOptions: protocolOptions() });
+
+    const settingsWrites = plan.writes.filter((w) => w.path === SETTINGS());
+    expect(settingsWrites).toHaveLength(1);
+    const written = JSON.parse(settingsWrites[0]!.afterContent);
+    expect(written.permissions).toEqual({ allow: [...rules, "mcp__forge614-engram"], defaultMode: "dontAsk" });
+  });
+
+  test("claude-code: a removed deny rule shows up as the notice of the approval component", async () => {
+    writeAt(SETTINGS(), JSON.stringify({ permissions: { deny: ["mcp__forge614-engram"] } }));
+
+    const plan = await planMemoryInstall(registry, { agentId: "claude-code", home, protocolOptions: protocolOptions() });
+
+    const status = plan.metadata!.approval.status;
+    expect(status.kind).toBe("write");
+    expect(status.kind === "write" ? status.notice : undefined).toContain('permissions.deny rule "mcp__forge614-engram"');
+    expect(JSON.parse(plan.writes.find((w) => w.path === SETTINGS())!.afterContent).permissions.deny).toEqual([]);
+  });
+
+  test("claude-code: allow that is not an array blocks the approval component but not the rest of the plan", async () => {
+    writeAt(SETTINGS(), JSON.stringify({ permissions: { allow: "everything" } }));
+
+    const plan = await planMemoryInstall(registry, { agentId: "claude-code", home, protocolOptions: protocolOptions() });
+
+    expect(plan.metadata?.approval.status).toEqual({
+      kind: "blocked",
+      reason: "allow-not-array",
+      details: `permissions.allow at ${SETTINGS()} is not an array, so the Engram approval rule cannot be added safely`,
+    });
+    expect(plan.metadata?.mcp.status.kind).toBe("write");
+    expect(plan.metadata?.overallStatus).toBe("partial");
+    // settings.json still gets the hook (not the approval): it was not blocked.
+    expect(JSON.parse(plan.writes.find((w) => w.path === SETTINGS())!.afterContent).permissions.allow).toBe("everything");
+  });
+
+  test("codex: MCP entry, hook and approval land in ONE write to config.toml", async () => {
+    const plan = await planMemoryInstall(registry, { agentId: "codex", home, protocolOptions: protocolOptions() });
+
+    const configWrites = plan.writes.filter((w) => w.path === CODEX_CONFIG());
+    expect(configWrites).toHaveLength(1);
+    const after = configWrites[0]!.afterContent;
+    expect(tomlConfigFormat.getMcpEntry(after, ["mcp_servers"], "forge614-engram")).toEqual({
+      command: resolveEngramMcpServer(home).command,
+      args: ["mcp"],
+      default_tools_approval_mode: "approve",
+    });
+    expect(tomlConfigFormat.getValueAtPath(after, ["hooks", "SessionStart"])).toHaveLength(1);
+    expect(plan.metadata?.approval).toEqual({ path: CODEX_CONFIG(), status: { kind: "write" } });
+  });
+
+  test("codex: a previous value of prompt is replaced and reported in a notice", async () => {
+    writeAt(
+      CODEX_CONFIG(),
+      `[mcp_servers.forge614-engram]\ncommand = ${JSON.stringify(resolveEngramMcpServer(home).command)}\nargs = ["mcp"]\ndefault_tools_approval_mode = "prompt"\n`,
+    );
+
+    const plan = await planMemoryInstall(registry, { agentId: "codex", home, protocolOptions: protocolOptions() });
+
+    expect(plan.metadata?.mcp.status.kind).toBe("noop"); // the approval key does not make our entry a conflict
+    const status = plan.metadata!.approval.status;
+    expect(status.kind).toBe("write");
+    expect(status.kind === "write" ? status.notice : undefined).toContain('from "prompt" to "approve"');
+    expect(
+      tomlConfigFormat.getValueAtPath(plan.writes.find((w) => w.path === CODEX_CONFIG())!.afterContent, [
+        "mcp_servers",
+        "forge614-engram",
+        "default_tools_approval_mode",
+      ]),
+    ).toBe("approve");
+  });
+
+  test("an install made by 1.14.0 (everything but the approval) picks up the approval on the next plan + apply and the rest is a noop", async () => {
+    const first = await planMemoryInstall(registry, { agentId: "claude-code", home, protocolOptions: protocolOptions() });
+    for (const write of first.writes) {
+      mkdirSync(dirname(write.path), { recursive: true });
+      // 1.14.0 wrote the hook but never the permission rule.
+      const content =
+        write.path === SETTINGS()
+          ? (() => {
+              const doc = JSON.parse(write.afterContent);
+              delete doc.permissions;
+              return JSON.stringify(doc);
+            })()
+          : write.afterContent;
+      writeFileSync(write.path, content);
+    }
+
+    const second = await planMemoryInstall(registry, { agentId: "claude-code", home, protocolOptions: protocolOptions() });
+    expect(second.metadata?.mcp.status.kind).toBe("noop");
+    expect(second.metadata?.instructions.status.kind).toBe("noop");
+    expect(second.metadata?.hook.status.kind).toBe("noop");
+    expect(second.metadata?.approval.status).toEqual({ kind: "write" });
+    expect(second.writes.map((w) => w.path)).toEqual([SETTINGS()]);
+    expect(second.metadata?.overallStatus).toBe("partial");
+
+    writeFileSync(SETTINGS(), second.writes[0]!.afterContent);
+    const third = await planMemoryInstall(registry, { agentId: "claude-code", home, protocolOptions: protocolOptions() });
+    expect(third.noop).toBe(true);
+    expect(third.metadata?.approval.status).toEqual({ kind: "noop" });
+  });
+
+  test("a missing approval keeps overallStatus partial even when the hook has runtime evidence; with the approval it is complete", async () => {
+    await recordHookEvidence(home, "claude-code", true);
+    const first = await planMemoryInstall(registry, { agentId: "claude-code", home, protocolOptions: protocolOptions() });
+    expect(first.metadata?.hook.runtimeStatus?.kind).toBe("runtime-observed");
+    expect(first.metadata?.overallStatus).toBe("complete"); // the plan WOULD write the approval, so it is ok
+
+    writeAt(SETTINGS(), JSON.stringify({ permissions: { allow: "broken" } }));
+    const blocked = await planMemoryInstall(registry, { agentId: "claude-code", home, protocolOptions: protocolOptions() });
+    expect(blocked.metadata?.approval.status.kind).toBe("blocked");
+    expect(blocked.metadata?.overallStatus).toBe("partial");
+  });
+
+  test("cursor: approval is unsupported and does not change its overallStatus", async () => {
+    const plan = await planMemoryInstall(registry, { agentId: "cursor", home, protocolOptions: protocolOptions() });
+
+    expect(plan.metadata?.approval).toEqual({
+      path: "",
+      status: { kind: "unsupported", reason: "Cursor has no tool-approval setting this installer configures" },
+    });
+    expect(plan.metadata?.overallStatus).toBe("partial");
+  });
+
+  test("overallStatus only ever takes the three values Shell validates", async () => {
+    for (const agentId of ["claude-code", "codex", "cursor"] as const) {
+      const plan = await planMemoryInstall(registry, { agentId, home, protocolOptions: protocolOptions() });
+      expect(["complete", "partial", "unsupported"]).toContain(plan.metadata!.overallStatus);
+    }
   });
 });

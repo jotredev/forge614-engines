@@ -26,6 +26,8 @@ import { PlanNotFoundError } from "../../infrastructure/plan-store";
 import { ConfigConflictError } from "../../modules/config-writer/types";
 import type { AgentId, ReasoningLevel } from "../../modules/agents/types";
 import { ReasoningLevelUnsupportedError } from "../../modules/agents/types";
+import pkg from "../../../package.json";
+import { HELP } from "./help";
 
 const SCHEMA_VERSION = 1;
 
@@ -87,6 +89,18 @@ export function errorCodeFor(error: unknown): string {
 
 async function main(): Promise<void> {
   const [command, subcommand, ...rest] = process.argv.slice(2);
+
+  // Plain text, before anything that touches the disk: every Forge614 node answers --version
+  // (`forge614-engines <version>`, like `forge614-engram 1.8.5`), and asking must never create or
+  // read anything under the home folder.
+  if (command === "--version" || command === "-v") {
+    console.log(`forge614-engines ${pkg.version}`);
+    return;
+  }
+  if (command === "--help" || command === "-h") {
+    console.log(HELP);
+    return;
+  }
 
   if (command === "memory-hook-run") {
     // Bypasses the generic JSON-error envelope below on purpose: this command's

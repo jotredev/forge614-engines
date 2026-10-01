@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type { MemoryIntegrationComponentStatus } from "../config-writer/types";
 import { computeOverallStatus, computeRemovalStatus } from "./status";
 
 const OK = { kind: "noop" } as const;
@@ -43,5 +44,31 @@ describe("computeRemovalStatus with three components", () => {
 
   test("is complete when the hook config was successfully written away", () => {
     expect(computeRemovalStatus(OK, OK, WRITE)).toBe("complete");
+  });
+});
+
+/** The approval is a fourth component: it never adds a new overall value, it only keeps "complete" from being reported when it is blocked. */
+describe("computeOverallStatus / computeRemovalStatus with the tool approval", () => {
+  const BLOCKED: MemoryIntegrationComponentStatus = { kind: "blocked", reason: "allow-not-array", details: "d" };
+  const APPROVAL_UNSUPPORTED: MemoryIntegrationComponentStatus = { kind: "unsupported", reason: "r" };
+
+  test("install: a blocked approval turns an otherwise complete result into partial", () => {
+    expect(computeOverallStatus(OK, OK, RUNTIME_OBSERVED, BLOCKED)).toBe("partial");
+  });
+
+  test("install: noop, write and unsupported approvals keep it complete", () => {
+    expect(computeOverallStatus(OK, OK, RUNTIME_OBSERVED, { kind: "noop" })).toBe("complete");
+    expect(computeOverallStatus(OK, OK, RUNTIME_OBSERVED, { kind: "write", notice: "n" })).toBe("complete");
+    expect(computeOverallStatus(OK, OK, RUNTIME_OBSERVED, APPROVAL_UNSUPPORTED)).toBe("complete");
+  });
+
+  test("install: a blocked approval never makes the all-unsupported case anything but unsupported", () => {
+    expect(computeOverallStatus(UNSUPPORTED, UNSUPPORTED, HOOK_UNSUPPORTED, BLOCKED)).toBe("unsupported");
+  });
+
+  test("removal: a blocked approval makes the result partial; a written or unsupported one keeps it complete", () => {
+    expect(computeRemovalStatus(OK, OK, WRITE, BLOCKED)).toBe("partial");
+    expect(computeRemovalStatus(OK, OK, WRITE, { kind: "write" })).toBe("complete");
+    expect(computeRemovalStatus(OK, OK, WRITE, APPROVAL_UNSUPPORTED)).toBe("complete");
   });
 });

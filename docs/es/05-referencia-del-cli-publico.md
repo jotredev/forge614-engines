@@ -8,23 +8,27 @@ El CLI (interfaz de línea de comandos) es el mostrador de Engines. Cada pedido 
 
 | Comando | Resultado principal | Escritura |
 | --- | --- | --- |
+| `forge614-engines --version` (o `-v`) | texto plano `forge614-engines <versión>` | No |
+| `forge614-engines --help` (o `-h`) | ayuda en texto plano con estos comandos | No |
 | `forge614-engines detect` | `agents` detectados | No |
 | `forge614-engines agents list` | todos los agentes que soporta el código, instalados o no | No |
 | `forge614-engines capabilities --agent <id>` | capacidades de un agente | No |
 | `forge614-engines plan mcp-install ...` | `plan` de instalación | Solo guarda el plan |
 | `forge614-engines plan mcp-remove ...` | `plan` de retiro | Solo guarda el plan |
-| `forge614-engines plan memory-install --agent <id>` | un `plan` coherente de integración de memoria | Solo guarda el plan |
-| `forge614-engines plan memory-remove --agent <id>` | un `plan` coherente de retiro de integración de memoria | Solo guarda el plan |
+| `forge614-engines plan memory-install --agent <id>` | un `plan` coherente de integración de memoria (MCP, instrucciones, hook y aprobación de herramientas) | Solo guarda el plan |
+| `forge614-engines plan memory-remove --agent <id>` | un `plan` coherente de retiro de integración de memoria (también quita la aprobación de herramientas) | Solo guarda el plan |
 | `forge614-engines apply --plan-id <id>` | `result` de aplicación | Sí, solo el plan confirmado |
 | `forge614-engines headless ...` | `headless` con comando y argumentos | No |
 | `forge614-engines update` | `result` de actualización | Gestiona solamente Engines |
-| `forge614-engines verify memory-integration --agent <id>` | `verification` actual de MCP/instrucciones/hook | No |
+| `forge614-engines verify memory-integration --agent <id>` | `verification` actual de MCP/instrucciones/hook/aprobación | No |
 | `forge614-engines memory-hook-run --agent <id>` | texto plano (Claude Code) o JSON `hookSpecificOutput.additionalContext` (Codex) por stdout | No |
 | `forge614-engines plan mcp-repair --agent <id>` | `plan` de reparación con estado (`not-installed`/`already-correct`/`repairable-conflict`/`blocked`) | Solo guarda el plan |
 | `forge614-engines apply mcp-repair --plan-id <id> [--confirm]` | `result` de aplicación confirmada | Sí, y solo con `--confirm` |
 | `forge614-engines verify mcp-repair --agent <id> --plan-id <id>` | `verification` de esa reparación puntual | No |
 
 `--args` consume valores hasta la siguiente bandera que empieza con `--`. Así los argumentos del servidor MCP no absorben por error otra opción de Engines.
+
+`--version` y `-v` imprimen `forge614-engines <versión>` (la versión de `package.json`) en texto plano y salen con 0, como todo nodo de Forge614. `--help` y `-h` imprimen una ayuda en texto plano con los comandos públicos más `--version` y `--help`, y también salen con 0. Ambos se responden antes que nada, sin leer ni crear nada en disco; todos los demás comandos siguen respondiendo el recibo JSON.
 
 ## Ejemplos
 
@@ -39,11 +43,20 @@ forge614-engines plan mcp-install --agent claude-code --name engram --command fo
 
 La salida de `headless` no ejecuta Codex ni Claude Code: produce la orden segura que Atlas puede decidir iniciar. Para Codex, la orden es `codex exec <prompt>`; para Claude Code, `claude -p <prompt>`. Las banderas opcionales `--model <model-id>` y `--reasoning-level <low|medium|high>` son aditivas: cada adaptador decide cómo incorporarlas a su propia orden, y Claude Code rechaza `--reasoning-level` con `REASONING_LEVEL_UNSUPPORTED` (ver 06). La bandera opcional `--stdin-prompt` saca el prompt de `args` y lo señala con `stdin: true` en la orden devuelta, para que nunca quede visible a `ps` en la máquina que lo ejecuta (ver 06). La bandera opcional `--readable-dir <ruta>` es aditiva y se mapea a `--add-dir <ruta>` en ambos adaptadores, dando acceso de lectura a una carpeta real del proyecto sin romper el aislamiento en lo demás (ver 06).
 
-`plan memory-install` lee el manual directamente desde `forge614-engram memory-protocol --json --protocol-version 4` cada vez (solo si Engram responde con el error INVALID_INPUT, es decir, es anterior a la 1.7.0, repite la llamada de siempre —protocolo v1— y deja un aviso bilingüe en `metadata.protocol.legacyNotice`; cualquier otro error se reporta como antes), decide la entrada MCP y el o los archivos de instrucciones para el agente indicado, y devuelve un solo plan que ya contiene cada escritura que `apply` necesita — instalar y retirar la integración de memoria comparten el mismo comando `apply --plan-id <id>` que cualquier otro plan. `verify memory-integration` no modifica Engram; inspecciona los archivos que Engines mismo administra y, de forma estructural (nunca por versión), sondea `startup-context` desde `~` para informar en `verification.engram.ecosystemBlock` si el Engram instalado publica el bloque `ecosystem`: `published`, `not-published` o `unavailable`. Es informativo y nunca cambia `overallStatus`.
+`plan memory-install` lee el manual directamente desde `forge614-engram memory-protocol --json --protocol-version 4` cada vez (solo si Engram responde con el error INVALID_INPUT, es decir, es anterior a la 1.7.0, repite la llamada de siempre —protocolo v1— y deja un aviso bilingüe en `metadata.protocol.legacyNotice`; cualquier otro error se reporta como antes), decide la entrada MCP, el o los archivos de instrucciones, el hook de inicio de sesión y la aprobación de herramientas para el agente indicado, y devuelve un solo plan que ya contiene cada escritura que `apply` necesita — instalar y retirar la integración de memoria comparten el mismo comando `apply --plan-id <id>` que cualquier otro plan. `verify memory-integration` no modifica Engram; inspecciona los archivos que Engines mismo administra y, de forma estructural (nunca por versión), sondea `startup-context` desde `~` para informar en `verification.engram.ecosystemBlock` si el Engram instalado publica el bloque `ecosystem`: `published`, `not-published` o `unavailable`. Es informativo y nunca cambia `overallStatus`.
 
 `verify memory-integration` también vuelve a pedirle el manual a Engram (con la misma regla v4 y respaldo a v1) y lo compara con lo instalado. Reporta `verification.instructions.upToDate` (verdadero si lo instalado ya es idéntico) y, si no lo es, `verification.instructions.driftNotice`, un aviso con el comando exacto para ponerlo al día (`plan memory-install --agent <id>` y aplicar el plan). Si esa consulta tuvo que usar el respaldo a v1, `verification.engram.protocolNotice` trae el aviso bilingüe. Todo esto se omite cuando no hay manual instalado o cuando Engram no responde; `upToDate` y `driftNotice` se omiten además cuando la instalación quedaría bloqueada (un archivo que eclipsa al principal, por ejemplo), porque entonces el comando sugerido no lo arreglaría. Son solo avisos: ninguno cambia `overallStatus`.
 
 Para los comandos de memoria, Engines resuelve `forge614-engram` en la ruta canónica `~/.forge614/engram/bin/forge614-engram`, o bajo `FORGE614_HOME` cuando esa variable existe; no busca en `PATH` ni lee archivos internos de Engram. Un comando diferente para el mismo nombre MCP `forge614-engram` sigue siendo un `CONFLICT` real.
+
+## Aprobación de herramientas
+
+`plan memory-install` también aprueba para siempre las herramientas del servidor `forge614-engram`, para que la memoria funcione en los modos de permisos que no pueden preguntar (Claude Code `dontAsk`, Codex `approval_policy = "never"`). Qué se escribe en cada agente, qué reglas `deny`/`ask` de la persona o qué valores de Codex cambia (siempre con aviso) y cómo desactivarla está en el capítulo 03.
+
+- En el plan, `metadata.approval` es `{ path, status }`. `status` tiene la misma forma que los demás componentes: `unsupported` (Cursor), `noop`, `write` (con `notice` cuando se cambió algo que la persona tenía) o `blocked` con `reason` `allow-not-array`, `mcp-conflict` o `mcp-entry-missing`.
+- En `verify memory-integration`, `verification.approval` es `{ supported, path, present }`, más `notice` cuando el agente la soporta y falta: el comando exacto para agregarla. `present` es verdadero solo con la aprobación del servidor completo (la regla `mcp__forge614-engram` o `mcp__forge614-engram__*` en Claude Code; el valor `approve` en Codex); una regla de una sola herramienta no cuenta.
+- `overallStatus` conserva sus mismos valores. Una aprobación que falta (en `verify`) o está bloqueada (en el plan) en un agente que la soporta solo impide `complete`: lo deja en `partial` cuando lo demás está instalado, pero no cambia `absent` (verify) ni `unsupported` (plan) cuando no hay nada más instalado o posible; Cursor no se ve afectado.
+- `plan memory-remove` quita la aprobación junto con lo demás, y `metadata.approval` lo informa igual.
 
 ## El hook de `SessionStart`
 

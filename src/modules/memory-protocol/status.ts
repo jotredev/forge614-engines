@@ -13,15 +13,24 @@ function isHookRuntimeOk(status: HookRuntimeStatus): boolean {
   return status.kind === "runtime-observed";
 }
 
+// The approval never decides "unsupported" (an agent without it is just as installable as
+// before) and "unsupported" counts as fine for "complete": it only demotes to "partial" when
+// the agent supports it and it is blocked, so a missing approval is visible without adding a
+// new overall value Shell would reject.
+function isApprovalOk(status: MemoryIntegrationComponentStatus): boolean {
+  return status.kind !== "blocked";
+}
+
 export function computeOverallStatus(
   mcp: MemoryIntegrationComponentStatus,
   instructions: MemoryIntegrationComponentStatus,
   hook: HookRuntimeStatus,
+  approval: MemoryIntegrationComponentStatus = { kind: "noop" },
 ): MemoryIntegrationOverallStatus {
   const mcpOk = isOk(mcp);
   const instructionsOk = isOk(instructions);
   const hookOk = isHookRuntimeOk(hook);
-  if (mcpOk && instructionsOk && hookOk) return "complete";
+  if (mcpOk && instructionsOk && hookOk && isApprovalOk(approval)) return "complete";
   if (!mcpOk && !instructionsOk && !hookOk) return "unsupported";
   return "partial";
 }
@@ -42,11 +51,12 @@ export function computeRemovalStatus(
   mcp: MemoryIntegrationComponentStatus,
   instructions: MemoryIntegrationComponentStatus,
   hook: HookComponentStatus,
+  approval: MemoryIntegrationComponentStatus = { kind: "noop" },
 ): MemoryIntegrationOverallStatus {
   const mcpOk = isRemovalOk(mcp);
   const instructionsOk = isRemovalOk(instructions);
   const hookOk = isHookRemovalOk(hook);
-  if (mcpOk && instructionsOk && hookOk) return "complete";
+  if (mcpOk && instructionsOk && hookOk && isRemovalOk(approval)) return "complete";
   if (!mcpOk && !instructionsOk && !hookOk) return "unsupported";
   return "partial";
 }

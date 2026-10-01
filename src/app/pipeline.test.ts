@@ -147,6 +147,19 @@ describe("memory-install → apply → verify → memory-remove → apply → ve
       expect(installResult.changedFiles.length).toBeGreaterThan(0);
 
       const afterInstall = await verifyMemoryIntegration(registry, { agentId, home, startupContextOptions });
+      // The approval is really on disk, in the file each agent reads it from.
+      if (agentId === "claude-code") {
+        expect(JSON.parse(readFileSync(join(home, ".claude", "settings.json"), "utf8")).permissions.allow).toEqual(["mcp__forge614-engram"]);
+      } else {
+        expect(
+          configFormats.toml.getValueAtPath(readFileSync(join(home, ".codex", "config.toml"), "utf8"), [
+            "mcp_servers",
+            "forge614-engram",
+            "default_tools_approval_mode",
+          ]),
+        ).toBe("approve");
+      }
+      expect(afterInstall.approval.present).toBe(true);
       expect(afterInstall.mcp.present).toBe(true);
       expect(afterInstall.instructions.present).toBe(true);
       expect(afterInstall.hook.present).toBe(true);
@@ -176,6 +189,13 @@ describe("memory-install → apply → verify → memory-remove → apply → ve
       expect(removeResult.changedFiles.length).toBeGreaterThan(0);
 
       const afterRemove = await verifyMemoryIntegration(registry, { agentId, home, startupContextOptions });
+      // Uninstalling takes the approval away too: the rule (Claude Code) or the key together with the entry (Codex).
+      if (agentId === "claude-code") {
+        expect(JSON.parse(readFileSync(join(home, ".claude", "settings.json"), "utf8")).permissions.allow).toEqual([]);
+      } else {
+        expect(readFileSync(join(home, ".codex", "config.toml"), "utf8")).not.toContain("default_tools_approval_mode");
+      }
+      expect(afterRemove.approval.present).toBe(false);
       expect(afterRemove.mcp.present).toBe(false);
       expect(afterRemove.instructions.present).toBe(false);
       expect(afterRemove.hook.present).toBe(false);

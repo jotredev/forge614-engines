@@ -81,6 +81,48 @@ export interface HookTarget {
   requiresUserTrust: boolean;
 }
 
+/**
+ * How an agent leaves the tools of an MCP server approved "always".
+ *
+ * It exists because some permission modes cannot ask: Claude Code in `dontAsk` denies every
+ * tool that is not in `permissions.allow`, and Codex with `approval_policy = "never"` denies
+ * the MCP tool that asks for approval. Without approval, Engram memory fails in exactly those modes.
+ */
+export type ToolApprovalTarget = PermissionRulesApproval | ServerModeApproval;
+
+/**
+ * Approval through permission rules (Claude Code): a rule in the `allow` list.
+ * Since `deny` and `ask` are evaluated before `allow`, removing from those lists the rules
+ * that cover the server is part of approving it.
+ */
+export interface PermissionRulesApproval {
+  kind: "permission-rules";
+  /** The agent's user-level permissions file. */
+  configFile(home: string): string;
+  configFormat: ConfigFormat;
+  allowPath: string[];
+  denyPath: string[];
+  askPath: string[];
+  /** Rule that approves the whole server, e.g. `mcp__forge614-engram`. */
+  serverRule(serverName: string): string;
+  /** Prefix shared by the rules that cover a single tool of the server, e.g. `mcp__forge614-engram__`. */
+  toolRulePrefix(serverName: string): string;
+}
+
+/**
+ * Approval through a mode in the server's entry (Codex): a key inside the MCP server's
+ * table, which goes away together with the entry on uninstall.
+ */
+export interface ServerModeApproval {
+  kind: "server-mode";
+  configFile(home: string): string;
+  configFormat: ConfigFormat;
+  /** Path of the key inside the document, e.g. `["mcp_servers", "forge614-engram", "default_tools_approval_mode"]`. */
+  keyPath(serverName: string): string[];
+  /** Value that always approves, e.g. `"approve"`. */
+  approvedValue: string;
+}
+
 export interface AgentAdapter {
   id: AgentId;
   label: string;
@@ -98,4 +140,6 @@ export interface AgentAdapter {
   instructions?: InstructionsTarget;
   /** Absent when this agent has no officially supported, stable session-start hook mechanism this installer can configure. */
   hooks?: HookTarget;
+  /** Absent when this agent has no stable, file-based way to pre-approve an MCP server's tools that this installer can configure. */
+  toolApproval?: ToolApprovalTarget;
 }

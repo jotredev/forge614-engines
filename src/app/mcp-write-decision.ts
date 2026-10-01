@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { AgentAdapter, McpServerDefinition } from "../modules/agents/types";
-import { decideMcpWrite, type DiffDecision } from "../modules/config-writer/decide";
+import { decideMcpWrite, sameMcpEntry, type DiffDecision } from "../modules/config-writer/decide";
 import type { PlanWrite } from "../modules/config-writer/types";
 import { configFormats } from "../infrastructure/config-io/formats";
 
@@ -55,7 +55,7 @@ export async function decideMcpRemove(
   const existing = format.getMcpEntry(raw, adapter.mcpEntryPath, server.name);
 
   if (existing === undefined) return { configPath, decision: { kind: "noop" } };
-  if (JSON.stringify(existing) !== JSON.stringify(expected)) return { configPath, decision: { kind: "unrecognized" } };
+  if (!sameMcpEntry(existing, expected)) return { configPath, decision: { kind: "unrecognized" } };
 
   return {
     configPath,
