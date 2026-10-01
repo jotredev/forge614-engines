@@ -48,6 +48,24 @@ export const claudeCodeAdapter: AgentAdapter = {
     },
     requiresUserTrust: false,
   },
+  // Same file as the hook. The rule by server name (`mcp__<server>`) is the documented way to
+  // approve all of its tools; `dontAsk` honors the `allow` rules.
+  toolApproval: {
+    kind: "permission-rules",
+    configFile(home) {
+      return join(home, ".claude", "settings.json");
+    },
+    configFormat: "json",
+    allowPath: ["permissions", "allow"],
+    denyPath: ["permissions", "deny"],
+    askPath: ["permissions", "ask"],
+    serverRule(serverName) {
+      return `mcp__${serverName}`;
+    },
+    toolRulePrefix(serverName) {
+      return `mcp__${serverName}__`;
+    },
+  },
   headlessCommand(executable, opts) {
     // Claude Code's CLI has no public, stable flag to select a reasoning/thinking level
     // (unlike --model). capabilities.supportsReasoningLevel: false is what makes

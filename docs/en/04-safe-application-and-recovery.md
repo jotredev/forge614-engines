@@ -14,6 +14,8 @@ The identifier must match a file under `~/.forge614/engines/plans/`. If it is ab
 
 For every real write, Engines reads the target file again. It calculates SHA-256 and requires it to equal the plan's `beforeHash`. A difference produces `STALE_PLAN` (an expired plan), without writing anything. The safe solution is to create another plan, show it again, and request confirmation again.
 
+When several components of the memory integration live in the same file (Claude Code's `~/.claude/settings.json` holds the hook and the tool approval; Codex's `~/.codex/config.toml` holds the MCP entry, the hook and the approval), the plan carries one single write for that file, computed in sequence so none overwrites another, and the fingerprint it saves is that of the whole file as it was when the plan was made.
+
 A write can also be a deletion — used to delete the separate instructions file the previous version created for Claude Code; it is no longer created, and it is deleted only when migrating (on install or when removing memory) and only if it starts with Engines' mark — and it is applied through that exact same hash-check and snapshot path as every other write.
 
 ## Applying a repair only with explicit confirmation

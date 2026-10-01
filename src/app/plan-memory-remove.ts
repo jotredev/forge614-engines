@@ -10,6 +10,8 @@ import { newPlanId, savePlan } from "../infrastructure/plan-store";
 import { decideHookRemove } from "./hook-write-decision";
 import { decideMcpRemove } from "./mcp-write-decision";
 import { decideInstructionsRemove, type InstructionsDecision } from "./instructions-write-decision";
+import { lastWritePerPath } from "./last-write-per-path";
+import { decideToolApprovalRemove, toolApprovalComponentStatus } from "./tool-approval-write-decision";
 
 /** Removes only this agent's own execution evidence, if any — never a sibling agent's, and never a no-op write when nothing was ever recorded. */
 async function evidenceRemovalWrite(home: string, agentId: AgentId): Promise<PlanWrite | undefined> {
@@ -52,15 +54,28 @@ export async function planMemoryRemove(registry: AgentRegistry, input: PlanMemor
   const hookDecision = await decideHookRemove(adapter, input.home, hookCommand, hookSeed);
   const evidenceWrite = await evidenceRemovalWrite(input.home, input.agentId);
 
+  // Same shared-file chain for the approval (settings.json with the hook, config.toml with the MCP
+  // entry and the hook): it builds on the latest sibling write to its file. On Codex the approval key
+  // leaves together with the MCP entry, so after that write there is nothing left for it to remove.
+  const approvalFile = adapter.toolApproval?.configFile(input.home);
+  const approvalSeedWrite = [mcpDecision.write, hookDecision.write].filter((w) => w && w.path === approvalFile).pop();
+  const approvalDecision = await decideToolApprovalRemove(
+    adapter,
+    input.home,
+    engramServer.name,
+    approvalSeedWrite ? { raw: approvalSeedWrite.afterContent } : undefined,
+  );
+
   const writes: PlanWrite[] = [];
   if (instructionsDecision.kind === "write") writes.push(...instructionsDecision.writes);
-  if (hookSeed) {
-    if (hookDecision.decision.kind === "write" && hookDecision.write) writes.push(hookDecision.write);
-    else if (mcpDecision.decision.kind === "write" && mcpDecision.write) writes.push(mcpDecision.write);
-  } else {
-    if (mcpDecision.decision.kind === "write" && mcpDecision.write) writes.push(mcpDecision.write);
-    if (hookDecision.decision.kind === "write" && hookDecision.write) writes.push(hookDecision.write);
-  }
+  // One physical write per file: later decisions for the same path already carry the earlier ones
+  // (through the seeds above), so only the last write for each path is kept.
+  const configWrites = [
+    mcpDecision.decision.kind === "write" ? mcpDecision.write : undefined,
+    hookDecision.decision.kind === "write" ? hookDecision.write : undefined,
+    approvalDecision.decision.kind === "write" ? approvalDecision.write : undefined,
+  ].filter((w): w is PlanWrite => w !== undefined);
+  writes.push(...lastWritePerPath(configWrites));
   if (evidenceWrite) writes.push(evidenceWrite);
 
   const mcpStatus: MemoryIntegrationComponentStatus =
@@ -91,6 +106,8 @@ export async function planMemoryRemove(registry: AgentRegistry, input: PlanMemor
         ? { kind: "noop" }
         : { kind: "write" };
 
+  const approvalStatus = toolApprovalComponentStatus(adapter, approvalDecision, engramServer.name, "remove");
+
   const planId = newPlanId();
   const plan: Plan = {
     planId,
@@ -102,7 +119,8 @@ export async function planMemoryRemove(registry: AgentRegistry, input: PlanMemor
       mcp: { path: mcpDecision.configPath, status: mcpStatus },
       instructions: { paths: instructionsPaths, status: instructionsStatus },
       hook: { path: hookDecision.configPath, status: hookStatus },
-      overallStatus: computeRemovalStatus(mcpStatus, instructionsStatus, hookStatus),
+      approval: { path: approvalDecision.configPath, status: approvalStatus },
+      overallStatus: computeRemovalStatus(mcpStatus, instructionsStatus, hookStatus, approvalStatus),
     },
   };
 

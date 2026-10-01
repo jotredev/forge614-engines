@@ -6,7 +6,7 @@ import { AgentRegistry } from "../modules/agents/registry";
 import { claudeCodeAdapter } from "../infrastructure/agents/claude-code";
 import { codexAdapter } from "../infrastructure/agents/codex";
 import { cursorAdapter } from "../infrastructure/agents/cursor";
-import { resolveHookEvidencePath } from "../modules/agents/hook-command";
+import { resolveEnginesExecutable, resolveHookEvidencePath } from "../modules/agents/hook-command";
 import { resolveEngramMcpServer } from "../modules/memory-protocol/constants";
 import { recordHookEvidence } from "./hook-evidence";
 import { planMemoryInstall } from "./plan-memory-install";
@@ -438,5 +438,69 @@ describe("verifyMemoryIntegration", () => {
       expect(result.engram.protocolNotice).toContain("actualiza Engram");
       expect(result.engram.protocolNotice).toContain("upgrade Engram");
     });
+  });
+});
+
+describe("verifyMemoryIntegration — tool approval", () => {
+  const SETTINGS = () => join(home, ".claude", "settings.json");
+
+  test("claude-code: approval.present is true after an install, and false once the rule is gone", async () => {
+    await installFor("claude-code");
+    await recordHookEvidence(home, "claude-code", true);
+
+    const withApproval = await verifyMemoryIntegration(registry, { agentId: "claude-code", home, startupContextOptions: startupContextOptions() });
+    expect(withApproval.approval).toEqual({ supported: true, path: SETTINGS(), present: true });
+    expect(withApproval.overallStatus).toBe("complete");
+
+    const doc = JSON.parse(readFileSync(SETTINGS(), "utf8"));
+    doc.permissions.allow = [];
+    writeFileSync(SETTINGS(), JSON.stringify(doc));
+
+    const without = await verifyMemoryIntegration(registry, { agentId: "claude-code", home, startupContextOptions: startupContextOptions() });
+    expect(without.approval.present).toBe(false);
+    expect(without.overallStatus).toBe("partial");
+    expect(without.approval.notice).toBe(
+      'Engram tools are not pre-approved for Claude Code, so a permission mode that cannot prompt (Claude Code "dontAsk", Codex approval_policy "never") will deny them. ' +
+        `Run "${resolveEnginesExecutable(home)}" plan memory-install --agent claude-code and apply the resulting plan to add the approval.`,
+    );
+  });
+
+  test("claude-code: a missing approval alone makes a fully working install partial, never absent", async () => {
+    await installFor("claude-code");
+    await recordHookEvidence(home, "claude-code", true);
+    const doc = JSON.parse(readFileSync(SETTINGS(), "utf8"));
+    delete doc.permissions;
+    writeFileSync(SETTINGS(), JSON.stringify(doc));
+
+    const result = await verifyMemoryIntegration(registry, { agentId: "claude-code", home, startupContextOptions: startupContextOptions() });
+
+    expect(result.mcp.present).toBe(true);
+    expect(result.hook.runtimeStatus.kind).toBe("runtime-observed");
+    expect(result.approval.present).toBe(false);
+    expect(result.overallStatus).toBe("partial");
+  });
+
+  test("codex: approval.present reflects the key on the MCP entry, and the entry with the key still counts as the MCP being present", async () => {
+    await installFor("codex");
+    await recordHookEvidence(home, "codex", true);
+    const configPath = join(home, ".codex", "config.toml");
+
+    const installed = await verifyMemoryIntegration(registry, { agentId: "codex", home, startupContextOptions: startupContextOptions() });
+    expect(installed.mcp.present).toBe(true);
+    expect(installed.approval).toEqual({ supported: true, path: configPath, present: true });
+    expect(installed.overallStatus).toBe("complete");
+
+    writeFileSync(configPath, readFileSync(configPath, "utf8").replace('default_tools_approval_mode = "approve"', 'default_tools_approval_mode = "prompt"'));
+    const prompting = await verifyMemoryIntegration(registry, { agentId: "codex", home, startupContextOptions: startupContextOptions() });
+    expect(prompting.mcp.present).toBe(true);
+    expect(prompting.approval.present).toBe(false);
+    expect(prompting.overallStatus).toBe("partial");
+  });
+
+  test("cursor: approval is unsupported and its overallStatus does not change", async () => {
+    const result = await verifyMemoryIntegration(registry, { agentId: "cursor", home });
+
+    expect(result.approval).toEqual({ supported: false, path: "", present: false });
+    expect(result.overallStatus).toBe("absent");
   });
 });

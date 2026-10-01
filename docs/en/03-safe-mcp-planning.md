@@ -35,13 +35,35 @@ forge614-engines plan memory-install --agent codex
 forge614-engines plan memory-remove --agent codex
 ```
 
-`plan memory-install` and `plan memory-remove` bundle two decisions — the `forge614-engram` MCP entry and the agent's instructions file(s) — into one plan, with one `planId` that covers both. A per-component conflict does not abort that plan: a different `forge614-engram` MCP entry, or a non-empty `AGENTS.override.md` shadowing Codex's `AGENTS.md`, is reported as `blocked` for that one component while the other component still proceeds normally. Cursor's instructions component is always reported `unsupported`, because Cursor has no officially documented global, file-based mechanism for loading instructions automatically in every new session.
+`plan memory-install` and `plan memory-remove` bundle the decisions — the `forge614-engram` MCP entry, the agent's instructions file(s), the session-start hook (chapter 05) and the approval of the Engram tools (next section) — into one plan, with one `planId` that covers all of them. A per-component conflict does not abort that plan: a different `forge614-engram` MCP entry, or a non-empty `AGENTS.override.md` shadowing Codex's `AGENTS.md`, is reported as `blocked` for that one component while the other component still proceeds normally. Cursor's instructions component is always reported `unsupported`, because Cursor has no officially documented global, file-based mechanism for loading instructions automatically in every new session.
 
 **The manual that gets installed.** Engines asks Engram for the manual with `forge614-engram memory-protocol --json --protocol-version 4` (the "v4 manual"). Only if Engram answers with the INVALID_INPUT error — the sign of an Engram older than 1.7.0, which does not know that option — does Engines repeat the call it has always made (protocol v1) and add a Spanish-and-English notice to the plan (`metadata.protocol.legacyNotice`) asking to upgrade Engram. Any other error is reported as before, with no retry. With v4, the `instructions` text Engram delivers is installed as-is, with no heading or anything else added by Engines.
 
 **Where it lives.** The manual is embedded inside each agent's main file, between the markers Engines manages (Claude Code: `~/.claude/CLAUDE.md`; Codex: `~/.codex/AGENTS.md`). Inside the markers comes first Engines' own mark line (`<!-- Managed by Forge614 Engines. … -->`, which proves the block is theirs) and then `instructions`, identical to Engram's. Claude Code no longer uses a separate file.
 
 **Migrating from the previous version.** If the block already installed is not the manual but an `@file` reference (Claude Code's old form, which pointed at a separate file), `plan memory-install` replaces it with the embedded manual. That separate file is deleted only if it starts with Engines' mark; if it does not (for example, someone else wrote or edited it), it is left where it is and the plan says so in `metadata.instructions.status.notice`. `plan memory-remove` applies the same rule when it removes the block.
+
+## Approving the Engram tools
+
+**Why it exists.** Some permission modes cannot ask the person anything: Claude Code in `dontAsk` mode denies every tool that is not in `permissions.allow`, and Codex with `approval_policy = "never"` denies an MCP tool that asks for approval. Without an approval, Engram's memory fails exactly in those modes (`memory_session_start` comes back as "Failed"). So `plan memory-install` also approves the tools of the `forge614-engram` server for good, in every permission mode.
+
+**What gets written.**
+
+| Agent | File | What |
+| --- | --- | --- |
+| Claude Code | `~/.claude/settings.json` (the same file as the hook) | the rule `mcp__forge614-engram` appended at the **end** of `permissions.allow` |
+| Codex | `~/.codex/config.toml` (the same file as the MCP entry and the hook) | `default_tools_approval_mode = "approve"` inside `[mcp_servers.forge614-engram]` |
+| Cursor | — | unsupported; its status does not change |
+
+In Claude Code the rule is inserted without rewriting the array: the other rules keep their order, their text and the comments around them, and no other key is touched. If `permissions` or `allow` do not exist they are created. It is a `noop` when `mcp__forge614-engram` or `mcp__forge614-engram__*` is already in `allow` and no `deny` or `ask` rule of that file covers Engram; if one does, the plan still writes, to remove it. If `allow` exists but is not an array, only the approval component is `blocked` (`allow-not-array`) and the rest of the plan proceeds. When the file also receives the hook (or, in Codex, the MCP entry and the hook), everything goes into one single write to that file. An existing `forge614-engram` MCP entry with different content is never approved (`mcp-conflict`).
+
+For Codex, the MCP entry that carries `default_tools_approval_mode` is still recognized as Engines' own: that key is ignored when the entry is compared, so it is neither a `CONFLICT` nor unrecognized and `verify` still finds the MCP present. Any other difference is still a conflict.
+
+**What it changes from what the person had.** Claude Code evaluates deny rules first, then ask, then allow, and the first match wins, so an allow rule cannot open an exception inside a deny. For that reason, if `permissions.deny` or `permissions.ask` **of that same file** contain rules that cover Engram (`mcp__forge614-engram`, `mcp__forge614-engram__*` or `mcp__forge614-engram__<tool>`), the plan removes exactly those rules (by position, leaving the others) and says so. In Codex, if `default_tools_approval_mode` already held another value (`prompt`, `writes` or `auto`), the plan changes it to `approve` and says so. Both are reported in `metadata.approval.status.notice`, naming what was changed and how to turn it off. Adding the rule when there was nothing to change carries no notice.
+
+**How to turn it off.** The approval is part of Engram's memory: it is removed by uninstalling the memory with `plan memory-remove --agent <id>` and then `apply`. That removes every `permissions.allow` rule that is `mcp__forge614-engram`, `mcp__forge614-engram__*` or `mcp__forge614-engram__<tool>` (only those; if `allow` ends up empty it stays empty), and in Codex the key leaves together with the MCP entry. If `permissions.allow` exists but is not an array, removing the approval is `blocked` (`allow-not-array`) and the rest of the removal proceeds. Deny and ask rules removed at install time are not put back.
+
+**Limitation.** Engines only reads and writes the user-level file (`~/.claude/settings.json`, `~/.codex/config.toml`). Claude Code settings at project level or managed by an administrator are not touched and can still win over this approval.
 
 ## Repairing an existing MCP conflict
 

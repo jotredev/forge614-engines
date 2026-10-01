@@ -15,6 +15,7 @@ import { decideHookRemove } from "./hook-write-decision";
 import { decideInstructionsInstall } from "./instructions-write-decision";
 import { decideMcpRemove } from "./mcp-write-decision";
 import { runMemoryHook } from "./run-memory-hook";
+import { readToolApprovalState } from "./tool-approval-write-decision";
 
 export type { HookRuntimeStatus };
 
@@ -51,6 +52,18 @@ export interface MemoryIntegrationVerification {
     /** Diagnostic only: proves the hook's own code path works. Never drives overallStatus — see runtimeStatus. */
     dryRunOk: boolean;
     runtimeStatus: HookRuntimeStatus;
+  };
+  /**
+   * Whether the Engram tools are approved "always" in this agent, so memory also works in permission
+   * modes that cannot prompt (Claude Code "dontAsk", Codex approval_policy "never"). A missing approval
+   * on an agent that supports it makes `overallStatus` "partial".
+   */
+  approval: {
+    supported: boolean;
+    path: string;
+    present: boolean;
+    /** Present only when the agent supports the approval and it is missing: the exact command to add it. */
+    notice?: string;
   };
   /**
    * What the installed Engram actually publishes, probed structurally (never by version).
@@ -181,10 +194,13 @@ export async function verifyMemoryIntegration(
   const runtimeStatus = computeHookRuntimeStatus(adapter, hookPresent, evidence);
   const hookOk = runtimeStatus.kind === "runtime-observed";
 
+  const approvalState = await readToolApprovalState(adapter, input.home, resolveEngramMcpServer(input.home).name);
+  const approvalOk = !approvalState.supported || approvalState.present;
+
   const instructionsOk = !instructionsSupported || instructionsPresent;
-  const overallStatus: MemoryIntegrationVerification["overallStatus"] = mcpPresent && instructionsOk && (!hookSupported || hookOk)
+  const overallStatus: MemoryIntegrationVerification["overallStatus"] = mcpPresent && instructionsOk && (!hookSupported || hookOk) && approvalOk
     ? "complete"
-    : !mcpPresent && (!instructionsSupported || !instructionsPresent) && (!hookSupported || runtimeStatus.kind === "absent")
+    : !mcpPresent && (!instructionsSupported || !instructionsPresent) && (!hookSupported || runtimeStatus.kind === "absent") && !approvalState.present
       ? "absent"
       : "partial";
 
@@ -201,6 +217,14 @@ export async function verifyMemoryIntegration(
       ...(drift.driftNotice ? { driftNotice: drift.driftNotice } : {}),
     },
     hook: { supported: hookSupported, path: hookRemoveDecision.configPath, present: hookPresent, dryRunOk, runtimeStatus },
+    approval: {
+      ...approvalState,
+      ...(approvalOk
+        ? {}
+        : {
+            notice: `Engram tools are not pre-approved for ${adapter.label}, so a permission mode that cannot prompt (Claude Code "dontAsk", Codex approval_policy "never") will deny them. Run "${resolveEnginesExecutable(input.home)}" plan memory-install --agent ${input.agentId} and apply the resulting plan to add the approval.`,
+          }),
+    },
     engram: {
       ecosystemBlock: await probeEcosystemBlock(input.home, input.startupContextOptions),
       ...(drift.protocolNotice ? { protocolNotice: drift.protocolNotice } : {}),

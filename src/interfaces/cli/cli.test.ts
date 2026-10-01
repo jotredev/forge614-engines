@@ -4,7 +4,10 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { ConfirmationRequiredError, NotRepairableError } from "../../app/apply-mcp-repair";
 import { resolveEngramExecutable } from "../../modules/memory-protocol/constants";
+import pkg from "../../../package.json";
+import { HELP } from "./help";
 import { errorCodeFor } from "./main";
+import { readdirSync } from "node:fs";
 
 const ENTRY = "src/interfaces/cli/main.ts";
 
@@ -351,6 +354,59 @@ describe("forge614-engines CLI", () => {
     expect(exitCode).toBe(1);
     const parsed = JSON.parse(stdout);
     expect(parsed.error.code).toBe("UNKNOWN_COMMAND");
+  });
+
+  /**
+   * What is left in the temp HOME after a run, minus `Library`: on macOS Bun itself writes its
+   * transpiler cache to ~/Library/Caches/bun on any run of a .ts entry (a `detect` run does the
+   * same), which is not Engines creating anything — Engines' own folders are .forge614, .claude, .codex...
+   */
+  function homeEntriesCreatedByEngines(): string[] {
+    return readdirSync(home).filter((name) => name !== "Library");
+  }
+
+  for (const flagName of ["--version", "-v"]) {
+    test(`${flagName} prints exactly "forge614-engines <package.json version>", exits 0 and creates nothing in HOME`, async () => {
+      const { stdout, exitCode } = await runCli([flagName]);
+
+      expect(exitCode).toBe(0);
+      expect(stdout).toBe(`forge614-engines ${pkg.version}\n`);
+      expect(homeEntriesCreatedByEngines()).toEqual([]);
+    });
+  }
+
+  for (const flagName of ["--help", "-h"]) {
+    test(`${flagName} prints the plain-text HELP, exits 0 and creates nothing in HOME`, async () => {
+      const { stdout, exitCode } = await runCli([flagName]);
+
+      expect(exitCode).toBe(0);
+      expect(stdout).toBe(`${HELP}\n`);
+      expect(homeEntriesCreatedByEngines()).toEqual([]);
+    });
+  }
+
+  test("HELP lists every public command plus --version and --help", () => {
+    for (const command of [
+      "detect",
+      "agents list",
+      "capabilities",
+      "plan mcp-install",
+      "plan mcp-remove",
+      "plan memory-install",
+      "plan memory-remove",
+      "plan mcp-repair",
+      "apply",
+      "apply mcp-repair",
+      "headless",
+      "update",
+      "verify memory-integration",
+      "verify mcp-repair",
+      "memory-hook-run",
+      "--version",
+      "--help",
+    ]) {
+      expect(HELP).toContain(command);
+    }
   });
 
   test("plan memory-install for an agent without Engram installed reports ENGRAM_PROTOCOL_UNAVAILABLE", async () => {

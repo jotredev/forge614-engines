@@ -12,6 +12,8 @@ import { computeHookRuntimeStatus } from "./hook-runtime-status";
 import { decideHookInstall } from "./hook-write-decision";
 import { decideMcpInstall } from "./mcp-write-decision";
 import { decideInstructionsInstall, type InstructionsDecision } from "./instructions-write-decision";
+import { lastWritePerPath } from "./last-write-per-path";
+import { decideToolApprovalInstall, toolApprovalComponentStatus } from "./tool-approval-write-decision";
 
 export interface PlanMemoryInstallInput {
   agentId: AgentId;
@@ -47,18 +49,26 @@ export async function planMemoryInstall(registry: AgentRegistry, input: PlanMemo
       : undefined;
   const hookDecision = await decideHookInstall(adapter, input.home, hookCommand, hookSeed);
 
+  // The approval lives in a file a sibling decision may also write (settings.json with the hook for
+  // Claude Code; config.toml with the MCP entry and the hook for Codex), so it builds on the latest
+  // sibling write to that file. A conflicting MCP entry is never approved: it is not ours.
+  const approvalFile = adapter.toolApproval?.configFile(input.home);
+  const approvalSeedWrite = [mcpDecision.write, hookDecision.write].filter((w) => w && w.path === approvalFile).pop();
+  const mcpConflict = mcpDecision.decision.kind === "conflict";
+  const approvalDecision = mcpConflict && adapter.toolApproval
+    ? undefined
+    : await decideToolApprovalInstall(adapter, input.home, engramServer.name, approvalSeedWrite ? { raw: approvalSeedWrite.afterContent } : undefined);
+
   const writes: PlanWrite[] = [];
   if (instructionsDecision.kind === "write") writes.push(...instructionsDecision.writes);
-  if (hookSeed) {
-    // Only one physical write is needed for the shared file: the hook decision's
-    // afterContent already includes the MCP change (via the seed above), so
-    // pushing both would stage two independent writes to the same path.
-    if (hookDecision.decision.kind === "write" && hookDecision.write) writes.push(hookDecision.write);
-    else if (mcpDecision.decision.kind === "write" && mcpDecision.write) writes.push(mcpDecision.write);
-  } else {
-    if (mcpDecision.decision.kind === "write" && mcpDecision.write) writes.push(mcpDecision.write);
-    if (hookDecision.decision.kind === "write" && hookDecision.write) writes.push(hookDecision.write);
-  }
+  // One physical write per file: each later decision for the same path already carries the earlier
+  // ones (through the seeds above), so only the last write for each path is kept.
+  const configWrites = [
+    mcpDecision.decision.kind === "write" ? mcpDecision.write : undefined,
+    hookDecision.decision.kind === "write" ? hookDecision.write : undefined,
+    approvalDecision?.decision.kind === "write" ? approvalDecision.write : undefined,
+  ].filter((w): w is PlanWrite => w !== undefined);
+  writes.push(...lastWritePerPath(configWrites));
 
   const mcpStatus: MemoryIntegrationComponentStatus =
     mcpDecision.decision.kind === "conflict"
@@ -70,6 +80,15 @@ export async function planMemoryInstall(registry: AgentRegistry, input: PlanMemo
       : mcpDecision.decision.kind === "noop"
         ? { kind: "noop" }
         : { kind: "write" };
+
+  const approvalStatus: MemoryIntegrationComponentStatus = !approvalDecision
+    ? {
+        kind: "blocked",
+        reason: "mcp-conflict",
+        details: `An existing "${engramServer.name}" MCP entry with different content is present at ${mcpDecision.configPath}, so its tools are not approved automatically`,
+      }
+    : toolApprovalComponentStatus(adapter, approvalDecision, engramServer.name, "install");
+  const approvalPath = approvalDecision?.configPath ?? approvalFile ?? "";
 
   const instructionsStatus = instructionsComponentStatus(instructionsDecision);
   const instructionsPaths = adapter.instructions
@@ -119,7 +138,8 @@ export async function planMemoryInstall(registry: AgentRegistry, input: PlanMemo
       mcp: { path: mcpDecision.configPath, status: mcpStatus },
       instructions: { paths: instructionsPaths, status: instructionsStatus },
       hook: { path: hookDecision.configPath, status: hookStatus, runtimeStatus: hookRuntimeStatus },
-      overallStatus: computeOverallStatus(mcpStatus, instructionsStatus, hookRuntimeStatus),
+      approval: { path: approvalPath, status: approvalStatus },
+      overallStatus: computeOverallStatus(mcpStatus, instructionsStatus, hookRuntimeStatus, approvalStatus),
     },
   };
 

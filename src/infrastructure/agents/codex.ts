@@ -53,6 +53,19 @@ export const codexAdapter: AgentAdapter = {
     // section and the "needs-user-trust" contract).
     requiresUserTrust: true,
   },
+  // `approve` (Codex's AppToolApproval enum) never asks for approval for the server's tools,
+  // so they are not denied with `approval_policy = "never"` either.
+  toolApproval: {
+    kind: "server-mode",
+    configFile(home) {
+      return join(home, ".codex", "config.toml");
+    },
+    configFormat: "toml",
+    keyPath(serverName) {
+      return ["mcp_servers", serverName, "default_tools_approval_mode"];
+    },
+    approvedValue: "approve",
+  },
   headlessCommand(executable, opts) {
     const args = ["exec"];
     // Codex's --add-dir can technically grant write access, but as long as neither

@@ -8,23 +8,27 @@ The CLI (command-line interface) is the Engines counter. Every request returns a
 
 | Command | Main result | Writes |
 | --- | --- | --- |
+| `forge614-engines --version` (or `-v`) | plain text `forge614-engines <version>` | No |
+| `forge614-engines --help` (or `-h`) | plain-text help listing these commands | No |
 | `forge614-engines detect` | detected `agents` | No |
 | `forge614-engines agents list` | every agent the code supports, installed or not | No |
 | `forge614-engines capabilities --agent <id>` | one agent's capabilities | No |
 | `forge614-engines plan mcp-install ...` | installation `plan` | Stores the plan only |
 | `forge614-engines plan mcp-remove ...` | removal `plan` | Stores the plan only |
-| `forge614-engines plan memory-install --agent <id>` | one coherent memory-integration `plan` | Stores the plan only |
-| `forge614-engines plan memory-remove --agent <id>` | one coherent memory-integration removal `plan` | Stores the plan only |
+| `forge614-engines plan memory-install --agent <id>` | one coherent memory-integration `plan` (MCP, instructions, hook and tool approval) | Stores the plan only |
+| `forge614-engines plan memory-remove --agent <id>` | one coherent memory-integration removal `plan` (the tool approval is removed too) | Stores the plan only |
 | `forge614-engines apply --plan-id <id>` | application `result` | Yes, only for confirmed plan |
 | `forge614-engines headless ...` | `headless` command and arguments | No |
 | `forge614-engines update` | update `result` | Manages Engines only |
-| `forge614-engines verify memory-integration --agent <id>` | current MCP/instructions/hook `verification` | No |
+| `forge614-engines verify memory-integration --agent <id>` | current MCP/instructions/hook/approval `verification` | No |
 | `forge614-engines memory-hook-run --agent <id>` | plain text (Claude Code) or `hookSpecificOutput.additionalContext` JSON (Codex) on stdout | No |
 | `forge614-engines plan mcp-repair --agent <id>` | repair `plan` with status (`not-installed`/`already-correct`/`repairable-conflict`/`blocked`) | Stores the plan only |
 | `forge614-engines apply mcp-repair --plan-id <id> [--confirm]` | confirmed application `result` | Yes, and only with `--confirm` |
 | `forge614-engines verify mcp-repair --agent <id> --plan-id <id>` | `verification` for that one repair | No |
 
 `--args` consumes values until the next flag beginning with `--`. This keeps MCP-server arguments from accidentally swallowing another Engines option.
+
+`--version` and `-v` print `forge614-engines <version>` (the `package.json` version) as plain text and exit with 0, like every Forge614 node. `--help` and `-h` print a plain-text help with the public commands plus `--version` and `--help`, and also exit with 0. Both are answered first thing, without reading or creating anything on disk; every other command keeps answering the JSON receipt.
 
 ## Examples
 
@@ -39,11 +43,20 @@ forge614-engines plan mcp-install --agent claude-code --name engram --command fo
 
 `headless` output does not run Codex or Claude Code: it produces the safe order that Atlas may decide to start. For Codex the order is `codex exec <prompt>`; for Claude Code it is `claude -p <prompt>`. Optional `--model <model-id>` and `--reasoning-level <low|medium|high>` are additive: each adapter decides how to fold them into its own order, and Claude Code rejects `--reasoning-level` with `REASONING_LEVEL_UNSUPPORTED` (see 06). Optional `--stdin-prompt` moves the prompt out of `args` and into `stdin: true` on the returned command, so it never becomes visible to `ps` on the machine running it (see 06). Optional `--readable-dir <path>` is additive and maps to `--add-dir <path>` on both adapters, granting read access to one real project folder without loosening isolation otherwise (see 06).
 
-`plan memory-install` reads the manual fresh from `forge614-engram memory-protocol --json --protocol-version 4` every time (only if Engram answers with the INVALID_INPUT error, meaning it is older than 1.7.0, does it repeat the call it always made — protocol v1 — and leave a bilingual notice in `metadata.protocol.legacyNotice`; any other error is reported as before), decides the MCP entry and the instructions file(s) for the given agent, and returns one plan that already contains every write `apply` needs — install and remove for the memory integration share the same `apply --plan-id <id>` command as any other plan. `verify memory-integration` does not modify Engram; it inspects the files Engines itself manages and, structurally (never by version), probes `startup-context` from `~` to report in `verification.engram.ecosystemBlock` whether the installed Engram publishes the `ecosystem` block: `published`, `not-published` or `unavailable`. It is informational and never changes `overallStatus`.
+`plan memory-install` reads the manual fresh from `forge614-engram memory-protocol --json --protocol-version 4` every time (only if Engram answers with the INVALID_INPUT error, meaning it is older than 1.7.0, does it repeat the call it always made — protocol v1 — and leave a bilingual notice in `metadata.protocol.legacyNotice`; any other error is reported as before), decides the MCP entry, the instructions file(s), the session-start hook and the tool approval for the given agent, and returns one plan that already contains every write `apply` needs — install and remove for the memory integration share the same `apply --plan-id <id>` command as any other plan. `verify memory-integration` does not modify Engram; it inspects the files Engines itself manages and, structurally (never by version), probes `startup-context` from `~` to report in `verification.engram.ecosystemBlock` whether the installed Engram publishes the `ecosystem` block: `published`, `not-published` or `unavailable`. It is informational and never changes `overallStatus`.
 
 `verify memory-integration` also asks Engram for the manual again (same v4 rule with v1 fallback) and compares it with what is installed. It reports `verification.instructions.upToDate` (true when what is installed is already identical) and, when it is not, `verification.instructions.driftNotice`, a notice with the exact command to bring it up to date (`plan memory-install --agent <id>`, then apply the plan). If that query had to use the v1 fallback, `verification.engram.protocolNotice` carries the bilingual notice. All of this is left out when no manual is installed or when Engram does not answer; `upToDate` and `driftNotice` are also left out when the install would be blocked (a file that shadows the main one, for example), because then the suggested command would not fix it. They are notices only: none of them changes `overallStatus`.
 
 For memory commands, Engines resolves `forge614-engram` at the canonical `~/.forge614/engram/bin/forge614-engram` path, or under `FORGE614_HOME` when that variable is set; it does not search `PATH` or read Engram internals. A different command for the same `forge614-engram` MCP name remains a real `CONFLICT`.
+
+## Tool approval
+
+`plan memory-install` also approves the tools of the `forge614-engram` server for good, so the memory works in permission modes that cannot ask (Claude Code `dontAsk`, Codex `approval_policy = "never"`). What is written in each agent, which of the person's `deny`/`ask` rules or Codex values it changes (always with a notice) and how to turn it off is in chapter 03.
+
+- In the plan, `metadata.approval` is `{ path, status }`. `status` has the same shape as the other components: `unsupported` (Cursor), `noop`, `write` (with `notice` when something the person had was changed) or `blocked` with `reason` `allow-not-array`, `mcp-conflict` or `mcp-entry-missing`.
+- In `verify memory-integration`, `verification.approval` is `{ supported, path, present }`, plus `notice` when the agent supports it and it is missing: the exact command to add it. `present` is true only with the approval of the whole server (the rule `mcp__forge614-engram` or `mcp__forge614-engram__*` in Claude Code; the value `approve` in Codex); a rule for a single tool does not count.
+- `overallStatus` keeps its same values. An approval that is missing (in `verify`) or blocked (in the plan) on an agent that supports it only prevents `complete`: it makes the result `partial` when the rest is installed, but it does not change `absent` (verify) or `unsupported` (plan) when nothing else is installed or possible; Cursor is unaffected.
+- `plan memory-remove` removes the approval together with the rest, and `metadata.approval` reports it the same way.
 
 ## The `SessionStart` hook
 
