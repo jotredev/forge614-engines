@@ -68,7 +68,7 @@ cortar v1.9.0 la primera vez):
 - si lo que escribiste (como argumento, o sustituyendo la sugerencia de la pregunta) no coincide con
   lo que los commits sugieren de verdad — por ejemplo pedir `5.0.0` cuando nada justifica más que un
   salto menor — muestra la diferencia y te pide confirmar que ese número es intencional, en lugar de
-  aceptar en silencio cualquier número escrito; en cambio (una versión explícita que ya coincide con lo
+  aceptar en silencio cualquier número escrito; en caso contrario (una versión explícita que ya coincide con lo
   esperado) muestra el resumen habitual de versión/etiqueta/publicación y pide confirmar eso
 
 Una vez confirmado: sube la versión de `package.json`, sincroniza el `productVersion` de

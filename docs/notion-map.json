@@ -76,25 +76,25 @@
       "localPath": "docs/es/05-referencia-del-cli-publico.md",
       "language": "es",
       "notionUrl": "https://app.notion.com/p/3e121943d1298178b133f109e29a742f",
-      "sha256": "ff1a4c82d821823777f158de014c2728eb6b747ab1b76d6ef4f2e9afc2147fcf"
+      "sha256": "a6a3c960d2403819ec795e0825225a7d42dcd1599eec0aa28e37e148aa74e939"
     },
     {
       "localPath": "docs/en/05-public-cli-reference.md",
       "language": "en",
       "notionUrl": "https://app.notion.com/p/3e121943d12981c097f7ff61185f3454",
-      "sha256": "e16fa85e7f42b2b774ac6b13ce52ae95892ffa702d42db6f4b935a02c3b2f711"
+      "sha256": "51e9e8bf427cc97da1ddc2e33f132c1bbbee7c8fefa6dbb45ea91dc86c118704"
     },
     {
       "localPath": "docs/es/06-ejecucion-automatica-e-integraciones.md",
       "language": "es",
       "notionUrl": "https://app.notion.com/p/3e121943d1298120af7dd162a421c1b4",
-      "sha256": "ad83a8ed0012ed0a7ec18bfd7f895e8238b8536a9cbab9769c2f5b9b7bff892b"
+      "sha256": "0f36c431b57b286fc2d81d941d51f5002e316b9a050f1d2e686b6cc44008fcf9"
     },
     {
       "localPath": "docs/en/06-headless-execution-and-integrations.md",
       "language": "en",
       "notionUrl": "https://app.notion.com/p/3e121943d12981ca81e8fdd255a086c3",
-      "sha256": "d742e91d9b97d08d964939cf8fc06236d8a7b52c033503095c3220fffe3c1ddd"
+      "sha256": "66072daf2618dba8e08254616d7e703c7ef84fd2df44d81898bdd7782129da15"
     },
     {
       "localPath": "docs/es/07-arquitectura-y-mapa-del-codigo.md",
