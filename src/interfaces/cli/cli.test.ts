@@ -3,6 +3,8 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { ConfirmationRequiredError, NotRepairableError } from "../../app/apply-mcp-repair";
+import { HeadlessUnsupportedError } from "../../app/headless-command";
+import { MCP_ONLY_ID } from "../../../tests/support/mcp-only-adapter";
 import { resolveEngramExecutable } from "../../modules/memory-protocol/constants";
 import pkg from "../../../package.json";
 import { HELP } from "./help";
@@ -137,15 +139,6 @@ describe("forge614-engines CLI", () => {
         supportsReasoningLevel: true,
         fullySupported: true,
       },
-      {
-        id: "cursor",
-        label: "Cursor",
-        supportsMcp: true,
-        supportsHooks: false,
-        supportsHeadlessExec: false,
-        supportsReasoningLevel: false,
-        fullySupported: false,
-      },
     ]);
   });
 
@@ -178,6 +171,17 @@ describe("forge614-engines CLI", () => {
     expect(parsed.schemaVersion).toBe(1);
     expect(parsed.error.code).toBe("UNKNOWN_AGENT");
     expect(parsed.error.message).toContain("doesnotexist");
+  });
+
+  test("capabilities for a retired agent id reports UNKNOWN_AGENT with exit code 1", async () => {
+    /** Id of an agent Engines supported in earlier versions and no longer registers. */
+    const retiredAgentId = "cursor";
+    const { stdout, exitCode } = await runCli(["capabilities", "--agent", retiredAgentId]);
+
+    expect(exitCode).toBe(1);
+    const parsed = JSON.parse(stdout);
+    expect(parsed.error.code).toBe("UNKNOWN_AGENT");
+    expect(parsed.error.message).toBe(`Unknown agent: ${retiredAgentId}`);
   });
 
   test("applying a plan id that does not exist reports PLAN_NOT_FOUND", async () => {
@@ -332,22 +336,6 @@ describe("forge614-engines CLI", () => {
     expect(parsed.headless).toEqual({ command: "/bin/codex", args: ["exec", "--add-dir", "/tmp/project", "hello"] });
   });
 
-  test("headless for an agent without headless support reports HEADLESS_UNSUPPORTED", async () => {
-    const { stdout, exitCode } = await runCli([
-      "headless",
-      "--agent",
-      "cursor",
-      "--executable",
-      "/bin/cursor",
-      "--prompt",
-      "hello",
-    ]);
-
-    expect(exitCode).toBe(1);
-    const parsed = JSON.parse(stdout);
-    expect(parsed.error.code).toBe("HEADLESS_UNSUPPORTED");
-  });
-
   test("an unknown command reports UNKNOWN_COMMAND as JSON", async () => {
     const { stdout, exitCode } = await runCli(["nonsense"]);
 
@@ -364,7 +352,7 @@ describe("forge614-engines CLI", () => {
   const BUN_OWN_HOME_FOLDERS = ["Library", ".bun"];
 
   /** Folders Engines itself would create in HOME; none may exist after `--version` or `--help`. */
-  const ENGINES_HOME_FOLDERS = [".forge614", ".claude", ".codex", ".cursor"];
+  const ENGINES_HOME_FOLDERS = [".forge614", ".claude", ".codex"];
 
   /** What is left in the temp HOME after a run, minus the folders Bun creates by itself. */
   function homeEntriesCreatedByEngines(): string[] {
@@ -442,7 +430,7 @@ describe("forge614-engines CLI", () => {
   });
 
   test("plan memory-remove is a noop when nothing was installed", async () => {
-    const { stdout, exitCode } = await runCli(["plan", "memory-remove", "--agent", "cursor"]);
+    const { stdout, exitCode } = await runCli(["plan", "memory-remove", "--agent", "codex"]);
 
     expect(exitCode).toBe(0);
     const parsed = JSON.parse(stdout);
@@ -450,7 +438,7 @@ describe("forge614-engines CLI", () => {
   });
 
   test("verify memory-integration reports absent components when nothing was installed", async () => {
-    const { stdout, exitCode } = await runCli(["verify", "memory-integration", "--agent", "cursor"]);
+    const { stdout, exitCode } = await runCli(["verify", "memory-integration", "--agent", "codex"]);
 
     expect(exitCode).toBe(0);
     const parsed = JSON.parse(stdout);
@@ -635,5 +623,12 @@ describe("errorCodeFor — mcp-repair", () => {
 
   test("maps ConfirmationRequiredError to CONFIRMATION_REQUIRED", () => {
     expect(errorCodeFor(new ConfirmationRequiredError("abc"))).toBe("CONFIRMATION_REQUIRED");
+  });
+});
+
+describe("errorCodeFor — headless", () => {
+  test("maps HeadlessUnsupportedError to HEADLESS_UNSUPPORTED", () => {
+    // No real agent lacks headless execution any more, so the CLI cannot reproduce this; the mapping is unit-tested.
+    expect(errorCodeFor(new HeadlessUnsupportedError(MCP_ONLY_ID))).toBe("HEADLESS_UNSUPPORTED");
   });
 });

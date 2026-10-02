@@ -4,7 +4,7 @@ import { readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const REQUIRED_AGENTS = ["claude code", "codex", "cursor"];
+const REQUIRED_AGENTS = ["claude code", "codex"];
 const NON_ERROR_CODES = new Set(["CLI", "JSON", "MCP", "PATH", "SHA", "TOML", "FORGE614_HOME"]);
 
 function fingerprint(text) {

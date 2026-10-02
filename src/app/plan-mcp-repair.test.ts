@@ -112,6 +112,6 @@ describe("planMcpRepair", () => {
   });
 
   test("throws for an unknown agent", async () => {
-    await expect(planMcpRepair(registry, { agentId: "cursor" as never, home })).rejects.toThrow("Unknown agent");
+    await expect(planMcpRepair(registry, { agentId: "does-not-exist" as never, home })).rejects.toThrow("Unknown agent");
   });
 });

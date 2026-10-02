@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { claudeCodeAdapter } from "../infrastructure/agents/claude-code";
 import { codexAdapter } from "../infrastructure/agents/codex";
-import { cursorAdapter } from "../infrastructure/agents/cursor";
+import { mcpOnlyAdapter } from "../../tests/support/mcp-only-adapter";
 import { computeHookRuntimeStatus } from "./hook-runtime-status";
 
 describe("computeHookRuntimeStatus", () => {
-  test("unsupported when the adapter has no hooks target (cursor)", () => {
-    expect(computeHookRuntimeStatus(cursorAdapter, false, { kind: "absent" })).toEqual({ kind: "unsupported" });
+  test("unsupported when the adapter has no hooks target", () => {
+    expect(computeHookRuntimeStatus(mcpOnlyAdapter, false, { kind: "absent" })).toEqual({ kind: "unsupported" });
   });
 
   test("absent when the hook isn't present in config yet, regardless of any evidence", () => {

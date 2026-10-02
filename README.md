@@ -1,6 +1,6 @@
 # forge614-engines
 
-Detects which AI coding agents (Claude Code, Codex, Cursor, …) are installed on the user's machine, and safely previews and applies MCP server configuration changes for them.
+Detects which AI coding agents (Claude Code, Codex, …) are installed on the user's machine, and safely previews and applies MCP server configuration changes for them.
 
 Internal dependency of the Forge614 ecosystem — see `FORGE614_ECOSYSTEM_CONTRACT.md`. Not meant to be installed directly by a person; other Forge614 products bootstrap it automatically.
 

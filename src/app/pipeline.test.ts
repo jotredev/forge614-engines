@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { MCP_ONLY_ID, mcpOnlyAdapter } from "../../tests/support/mcp-only-adapter";
 import { configFormats } from "../infrastructure/config-io/formats";
 import { resolveHookEvidencePath } from "../modules/agents/hook-command";
 import type { AgentId } from "../modules/agents/types";
@@ -24,10 +25,10 @@ afterEach(() => {
   rmSync(home, { recursive: true, force: true });
 });
 
-const AGENT_IDS: AgentId[] = ["claude-code", "codex", "cursor"];
+// The MCP-only test agent walks the MCP lifecycle alongside the real agents. It has no instructions
+// component to round-trip, so its memory lifecycle is exactly its MCP lifecycle and is not repeated below.
+const AGENT_IDS: AgentId[] = ["claude-code", "codex", MCP_ONLY_ID];
 
-// Cursor is covered by the MCP-only describe block above: it has no instructions component to
-// round-trip, so its memory lifecycle is exactly its MCP lifecycle.
 const MEMORY_AGENT_IDS: AgentId[] = ["claude-code", "codex"];
 
 function writeProtocolFixtureScript(home: string): string {
@@ -68,6 +69,7 @@ describe("install → apply → remove → apply, against a home with no agent c
   for (const agentId of AGENT_IDS) {
     test(`${agentId}`, async () => {
       const registry = buildDefaultRegistry();
+      if (agentId === MCP_ONLY_ID) registry.register(mcpOnlyAdapter);
       const adapter = registry.get(agentId)!;
       const configPath = adapter.configFile(home);
       const format = configFormats[adapter.configFormat];

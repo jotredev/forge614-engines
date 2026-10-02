@@ -6,7 +6,7 @@ import { parse as parseToml } from "smol-toml";
 import { AgentRegistry } from "../modules/agents/registry";
 import { claudeCodeAdapter } from "../infrastructure/agents/claude-code";
 import { codexAdapter } from "../infrastructure/agents/codex";
-import { cursorAdapter } from "../infrastructure/agents/cursor";
+import { MCP_ONLY_ID, MCP_ONLY_LABEL, mcpOnlyAdapter } from "../../tests/support/mcp-only-adapter";
 import { resolveHookEvidencePath } from "../modules/agents/hook-command";
 import { resolveEngramMcpServer } from "../modules/memory-protocol/constants";
 import { recordHookEvidence } from "./hook-evidence";
@@ -53,7 +53,7 @@ beforeEach(() => {
   registry = new AgentRegistry();
   registry.register(claudeCodeAdapter);
   registry.register(codexAdapter);
-  registry.register(cursorAdapter);
+  registry.register(mcpOnlyAdapter);
 });
 
 afterEach(() => {
@@ -108,19 +108,19 @@ describe("planMemoryRemove", () => {
     expect(plan.writes.some((w) => w.path === join(home, ".claude.json"))).toBe(false);
   });
 
-  test("cursor's instructions component is unsupported, mcp still removes", async () => {
-    mkdirSync(join(home, ".cursor"), { recursive: true });
+  test("an MCP-only agent's instructions component is unsupported, mcp still removes", async () => {
+    mkdirSync(join(home, ".mcp-only-test"), { recursive: true });
     writeFileSync(
-      join(home, ".cursor", "mcp.json"),
+      join(home, ".mcp-only-test", "mcp.json"),
       JSON.stringify({ mcpServers: { "forge614-engram": { command: resolveEngramMcpServer(home).command, args: ["mcp"] } } }),
     );
 
-    const plan = await planMemoryRemove(registry, { agentId: "cursor", home });
+    const plan = await planMemoryRemove(registry, { agentId: MCP_ONLY_ID, home });
 
     expect(plan.metadata?.instructions.status.kind).toBe("unsupported");
     expect(plan.metadata?.hook.status.kind).toBe("unsupported");
-    expect(plan.writes.some((w) => w.path === join(home, ".cursor", "mcp.json"))).toBe(true);
-    // Cursor structurally has no instructions to remove, so removing its MCP entry is the whole job.
+    expect(plan.writes.some((w) => w.path === join(home, ".mcp-only-test", "mcp.json"))).toBe(true);
+    // An MCP-only agent structurally has no instructions to remove, so removing its MCP entry is the whole job.
     expect(plan.metadata?.overallStatus).toBe("complete");
   });
 
@@ -347,12 +347,12 @@ describe("planMemoryRemove — tool approval", () => {
     expect(parseToml(configWrites[0]!.afterContent)).toEqual({ model: "gpt-5", mcp_servers: { other: { command: "o" } } });
   });
 
-  test("cursor: approval is unsupported and removal status is unchanged", async () => {
-    const plan = await planMemoryRemove(registry, { agentId: "cursor", home });
+  test("an MCP-only agent: approval is unsupported and removal status is unchanged", async () => {
+    const plan = await planMemoryRemove(registry, { agentId: MCP_ONLY_ID, home });
 
     expect(plan.metadata?.approval).toEqual({
       path: "",
-      status: { kind: "unsupported", reason: "Cursor has no tool-approval setting to remove" },
+      status: { kind: "unsupported", reason: `${MCP_ONLY_LABEL} has no tool-approval setting to remove` },
     });
     expect(plan.metadata?.overallStatus).toBe("complete");
   });

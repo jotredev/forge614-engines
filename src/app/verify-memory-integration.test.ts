@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { AgentRegistry } from "../modules/agents/registry";
 import { claudeCodeAdapter } from "../infrastructure/agents/claude-code";
 import { codexAdapter } from "../infrastructure/agents/codex";
-import { cursorAdapter } from "../infrastructure/agents/cursor";
+import { MCP_ONLY_ID, mcpOnlyAdapter } from "../../tests/support/mcp-only-adapter";
 import { resolveEnginesExecutable, resolveHookEvidencePath } from "../modules/agents/hook-command";
 import { resolveEngramMcpServer } from "../modules/memory-protocol/constants";
 import { recordHookEvidence } from "./hook-evidence";
@@ -88,7 +88,7 @@ beforeEach(() => {
   registry = new AgentRegistry();
   registry.register(claudeCodeAdapter);
   registry.register(codexAdapter);
-  registry.register(cursorAdapter);
+  registry.register(mcpOnlyAdapter);
   startupContextScript = join(home, "startup-context.js");
   writeFileSync(startupContextScript, startupScript(STARTUP_CONTEXT_RESULT));
 });
@@ -255,24 +255,24 @@ describe("verifyMemoryIntegration", () => {
     }
   });
 
-  test("hook is reported unsupported (not absent/blocked) for cursor", async () => {
-    const result = await verifyMemoryIntegration(registry, { agentId: "cursor", home });
+  test("hook is reported unsupported (not absent/blocked) for an MCP-only agent", async () => {
+    const result = await verifyMemoryIntegration(registry, { agentId: MCP_ONLY_ID, home });
     expect(result.hook.supported).toBe(false);
     expect(result.hook.runtimeStatus.kind).toBe("unsupported");
   });
 
-  test("cursor's instructions are always reported unsupported", async () => {
-    mkdirSync(join(home, ".cursor"), { recursive: true });
+  test("an MCP-only agent's instructions are always reported unsupported", async () => {
+    mkdirSync(join(home, ".mcp-only-test"), { recursive: true });
     writeFileSync(
-      join(home, ".cursor", "mcp.json"),
+      join(home, ".mcp-only-test", "mcp.json"),
       JSON.stringify({ mcpServers: { "forge614-engram": { command: resolveEngramMcpServer(home).command, args: ["mcp"] } } }),
     );
 
-    const result = await verifyMemoryIntegration(registry, { agentId: "cursor", home });
+    const result = await verifyMemoryIntegration(registry, { agentId: MCP_ONLY_ID, home });
 
     expect(result.mcp.present).toBe(true);
     expect(result.instructions.supported).toBe(false);
-    // Cursor structurally cannot have instructions or a hook installed, so a present MCP entry is the complete achievable state for this agent.
+    // An MCP-only agent structurally cannot have instructions or a hook installed, so a present MCP entry is the complete achievable state for this agent.
     expect(result.overallStatus).toBe("complete");
   });
 
@@ -497,8 +497,8 @@ describe("verifyMemoryIntegration — tool approval", () => {
     expect(prompting.overallStatus).toBe("partial");
   });
 
-  test("cursor: approval is unsupported and its overallStatus does not change", async () => {
-    const result = await verifyMemoryIntegration(registry, { agentId: "cursor", home });
+  test("an MCP-only agent: approval is unsupported and its overallStatus does not change", async () => {
+    const result = await verifyMemoryIntegration(registry, { agentId: MCP_ONLY_ID, home });
 
     expect(result.approval).toEqual({ supported: false, path: "", present: false });
     expect(result.overallStatus).toBe("absent");

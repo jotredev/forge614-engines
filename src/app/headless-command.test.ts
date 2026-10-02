@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { AgentRegistry } from "../modules/agents/registry";
 import { claudeCodeAdapter } from "../infrastructure/agents/claude-code";
 import { codexAdapter } from "../infrastructure/agents/codex";
-import { cursorAdapter } from "../infrastructure/agents/cursor";
+import { MCP_ONLY_ID, mcpOnlyAdapter } from "../../tests/support/mcp-only-adapter";
 import type { AgentAdapter } from "../modules/agents/types";
 import { ReasoningLevelUnsupportedError } from "../modules/agents/types";
 import { HeadlessUnsupportedError, headlessCommandFor } from "./headless-command";
@@ -96,9 +96,9 @@ describe("headlessCommandFor", () => {
 
   test("throws HeadlessUnsupportedError for an agent that does not support headless exec", () => {
     const registry = new AgentRegistry();
-    registry.register(cursorAdapter);
+    registry.register(mcpOnlyAdapter);
 
-    expect(() => headlessCommandFor(registry, "cursor", "/bin/cursor", "hello")).toThrow(HeadlessUnsupportedError);
+    expect(() => headlessCommandFor(registry, MCP_ONLY_ID, "/bin/mcp-only", "hello")).toThrow(HeadlessUnsupportedError);
   });
 
   test("throws for an unregistered agent", () => {
@@ -109,7 +109,7 @@ describe("headlessCommandFor", () => {
   test("rejects reasoningLevel based solely on capabilities.supportsReasoningLevel, even when the adapter's own headlessCommand doesn't guard against it", () => {
     const registry = new AgentRegistry();
     const noGuardAdapter: AgentAdapter = {
-      id: "cursor",
+      id: MCP_ONLY_ID,
       label: "No-guard test adapter",
       capabilities: { supportsMcp: false, supportsHooks: false, supportsHeadlessExec: true, supportsReasoningLevel: false },
       configFormat: "json",
@@ -124,7 +124,7 @@ describe("headlessCommandFor", () => {
     registry.register(noGuardAdapter);
 
     expect(() =>
-      headlessCommandFor(registry, "cursor", "/bin/fake", "hello", undefined, undefined, "high"),
+      headlessCommandFor(registry, MCP_ONLY_ID, "/bin/fake", "hello", undefined, undefined, "high"),
     ).toThrow(ReasoningLevelUnsupportedError);
   });
 });

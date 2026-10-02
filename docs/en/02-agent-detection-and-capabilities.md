@@ -10,13 +10,12 @@ Before assigning work, the inspector takes roll: it looks for each tool, confirm
 | --- | --- | --- | ---: | ---: | ---: |
 | `claude-code` | `claude` / `claude.exe` | `~/.claude.json` | Yes | Yes | Yes |
 | `codex` | `codex` / `codex.exe` | `~/.codex/config.toml` | Yes | Yes | Yes |
-| `cursor` | Cursor application | `~/.cursor/mcp.json` | Yes | No | No |
 
 A hook (an action a program calls at a specific moment) is reported as information. It does not mean Engines configures it.
 
 ## How it searches
 
-`detect` checks PATH first. It accepts only absolute paths and executable files, so it does not mistake a text file named `codex` for the real program. If it cannot find one there, it tries known locations: Claude Code may live at `~/.local/bin/claude`; Cursor has known application locations on macOS and Windows. Codex has no fixed fallback location.
+`detect` checks PATH first. It accepts only absolute paths and executable files, so it does not mistake a text file named `codex` for the real program. If it cannot find one there, it tries known locations: Claude Code may live at `~/.local/bin/claude`. Codex has no fixed fallback location.
 
 It also checks whether the configuration directory exists even when the executable is missing. That lets Shell explain “settings are present, but the program is unavailable” without guessing why.
 
@@ -32,7 +31,7 @@ The response has an `agents` list. Each item includes `id`, `label`, `installed`
 forge614-engines capabilities --agent codex
 ```
 
-The response reports `supportsMcp`, `supportsHooks`, `supportsHeadlessExec`, `supportsReasoningLevel`, and `fullySupported`. `supportsReasoningLevel` indicates whether the engine's headless mode accepts a configurable reasoning level through `--reasoning-level` (`claude-code`: `false`, `codex`: `true`, `cursor`: `false`). It is an explicit adapter promise, not an inference from an agent's name. `fullySupported` reports whether Engines supports the agent completely. An adapter does not declare it: it is derived and is `true` only when the agent has MCP, session-start hooks, headless execution, and an instructions target (`supportsMcp && supportsHooks && supportsHeadlessExec` and an instructions target present); `supportsReasoningLevel` does not count because it is optional. Today `claude-code` and `codex` report `true` and `cursor` reports `false`. Forge614 Shell filters the agent lists it shows by this field; Engines, never Shell, decides. It is an additive field: `schemaVersion` stays at 1. If an adapter claims headless support but cannot build its command, registration is rejected at startup.
+The response reports `supportsMcp`, `supportsHooks`, `supportsHeadlessExec`, `supportsReasoningLevel`, and `fullySupported`. `supportsReasoningLevel` indicates whether the engine's headless mode accepts a configurable reasoning level through `--reasoning-level` (`claude-code`: `false`, `codex`: `true`). It is an explicit adapter promise, not an inference from an agent's name. `fullySupported` reports whether Engines supports the agent completely. An adapter does not declare it: it is derived and is `true` only when the agent has MCP, session-start hooks, headless execution, and an instructions target (`supportsMcp && supportsHooks && supportsHeadlessExec` and an instructions target present); `supportsReasoningLevel` does not count because it is optional. It is `false` for any agent that lacks any of those pieces. Today `claude-code` and `codex` report `true`. Forge614 Shell filters the agent lists it shows by this field; Engines, never Shell, decides. It is an additive field: `schemaVersion` stays at 1. If an adapter claims headless support but cannot build its command, registration is rejected at startup.
 
 ## Limits and diagnosis
 

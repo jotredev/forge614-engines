@@ -8,7 +8,7 @@ Imagina un taller donde hay varias máquinas de IA. Forge614 Engines es el inspe
 
 Los agentes de programación con IA no se instalan ni se configuran igual. Engines unifica tres preguntas: “¿está instalado?”, “¿dónde está su configuración?” y “¿puede conectarse a un servidor MCP o trabajar sin pantalla?”. MCP (un protocolo, o forma acordada, para conectar una IA con otra herramienta) permite añadir servicios como memoria, búsqueda o datos.
 
-Actualmente reconoce Claude Code, Codex y Cursor. Devuelve JSON (texto estructurado y legible por programas) con `schemaVersion: 1`, para que Shell y Atlas puedan entender el resultado sin leer carpetas privadas entre productos.
+Actualmente reconoce Claude Code y Codex. Devuelve JSON (texto estructurado y legible por programas) con `schemaVersion: 1`, para que Shell y Atlas puedan entender el resultado sin leer carpetas privadas entre productos.
 
 ## Ruta rápida
 
@@ -26,7 +26,7 @@ El resultado describe cada agente, por ejemplo su identificador, nombre visible,
 - No instala Engines directamente para una persona.
 - No decide qué servidor MCP usar.
 - No escribe una configuración al calcular un plan.
-- No sustituye las credenciales ni perfiles propios de Claude Code, Codex o Cursor.
+- No sustituye las credenciales ni perfiles propios de Claude Code o Codex.
 
 ## Dónde seguir
 

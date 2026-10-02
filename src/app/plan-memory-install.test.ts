@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { AgentRegistry } from "../modules/agents/registry";
 import { claudeCodeAdapter } from "../infrastructure/agents/claude-code";
 import { codexAdapter } from "../infrastructure/agents/codex";
-import { cursorAdapter } from "../infrastructure/agents/cursor";
+import { MCP_ONLY_ID, MCP_ONLY_LABEL, mcpOnlyAdapter } from "../../tests/support/mcp-only-adapter";
 import { tomlConfigFormat } from "../infrastructure/config-io/toml-format";
 import { EngramProtocolUnavailableError } from "../infrastructure/engram/memory-protocol-client";
 import { resolveEngramExecutable, resolveEngramMcpServer } from "../modules/memory-protocol/constants";
@@ -48,7 +48,7 @@ beforeEach(() => {
   registry = new AgentRegistry();
   registry.register(claudeCodeAdapter);
   registry.register(codexAdapter);
-  registry.register(cursorAdapter);
+  registry.register(mcpOnlyAdapter);
   okScript = join(home, "ok-engram.js");
   // Argv-aware, like the real forge614-engram 1.7.0+: answers --protocol-version 4 with a v4
   // payload, and anything else (including no flag at all) with v1 — see memory-protocol-client.ts.
@@ -144,14 +144,14 @@ describe("planMemoryInstall", () => {
     expect(plan.metadata?.overallStatus).toBe("complete");
   });
 
-  test("is still partial for cursor after this change: hook is unsupported same as instructions", async () => {
-    const plan = await planMemoryInstall(registry, { agentId: "cursor", home, protocolOptions: protocolOptions() });
+  test("is still partial for an MCP-only agent: hook is unsupported same as instructions", async () => {
+    const plan = await planMemoryInstall(registry, { agentId: MCP_ONLY_ID, home, protocolOptions: protocolOptions() });
 
     expect(plan.metadata?.overallStatus).toBe("partial");
     expect(plan.metadata?.instructions.status.kind).toBe("unsupported");
     expect(plan.metadata?.hook.status.kind).toBe("unsupported");
     expect(plan.metadata?.hook.runtimeStatus?.kind).toBe("unsupported");
-    const mcpWrite = plan.writes.find((w) => w.path === join(home, ".cursor", "mcp.json"))!;
+    const mcpWrite = plan.writes.find((w) => w.path === join(home, ".mcp-only-test", "mcp.json"))!;
     expect(JSON.parse(mcpWrite.afterContent).mcpServers["forge614-engram"]).toEqual({
       command: resolveEngramMcpServer(home).command,
       args: ["mcp"],
@@ -397,18 +397,18 @@ describe("planMemoryInstall — tool approval", () => {
     expect(blocked.metadata?.overallStatus).toBe("partial");
   });
 
-  test("cursor: approval is unsupported and does not change its overallStatus", async () => {
-    const plan = await planMemoryInstall(registry, { agentId: "cursor", home, protocolOptions: protocolOptions() });
+  test("an MCP-only agent: approval is unsupported and does not change its overallStatus", async () => {
+    const plan = await planMemoryInstall(registry, { agentId: MCP_ONLY_ID, home, protocolOptions: protocolOptions() });
 
     expect(plan.metadata?.approval).toEqual({
       path: "",
-      status: { kind: "unsupported", reason: "Cursor has no tool-approval setting this installer configures" },
+      status: { kind: "unsupported", reason: `${MCP_ONLY_LABEL} has no tool-approval setting this installer configures` },
     });
     expect(plan.metadata?.overallStatus).toBe("partial");
   });
 
   test("overallStatus only ever takes the three values Shell validates", async () => {
-    for (const agentId of ["claude-code", "codex", "cursor"] as const) {
+    for (const agentId of ["claude-code", "codex", MCP_ONLY_ID] as const) {
       const plan = await planMemoryInstall(registry, { agentId, home, protocolOptions: protocolOptions() });
       expect(["complete", "partial", "unsupported"]).toContain(plan.metadata!.overallStatus);
     }

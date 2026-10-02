@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { claudeCodeAdapter } from "../infrastructure/agents/claude-code";
 import { codexAdapter } from "../infrastructure/agents/codex";
-import { cursorAdapter } from "../infrastructure/agents/cursor";
+import { mcpOnlyAdapter } from "../../tests/support/mcp-only-adapter";
 import { decideInstructionsInstall, decideInstructionsRemove } from "./instructions-write-decision";
 
 let home: string;
@@ -20,8 +20,8 @@ afterEach(() => {
 const markdown = "## Forge614 Engram memory protocol\n\nCall memory_context.";
 
 describe("decideInstructionsInstall", () => {
-  test("cursor is unsupported", async () => {
-    const decision = await decideInstructionsInstall(cursorAdapter, home, markdown);
+  test("an adapter without an instructions target is unsupported", async () => {
+    const decision = await decideInstructionsInstall(mcpOnlyAdapter, home, markdown);
     expect(decision.kind).toBe("unsupported");
   });
 
@@ -139,8 +139,8 @@ describe("decideInstructionsInstall", () => {
 });
 
 describe("decideInstructionsRemove", () => {
-  test("cursor is unsupported", async () => {
-    expect((await decideInstructionsRemove(cursorAdapter, home)).kind).toBe("unsupported");
+  test("an adapter without an instructions target is unsupported", async () => {
+    expect((await decideInstructionsRemove(mcpOnlyAdapter, home)).kind).toBe("unsupported");
   });
 
   test("is a noop when nothing was ever installed", async () => {

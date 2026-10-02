@@ -1,4 +1,5 @@
-export type AgentId = "claude-code" | "codex" | "cursor";
+/** Identifier of an agent Engines fully supports. */
+export type AgentId = "claude-code" | "codex";
 
 export type ConfigFormat = "json" | "toml";
 
