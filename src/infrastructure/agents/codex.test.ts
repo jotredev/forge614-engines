@@ -7,6 +7,10 @@ describe("codexAdapter.capabilities", () => {
   test("supports a configurable reasoning level in headless mode", () => {
     expect(codexAdapter.capabilities.supportsReasoningLevel).toBe(true);
   });
+
+  test("declares all five reasoning levels, in order", () => {
+    expect(codexAdapter.reasoningLevels).toEqual(["low", "medium", "high", "xhigh", "max"]);
+  });
 });
 
 describe("codexAdapter.hooks", () => {

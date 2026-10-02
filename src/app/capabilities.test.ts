@@ -18,9 +18,19 @@ describe("capabilitiesFor", () => {
       supportsMcp: true,
       supportsHooks: true,
       supportsHeadlessExec: true,
-      supportsReasoningLevel: false,
+      supportsReasoningLevel: true,
       fullySupported: true,
     });
+  });
+
+  test("does not put the adapter's reasoningLevels list in the report", () => {
+    const registry = new AgentRegistry();
+    registry.register(claudeCodeAdapter);
+    registry.register(codexAdapter);
+
+    expect(capabilitiesFor(registry, "claude-code")).not.toHaveProperty("reasoningLevels");
+    expect(capabilitiesFor(registry, "codex")).not.toHaveProperty("reasoningLevels");
+    for (const entry of listAgents(registry)) expect(entry).not.toHaveProperty("reasoningLevels");
   });
 
   test("derives fullySupported: true for claude-code and codex, false for an MCP-only agent", () => {
@@ -68,7 +78,7 @@ describe("capabilitiesFor", () => {
     });
 
     test("is not affected by supportsReasoningLevel, which is optional", () => {
-      expect(fullySupportedFor({ ...fullAdapter, capabilities: { ...fullAdapter.capabilities, supportsReasoningLevel: false } })).toBe(true);
+      expect(fullySupportedFor({ ...fullAdapter, capabilities: { ...fullAdapter.capabilities, supportsReasoningLevel: false }, reasoningLevels: undefined })).toBe(true);
     });
   });
 
@@ -92,7 +102,7 @@ describe("listAgents", () => {
         supportsMcp: true,
         supportsHooks: true,
         supportsHeadlessExec: true,
-        supportsReasoningLevel: false,
+        supportsReasoningLevel: true,
         fullySupported: true,
       },
       {

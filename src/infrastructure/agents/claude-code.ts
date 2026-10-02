@@ -4,7 +4,8 @@ import type { AgentAdapter, McpServerDefinition } from "../../modules/agents/typ
 export const claudeCodeAdapter: AgentAdapter = {
   id: "claude-code",
   label: "Claude Code",
-  capabilities: { supportsMcp: true, supportsHooks: true, supportsHeadlessExec: true, supportsReasoningLevel: false },
+  capabilities: { supportsMcp: true, supportsHooks: true, supportsHeadlessExec: true, supportsReasoningLevel: true },
+  reasoningLevels: ["low", "medium", "high", "xhigh", "max"],
   configFormat: "json",
   mcpEntryPath: ["mcpServers"],
   candidateExecutableNames(platform) {
@@ -67,9 +68,10 @@ export const claudeCodeAdapter: AgentAdapter = {
     },
   },
   headlessCommand(executable, opts) {
-    // Claude Code's CLI has no public, stable flag to select a reasoning/thinking level
-    // (unlike --model). capabilities.supportsReasoningLevel: false is what makes
-    // headlessCommandFor() reject opts.reasoningLevel before this is ever called.
+    // The level goes to Claude Code's `--effort <level>`. Haiku 4.5 has no levels and Claude Code ignores the
+    // flag for it without an error. An unknown value is not rejected by Claude Code either (it warns and keeps
+    // the default effort), which is why headlessCommandFor() validates opts.reasoningLevel against
+    // reasoningLevels before this is ever called.
     // --add-dir must come before -p: it's variadic (accepts multiple paths in a
     // row), so placed after -p it would swallow the prompt text as another path.
     const args: string[] = [];
@@ -78,6 +80,7 @@ export const claudeCodeAdapter: AgentAdapter = {
     // reads it from stdin instead (verified live: `echo "..." | claude -p`).
     args.push(...(opts.stdinPrompt ? ["-p"] : ["-p", opts.prompt]));
     if (opts.model) args.push("--model", opts.model);
+    if (opts.reasoningLevel) args.push("--effort", opts.reasoningLevel);
     return opts.stdinPrompt ? { command: executable, args, stdin: true } : { command: executable, args };
   },
 };

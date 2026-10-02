@@ -25,7 +25,7 @@ import { UpdateAssetMissingError } from "../../app/self-update";
 import { PlanNotFoundError } from "../../infrastructure/plan-store";
 import { ConfigConflictError } from "../../modules/config-writer/types";
 import type { AgentId, ReasoningLevel } from "../../modules/agents/types";
-import { ReasoningLevelUnsupportedError } from "../../modules/agents/types";
+import { InvalidReasoningLevelError, ReasoningLevelUnsupportedError } from "../../modules/agents/types";
 import pkg from "../../../package.json";
 import { HELP } from "./help";
 
@@ -82,6 +82,7 @@ export function errorCodeFor(error: unknown): string {
   if (error instanceof UpdateAssetMissingError) return "UPDATE_ASSET_MISSING";
   if (error instanceof HeadlessUnsupportedError) return "HEADLESS_UNSUPPORTED";
   if (error instanceof ReasoningLevelUnsupportedError) return "REASONING_LEVEL_UNSUPPORTED";
+  if (error instanceof InvalidReasoningLevelError) return "INVALID_REASONING_LEVEL";
   if (error instanceof UnknownCommandError) return "UNKNOWN_COMMAND";
   if (error instanceof Error && error.message.startsWith("Unknown agent:")) return "UNKNOWN_AGENT";
   return "INTERNAL_ERROR";
@@ -187,6 +188,7 @@ async function main(): Promise<void> {
     const timeoutMsRaw = flag(headlessArgs, "--timeout-ms");
     const timeoutMs = timeoutMsRaw === undefined ? undefined : Number(timeoutMsRaw);
     const model = flag(headlessArgs, "--model");
+    // The cast only types the raw text: headlessCommandFor() is what validates it against the agent's levels.
     const reasoningLevel = flag(headlessArgs, "--reasoning-level") as ReasoningLevel | undefined;
     const stdinPrompt = boolFlag(headlessArgs, "--stdin-prompt");
     const readableDir = flag(headlessArgs, "--readable-dir");

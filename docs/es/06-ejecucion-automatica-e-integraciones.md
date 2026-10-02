@@ -23,11 +23,11 @@ Un agente sin ejecución automática responde `HEADLESS_UNSUPPORTED`.
 
 `--timeout-ms` acepta un tiempo en milisegundos (mil partes de un segundo) para que el consumidor lo incluya en su propio control. El adaptador actual construye la orden y no añade ese valor a los argumentos de Claude Code ni Codex.
 
-`--model <model-id>` y `--reasoning-level <low|medium|high>` son opcionales y aditivos: si no se pasan, el comando es idéntico al que cada adaptador ya construía. Cada adaptador decide por sí mismo cómo (o si) los honra, igual que cada adaptador ya es dueño de la forma de su propio comando headless:
+`--model <model-id>` y `--reasoning-level <low|medium|high|xhigh|max>` son opcionales y aditivos: si no se pasan, el comando es idéntico al que cada adaptador ya construía. Cada adaptador decide por sí mismo cómo los honra, igual que cada adaptador ya es dueño de la forma de su propio comando headless. Engines valida el nivel una sola vez, antes de que corra cualquier adaptador: un valor fuera de esos cinco, o uno que el agente no lista, responde `INVALID_REASONING_LEVEL`; `REASONING_LEVEL_UNSUPPORTED` significa que el agente no puede elegir nivel en absoluto (hoy ningún agente real lo hace):
 
 | Agente | `--model` | `--reasoning-level` |
 | --- | --- | --- |
-| Claude Code | Agrega `--model <model-id>` | No soportado — lanza `REASONING_LEVEL_UNSUPPORTED`. El CLI de Claude Code no tiene un flag público y estable para elegir un nivel de razonamiento/pensamiento, así que el adaptador lo rechaza de forma explícita en vez de construir en silencio una orden que lo ignoraría. |
+| Claude Code | Agrega `--model <model-id>` | Agrega `--effort <level>` después de `-p` (y del prompt cuando no se envía por stdin), junto a `--model`. Haiku 4.5 no tiene niveles de razonamiento y Claude Code ignora el flag para ese modelo sin error. Claude Code tampoco rechaza un valor desconocido (avisa y sigue con su esfuerzo de fábrica), por eso Engines valida el nivel antes. |
 | Codex | Agrega `--model <model-id>` | Agrega `-c model_reasoning_effort=<level>` |
 
 ## Mantener el prompt fuera de `ps`
@@ -94,4 +94,4 @@ Shell consume `detect`, `capabilities`, planes y `apply` para su flujo visual. P
 
 ## Añadir un agente futuro
 
-Un adaptador nuevo declara un identificador, nombres de ejecutable, rutas conocidas, archivo y formato de configuración, forma MCP, capacidades y, opcionalmente, su destino de aprobación de herramientas (`toolApproval`). Si marca `supportsHeadlessExec: true`, debe proporcionar una función que construya el comando. También declara `supportsReasoningLevel` para indicar si acepta `HeadlessOptions.reasoningLevel` (el flag `--reasoning-level`); `headlessCommandFor()` usa esa capacidad para devolver `REASONING_LEVEL_UNSUPPORTED` cuando corresponde. Las pruebas de registro rechazan una promesa de capacidad incompleta.
+Un adaptador nuevo declara un identificador, nombres de ejecutable, rutas conocidas, archivo y formato de configuración, forma MCP, capacidades y, opcionalmente, su destino de aprobación de herramientas (`toolApproval`). Si marca `supportsHeadlessExec: true`, debe proporcionar una función que construya el comando. También declara `supportsReasoningLevel` para indicar si acepta `HeadlessOptions.reasoningLevel` (el flag `--reasoning-level`) y, si lo acepta, los niveles que admite en `reasoningLevels` (un subconjunto de los cinco; obligatorio cuando `supportsReasoningLevel` es `true` y ausente en caso contrario). `headlessCommandFor()` los usa para devolver `REASONING_LEVEL_UNSUPPORTED` cuando el agente no puede elegir nivel e `INVALID_REASONING_LEVEL` cuando el valor no está en su lista. Las pruebas de registro rechazan una promesa de capacidad incompleta.

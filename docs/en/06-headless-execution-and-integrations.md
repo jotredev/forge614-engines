@@ -23,11 +23,11 @@ An agent without headless execution answers `HEADLESS_UNSUPPORTED`.
 
 `--timeout-ms` accepts a duration in milliseconds (one thousandths of a second) so the consumer can include it in its own control. The current adapter constructs the order and does not add that value to Claude Code or Codex arguments.
 
-`--model <model-id>` and `--reasoning-level <low|medium|high>` are optional and additive: omitting both keeps the exact command each adapter always built. Each adapter decides for itself how (or whether) to honor them, the same way each adapter already owns its own headless command shape:
+`--model <model-id>` and `--reasoning-level <low|medium|high|xhigh|max>` are optional and additive: omitting both keeps the exact command each adapter always built. Each adapter decides for itself how to honor them, the same way each adapter already owns its own headless command shape. Engines validates the level once, before any adapter runs: a value outside those five, or one the agent does not list, answers `INVALID_REASONING_LEVEL`; `REASONING_LEVEL_UNSUPPORTED` means the agent cannot choose a level at all (no real agent does that today):
 
 | Agent | `--model` | `--reasoning-level` |
 | --- | --- | --- |
-| Claude Code | Appends `--model <model-id>` | Not supported — throws `REASONING_LEVEL_UNSUPPORTED`. Claude Code's CLI has no public, stable flag to select a reasoning/thinking level, so the adapter rejects it explicitly instead of silently building a command that would ignore it. |
+| Claude Code | Appends `--model <model-id>` | Appends `--effort <level>` after `-p` (and after the prompt when it is not sent through stdin), next to `--model`. Haiku 4.5 has no reasoning levels and Claude Code ignores the flag for it without an error. Claude Code does not reject an unknown value either (it warns and keeps its default effort), which is why Engines validates the level first. |
 | Codex | Appends `--model <model-id>` | Appends `-c model_reasoning_effort=<level>` |
 
 ## Keeping the prompt out of `ps`
@@ -94,4 +94,4 @@ Shell consumes `detect`, `capabilities`, plans, and `apply` for its visual flow.
 
 ## Adding a future agent
 
-A new adapter declares an identifier, executable names, known locations, configuration file and format, MCP shape, capabilities, and, optionally, its tool-approval target (`toolApproval`). If it marks `supportsHeadlessExec: true`, it must provide a function that builds the command. It also declares `supportsReasoningLevel` to indicate whether it accepts `HeadlessOptions.reasoningLevel` (the `--reasoning-level` flag); `headlessCommandFor()` uses that capability to return `REASONING_LEVEL_UNSUPPORTED` when appropriate. Registry tests reject an incomplete capability promise.
+A new adapter declares an identifier, executable names, known locations, configuration file and format, MCP shape, capabilities, and, optionally, its tool-approval target (`toolApproval`). If it marks `supportsHeadlessExec: true`, it must provide a function that builds the command. It also declares `supportsReasoningLevel` to indicate whether it accepts `HeadlessOptions.reasoningLevel` (the `--reasoning-level` flag) and, when it does, the levels it accepts in `reasoningLevels` (a subset of the five; required when `supportsReasoningLevel` is `true` and absent otherwise). `headlessCommandFor()` uses them to return `REASONING_LEVEL_UNSUPPORTED` when the agent cannot choose a level and `INVALID_REASONING_LEVEL` when the value is not on its list. Registry tests reject an incomplete capability promise.
