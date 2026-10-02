@@ -12,7 +12,7 @@ forge614-engines plan mcp-install --agent codex --name engram --command forge614
 
 The plan describes `planId`, `agentId`, `action`, `noop`, and `writes`. `planId` is the unique receipt used for later application; `writes` contains the path, the earlier-content fingerprint, and the complete proposed content. The plan file can therefore contain secrets already present in configuration and is kept with restricted access.
 
-Claude Code and Cursor use JSON (a brace-based text format); Codex uses TOML (a section-based text format). Engines places the entry under `mcpServers` for JSON or `mcp_servers` for TOML. An entry always has `command` and `args`.
+Claude Code uses JSON (a brace-based text format); Codex uses TOML (a section-based text format). Engines places the entry under `mcpServers` for JSON or `mcp_servers` for TOML. An entry always has `command` and `args`.
 
 ## Three possible outcomes
 
@@ -35,7 +35,7 @@ forge614-engines plan memory-install --agent codex
 forge614-engines plan memory-remove --agent codex
 ```
 
-`plan memory-install` and `plan memory-remove` bundle the decisions — the `forge614-engram` MCP entry, the agent's instructions file(s), the session-start hook (chapter 05) and the approval of the Engram tools (next section) — into one plan, with one `planId` that covers all of them. A per-component conflict does not abort that plan: a different `forge614-engram` MCP entry, or a non-empty `AGENTS.override.md` shadowing Codex's `AGENTS.md`, is reported as `blocked` for that one component while the other component still proceeds normally. Cursor's instructions component is always reported `unsupported`, because Cursor has no officially documented global, file-based mechanism for loading instructions automatically in every new session.
+`plan memory-install` and `plan memory-remove` bundle the decisions — the `forge614-engram` MCP entry, the agent's instructions file(s), the session-start hook (chapter 05) and the approval of the Engram tools (next section) — into one plan, with one `planId` that covers all of them. A per-component conflict does not abort that plan: a different `forge614-engram` MCP entry, or a non-empty `AGENTS.override.md` shadowing Codex's `AGENTS.md`, is reported as `blocked` for that one component while the other component still proceeds normally. A component the agent has no way to receive is reported `unsupported` for that agent.
 
 **The manual that gets installed.** Engines asks Engram for the manual with `forge614-engram memory-protocol --json --protocol-version 4` (the "v4 manual"). Only if Engram answers with the INVALID_INPUT error — the sign of an Engram older than 1.7.0, which does not know that option — does Engines repeat the call it has always made (protocol v1) and add a Spanish-and-English notice to the plan (`metadata.protocol.legacyNotice`) asking to upgrade Engram. Any other error is reported as before, with no retry. With v4, the `instructions` text Engram delivers is installed as-is, with no heading or anything else added by Engines.
 
@@ -53,7 +53,6 @@ forge614-engines plan memory-remove --agent codex
 | --- | --- | --- |
 | Claude Code | `~/.claude/settings.json` (the same file as the hook) | the rule `mcp__forge614-engram` appended at the **end** of `permissions.allow` |
 | Codex | `~/.codex/config.toml` (the same file as the MCP entry and the hook) | `default_tools_approval_mode = "approve"` inside `[mcp_servers.forge614-engram]` |
-| Cursor | — | unsupported; its status does not change |
 
 In Claude Code the rule is inserted without rewriting the array: the other rules keep their order, their text and the comments around them, and no other key is touched. If `permissions` or `allow` do not exist they are created. It is a `noop` when `mcp__forge614-engram` or `mcp__forge614-engram__*` is already in `allow` and no `deny` or `ask` rule of that file covers Engram; if one does, the plan still writes, to remove it. If `allow` exists but is not an array, only the approval component is `blocked` (`allow-not-array`) and the rest of the plan proceeds. When the file also receives the hook (or, in Codex, the MCP entry and the hook), everything goes into one single write to that file. An existing `forge614-engram` MCP entry with different content is never approved (`mcp-conflict`).
 

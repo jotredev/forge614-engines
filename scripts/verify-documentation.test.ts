@@ -51,7 +51,7 @@ async function fixture(
   const esPath = "docs/es/00-resumen.md";
   const enPath = "docs/en/00-summary.md";
   const text = [
-    ["Claude Code", "Codex", "Cursor"].filter((agent) => agent.toLowerCase() !== options.omitAgent).join(", "),
+    ["Claude Code", "Codex"].filter((agent) => agent.toLowerCase() !== options.omitAgent).join(", "),
     "detect plan mcp-install plan mcp-remove apply capabilities update headless.",
     "CONFLICT STALE_PLAN UNRECOGNIZED_ENTRY PLAN_NOT_FOUND UPDATE_ASSET_MISSING HEADLESS_UNSUPPORTED UNKNOWN_COMMAND UNKNOWN_AGENT INTERNAL_ERROR.",
     options.cliTerm ?? "",
@@ -109,7 +109,7 @@ test("rejects a missing required error code", async () => {
 });
 
 test("rejects a missing documented agent", async () => {
-  await expect(verifyDocumentation(await fixture({ omitAgent: "cursor" }))).rejects.toThrow("Missing documented agent: cursor");
+  await expect(verifyDocumentation(await fixture({ omitAgent: "codex" }))).rejects.toThrow("Missing documented agent: codex");
 });
 
 test("accepts the complete local documentation index", async () => {

@@ -10,13 +10,12 @@ Antes de asignar trabajo, el inspector pasa lista: busca cada herramienta, confi
 | --- | --- | --- | ---: | ---: | ---: |
 | `claude-code` | `claude` / `claude.exe` | `~/.claude.json` | Sí | Sí | Sí |
 | `codex` | `codex` / `codex.exe` | `~/.codex/config.toml` | Sí | Sí | Sí |
-| `cursor` | aplicación Cursor | `~/.cursor/mcp.json` | Sí | No | No |
 
 Un hook (una acción que un programa llama en un momento concreto) aparece como capacidad informativa. No implica que Engines lo configure.
 
 ## Cómo busca
 
-`detect` revisa primero PATH. Solo acepta rutas absolutas y archivos ejecutables; por eso no confunde un texto llamado `codex` con el programa real. Si no lo encuentra ahí, prueba rutas conocidas: Claude Code puede estar en `~/.local/bin/claude`; Cursor tiene rutas conocidas de aplicación en macOS y Windows. Codex no tiene una ruta alternativa fija.
+`detect` revisa primero PATH. Solo acepta rutas absolutas y archivos ejecutables; por eso no confunde un texto llamado `codex` con el programa real. Si no lo encuentra ahí, prueba rutas conocidas: Claude Code puede estar en `~/.local/bin/claude`. Codex no tiene una ruta alternativa fija.
 
 También comprueba si existe la carpeta de configuración, aunque el ejecutable falte. Esto permite a Shell explicar “hay ajustes guardados, pero el programa no está disponible” sin inventar una causa.
 
@@ -32,7 +31,7 @@ La salida contiene una lista `agents`; cada elemento incluye `id`, `label`, `ins
 forge614-engines capabilities --agent codex
 ```
 
-La respuesta indica `supportsMcp`, `supportsHooks`, `supportsHeadlessExec`, `supportsReasoningLevel` y `fullySupported`. `supportsReasoningLevel` indica si el modo headless del motor acepta un nivel de razonamiento configurable mediante `--reasoning-level` (`claude-code`: `false`, `codex`: `true`, `cursor`: `false`). Es una promesa explícita del adaptador, no una suposición basada en el nombre del agente. `fullySupported` indica si Engines soporta al agente por completo. No lo declara el adaptador: se deriva y es `true` solo cuando el agente tiene MCP, ganchos de inicio de sesión, ejecución headless y un destino de instrucciones (`supportsMcp && supportsHooks && supportsHeadlessExec` y un destino de instrucciones presente); `supportsReasoningLevel` no cuenta porque es opcional. Hoy `claude-code` y `codex` dan `true` y `cursor` da `false`. Forge614 Shell filtra por este campo las listas de agentes que muestra; quien decide es Engines, nunca Shell. Es un campo aditivo: `schemaVersion` sigue en 1. Si se registra un adaptador que dice soportar ejecución automática pero no sabe construir su comando, el registro se rechaza al iniciar.
+La respuesta indica `supportsMcp`, `supportsHooks`, `supportsHeadlessExec`, `supportsReasoningLevel` y `fullySupported`. `supportsReasoningLevel` indica si el modo headless del motor acepta un nivel de razonamiento configurable mediante `--reasoning-level` (`claude-code`: `false`, `codex`: `true`). Es una promesa explícita del adaptador, no una suposición basada en el nombre del agente. `fullySupported` indica si Engines soporta al agente por completo. No lo declara el adaptador: se deriva y es `true` solo cuando el agente tiene MCP, ganchos de inicio de sesión, ejecución headless y un destino de instrucciones (`supportsMcp && supportsHooks && supportsHeadlessExec` y un destino de instrucciones presente); `supportsReasoningLevel` no cuenta porque es opcional. Es `false` para cualquier agente al que le falte alguna de esas piezas. Hoy `claude-code` y `codex` dan `true`. Forge614 Shell filtra por este campo las listas de agentes que muestra; quien decide es Engines, nunca Shell. Es un campo aditivo: `schemaVersion` sigue en 1. Si se registra un adaptador que dice soportar ejecución automática pero no sabe construir su comando, el registro se rechaza al iniciar.
 
 ## Límites y diagnóstico
 

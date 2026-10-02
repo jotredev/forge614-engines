@@ -6,7 +6,7 @@ import { dirname, join } from "node:path";
 import { parse as parseToml } from "smol-toml";
 import { claudeCodeAdapter } from "../infrastructure/agents/claude-code";
 import { codexAdapter } from "../infrastructure/agents/codex";
-import { cursorAdapter } from "../infrastructure/agents/cursor";
+import { mcpOnlyAdapter } from "../../tests/support/mcp-only-adapter";
 import { decideToolApprovalInstall, decideToolApprovalRemove, readToolApprovalState } from "./tool-approval-write-decision";
 
 /** Name of the Engram MCP server, the key every approval rule and setting is built on. */
@@ -245,8 +245,8 @@ describe("decideToolApprovalInstall — Codex", () => {
 });
 
 describe("decideToolApprovalInstall — unsupported agent", () => {
-  test("is blocked as unsupported for an adapter without toolApproval (Cursor)", async () => {
-    const result = await decideToolApprovalInstall(cursorAdapter, home, SERVER);
+  test("is blocked as unsupported for an adapter without toolApproval", async () => {
+    const result = await decideToolApprovalInstall(mcpOnlyAdapter, home, SERVER);
 
     expect(result.decision).toEqual({ kind: "blocked" });
     expect(result.blockedReason).toBe("unsupported");
@@ -335,7 +335,7 @@ describe("readToolApprovalState", () => {
     expect((await readToolApprovalState(codexAdapter, home, SERVER)).present).toBe(true);
   });
 
-  test("Cursor: not supported", async () => {
-    expect(await readToolApprovalState(cursorAdapter, home, SERVER)).toEqual({ supported: false, path: "", present: false });
+  test("an adapter without toolApproval: not supported", async () => {
+    expect(await readToolApprovalState(mcpOnlyAdapter, home, SERVER)).toEqual({ supported: false, path: "", present: false });
   });
 });

@@ -8,7 +8,7 @@ Imagine a workshop with several AI machines. Forge614 Engines is the inspector t
 
 AI coding agents are not installed or configured in the same way. Engines unifies three questions: “is it installed?”, “where is its configuration?”, and “can it connect to an MCP server or work without a screen?”. MCP (a protocol, or shared way, for connecting an AI to another tool) can add services such as memory, search, or data.
 
-It currently recognizes Claude Code, Codex, and Cursor. It returns JSON (structured text that programs can read) with `schemaVersion: 1`, so Shell and Atlas can understand the result without reading another product's private folders.
+It currently recognizes Claude Code and Codex. It returns JSON (structured text that programs can read) with `schemaVersion: 1`, so Shell and Atlas can understand the result without reading another product's private folders.
 
 ## Quick route
 
@@ -26,7 +26,7 @@ The result describes each agent: its identifier, visible label, whether an execu
 - It is not directly installed by an end user.
 - It does not choose an MCP server.
 - It does not write configuration while calculating a plan.
-- It does not replace the native credentials or profiles of Claude Code, Codex, or Cursor.
+- It does not replace the native credentials or profiles of Claude Code or Codex.
 
 ## Continue reading
 

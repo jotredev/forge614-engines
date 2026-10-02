@@ -34,12 +34,12 @@ The CLI (command-line interface) is the Engines counter. Every request returns a
 
 ```text
 forge614-engines agents list
-forge614-engines capabilities --agent cursor
+forge614-engines capabilities --agent codex
 forge614-engines headless --agent codex --executable codex --prompt "Summarize this repository"
 forge614-engines plan mcp-install --agent claude-code --name engram --command forge614-engram --args mcp
 ```
 
-`agents list` reports the static, built-in agent registry — every agent the code supports, whatever is or is not installed on this machine. `detect` answers a different question: which of those agents are actually present right now. Both `agents list` and `capabilities` include `fullySupported`, which reports whether Engines supports the agent completely (today `true` for `claude-code` and `codex`, `false` for `cursor`; see chapter 02).
+`agents list` reports the static, built-in agent registry — every agent the code supports, whatever is or is not installed on this machine. `detect` answers a different question: which of those agents are actually present right now. Both `agents list` and `capabilities` include `fullySupported`, which reports whether Engines supports the agent completely (today `true` for `claude-code` and `codex`, `false` for any agent that lacks one of those pieces; see chapter 02).
 
 `headless` output does not run Codex or Claude Code: it produces the safe order that Atlas may decide to start. For Codex the order is `codex exec <prompt>`; for Claude Code it is `claude -p <prompt>`. Optional `--model <model-id>` and `--reasoning-level <low|medium|high>` are additive: each adapter decides how to fold them into its own order, and Claude Code rejects `--reasoning-level` with `REASONING_LEVEL_UNSUPPORTED` (see 06). Optional `--stdin-prompt` moves the prompt out of `args` and into `stdin: true` on the returned command, so it never becomes visible to `ps` on the machine running it (see 06). Optional `--readable-dir <path>` is additive and maps to `--add-dir <path>` on both adapters, granting read access to one real project folder without loosening isolation otherwise (see 06).
 
@@ -53,9 +53,9 @@ For memory commands, Engines resolves `forge614-engram` at the canonical `~/.for
 
 `plan memory-install` also approves the tools of the `forge614-engram` server for good, so the memory works in permission modes that cannot ask (Claude Code `dontAsk`, Codex `approval_policy = "never"`). What is written in each agent, which of the person's `deny`/`ask` rules or Codex values it changes (always with a notice) and how to turn it off is in chapter 03.
 
-- In the plan, `metadata.approval` is `{ path, status }`. `status` has the same shape as the other components: `unsupported` (Cursor), `noop`, `write` (with `notice` when something the person had was changed) or `blocked` with `reason` `allow-not-array`, `mcp-conflict` or `mcp-entry-missing`.
+- In the plan, `metadata.approval` is `{ path, status }`. `status` has the same shape as the other components: `unsupported` (an agent with no approval setting), `noop`, `write` (with `notice` when something the person had was changed) or `blocked` with `reason` `allow-not-array`, `mcp-conflict` or `mcp-entry-missing`.
 - In `verify memory-integration`, `verification.approval` is `{ supported, path, present }`, plus `notice` when the agent supports it and it is missing: the exact command to add it. `present` is true only with the approval of the whole server (the rule `mcp__forge614-engram` or `mcp__forge614-engram__*` in Claude Code; the value `approve` in Codex); a rule for a single tool does not count.
-- `overallStatus` keeps its same values. An approval that is missing (in `verify`) or blocked (in the plan) on an agent that supports it only prevents `complete`: it makes the result `partial` when the rest is installed, but it does not change `absent` (verify) or `unsupported` (plan) when nothing else is installed or possible; Cursor is unaffected.
+- `overallStatus` keeps its same values. An approval that is missing (in `verify`) or blocked (in the plan) on an agent that supports it only prevents `complete`: it makes the result `partial` when the rest is installed, but it does not change `absent` (verify) or `unsupported` (plan) when nothing else is installed or possible.
 - `plan memory-remove` removes the approval together with the rest, and `metadata.approval` reports it the same way.
 
 ## The `SessionStart` hook

@@ -3,8 +3,9 @@ import { AgentRegistry } from "../modules/agents/registry";
 import type { AgentAdapter } from "../modules/agents/types";
 import { claudeCodeAdapter } from "../infrastructure/agents/claude-code";
 import { codexAdapter } from "../infrastructure/agents/codex";
-import { cursorAdapter } from "../infrastructure/agents/cursor";
+import { MCP_ONLY_ID, MCP_ONLY_LABEL, mcpOnlyAdapter } from "../../tests/support/mcp-only-adapter";
 import { capabilitiesFor, listAgents } from "./capabilities";
+import { buildDefaultRegistry } from "./default-registry";
 
 describe("capabilitiesFor", () => {
   test("reports the adapter's declared capabilities", () => {
@@ -22,15 +23,15 @@ describe("capabilitiesFor", () => {
     });
   });
 
-  test("derives fullySupported: true for claude-code and codex, false for cursor", () => {
+  test("derives fullySupported: true for claude-code and codex, false for an MCP-only agent", () => {
     const registry = new AgentRegistry();
     registry.register(claudeCodeAdapter);
     registry.register(codexAdapter);
-    registry.register(cursorAdapter);
+    registry.register(mcpOnlyAdapter);
 
     expect(capabilitiesFor(registry, "claude-code").fullySupported).toBe(true);
     expect(capabilitiesFor(registry, "codex").fullySupported).toBe(true);
-    expect(capabilitiesFor(registry, "cursor").fullySupported).toBe(false);
+    expect(capabilitiesFor(registry, MCP_ONLY_ID).fullySupported).toBe(false);
   });
 
   describe("fullySupported is derived, one missing piece at a time", () => {
@@ -82,7 +83,7 @@ describe("listAgents", () => {
     const registry = new AgentRegistry();
     registry.register(claudeCodeAdapter);
     registry.register(codexAdapter);
-    registry.register(cursorAdapter);
+    registry.register(mcpOnlyAdapter);
 
     expect(listAgents(registry)).toEqual([
       {
@@ -104,8 +105,8 @@ describe("listAgents", () => {
         fullySupported: true,
       },
       {
-        id: "cursor",
-        label: "Cursor",
+        id: MCP_ONLY_ID,
+        label: MCP_ONLY_LABEL,
         supportsMcp: true,
         supportsHooks: false,
         supportsHeadlessExec: false,
@@ -113,6 +114,13 @@ describe("listAgents", () => {
         fullySupported: false,
       },
     ]);
+  });
+
+  test("the default registry lists exactly claude-code and codex, both fully supported", () => {
+    const agents = listAgents(buildDefaultRegistry());
+
+    expect(agents.map((agent) => agent.id)).toEqual(["claude-code", "codex"]);
+    expect(agents.map((agent) => agent.fullySupported)).toEqual([true, true]);
   });
 
   test("returns an empty array for an empty registry", () => {

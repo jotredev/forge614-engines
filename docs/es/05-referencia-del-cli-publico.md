@@ -34,12 +34,12 @@ El CLI (interfaz de línea de comandos) es el mostrador de Engines. Cada pedido 
 
 ```text
 forge614-engines agents list
-forge614-engines capabilities --agent cursor
+forge614-engines capabilities --agent codex
 forge614-engines headless --agent codex --executable codex --prompt "Resume este repositorio"
 forge614-engines plan mcp-install --agent claude-code --name engram --command forge614-engram --args mcp
 ```
 
-`agents list` reporta el registro estático de agentes que el código soporta —todos, sin importar si están o no instalados en esta máquina. `detect` responde una pregunta distinta: cuáles de esos agentes están realmente presentes ahora. Tanto `agents list` como `capabilities` incluyen `fullySupported`, que indica si Engines soporta al agente por completo (hoy `true` para `claude-code` y `codex`, `false` para `cursor`; ver el capítulo 02).
+`agents list` reporta el registro estático de agentes que el código soporta —todos, sin importar si están o no instalados en esta máquina. `detect` responde una pregunta distinta: cuáles de esos agentes están realmente presentes ahora. Tanto `agents list` como `capabilities` incluyen `fullySupported`, que indica si Engines soporta al agente por completo (hoy `true` para `claude-code` y `codex`, `false` para cualquier agente al que le falte alguna de esas piezas; ver el capítulo 02).
 
 La salida de `headless` no ejecuta Codex ni Claude Code: produce la orden segura que Atlas puede decidir iniciar. Para Codex, la orden es `codex exec <prompt>`; para Claude Code, `claude -p <prompt>`. Las banderas opcionales `--model <model-id>` y `--reasoning-level <low|medium|high>` son aditivas: cada adaptador decide cómo incorporarlas a su propia orden, y Claude Code rechaza `--reasoning-level` con `REASONING_LEVEL_UNSUPPORTED` (ver 06). La bandera opcional `--stdin-prompt` saca el prompt de `args` y lo señala con `stdin: true` en la orden devuelta, para que nunca quede visible a `ps` en la máquina que lo ejecuta (ver 06). La bandera opcional `--readable-dir <ruta>` es aditiva y se mapea a `--add-dir <ruta>` en ambos adaptadores, dando acceso de lectura a una carpeta real del proyecto sin romper el aislamiento en lo demás (ver 06).
 
@@ -53,9 +53,9 @@ Para los comandos de memoria, Engines resuelve `forge614-engram` en la ruta can�
 
 `plan memory-install` también aprueba para siempre las herramientas del servidor `forge614-engram`, para que la memoria funcione en los modos de permisos que no pueden preguntar (Claude Code `dontAsk`, Codex `approval_policy = "never"`). Qué se escribe en cada agente, qué reglas `deny`/`ask` de la persona o qué valores de Codex cambia (siempre con aviso) y cómo desactivarla está en el capítulo 03.
 
-- En el plan, `metadata.approval` es `{ path, status }`. `status` tiene la misma forma que los demás componentes: `unsupported` (Cursor), `noop`, `write` (con `notice` cuando se cambió algo que la persona tenía) o `blocked` con `reason` `allow-not-array`, `mcp-conflict` o `mcp-entry-missing`.
+- En el plan, `metadata.approval` es `{ path, status }`. `status` tiene la misma forma que los demás componentes: `unsupported` (un agente sin ajuste de aprobación), `noop`, `write` (con `notice` cuando se cambió algo que la persona tenía) o `blocked` con `reason` `allow-not-array`, `mcp-conflict` o `mcp-entry-missing`.
 - En `verify memory-integration`, `verification.approval` es `{ supported, path, present }`, más `notice` cuando el agente la soporta y falta: el comando exacto para agregarla. `present` es verdadero solo con la aprobación del servidor completo (la regla `mcp__forge614-engram` o `mcp__forge614-engram__*` en Claude Code; el valor `approve` en Codex); una regla de una sola herramienta no cuenta.
-- `overallStatus` conserva sus mismos valores. Una aprobación que falta (en `verify`) o está bloqueada (en el plan) en un agente que la soporta solo impide `complete`: lo deja en `partial` cuando lo demás está instalado, pero no cambia `absent` (verify) ni `unsupported` (plan) cuando no hay nada más instalado o posible; Cursor no se ve afectado.
+- `overallStatus` conserva sus mismos valores. Una aprobación que falta (en `verify`) o está bloqueada (en el plan) en un agente que la soporta solo impide `complete`: lo deja en `partial` cuando lo demás está instalado, pero no cambia `absent` (verify) ni `unsupported` (plan) cuando no hay nada más instalado o posible.
 - `plan memory-remove` quita la aprobación junto con lo demás, y `metadata.approval` lo informa igual.
 
 ## El hook de `SessionStart`

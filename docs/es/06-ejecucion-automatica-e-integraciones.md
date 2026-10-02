@@ -18,7 +18,8 @@ forge614-engines headless --agent codex --executable codex --prompt "Explica la 
 | --- | --- | --- |
 | Claude Code | `claude -p <prompt>` | Sí |
 | Codex | `codex exec <prompt>` | Sí |
-| Cursor | — | No; devuelve `HEADLESS_UNSUPPORTED` |
+
+Un agente sin ejecución automática responde `HEADLESS_UNSUPPORTED`.
 
 `--timeout-ms` acepta un tiempo en milisegundos (mil partes de un segundo) para que el consumidor lo incluya en su propio control. El adaptador actual construye la orden y no añade ese valor a los argumentos de Claude Code ni Codex.
 
