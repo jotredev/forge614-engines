@@ -29,7 +29,7 @@ It replaces three divergent, duplicated implementations found in the existing ec
 
 ## 3. Agent adapter model
 
-Each supported agent is one self-contained module implementing a shared `AgentAdapter` interface. Adding a new agent means adding one new module and registering it — no other code changes. This mirrors the most mature precedent found during research (`gentle-ai`'s Go adapter interface + self-validating capability manifest), adapted to TypeScript.
+Each supported agent is one self-contained module implementing a shared `AgentAdapter` interface. Adding a new agent means adding one new module and registering it — no other code changes. This is Forge614's own design decision: a shared adapter interface plus a self-validating capability manifest.
 
 ```ts
 interface AgentAdapter {
@@ -61,11 +61,11 @@ interface AgentAdapter {
 
 ### 3.1 Capability manifest validation
 
-At registry build time, each adapter's declared `capabilities` are cross-checked against which optional methods it actually implements (e.g. `supportsHeadlessExec: true` requires `headlessCommand` to be present). A mismatch fails registration at startup (fail-closed), not silently at call time. This directly copies `gentle-ai`'s `ResolveCapabilityManifest` pattern, which caught a real class of bugs there.
+At registry build time, each adapter's declared `capabilities` are cross-checked against which optional methods it actually implements (e.g. `supportsHeadlessExec: true` requires `headlessCommand` to be present). A mismatch fails registration at startup (fail-closed), not silently at call time. This is Forge614's own decision: a manifest that contradicts the code is caught when the registry is built, a class of bug that would otherwise only show up at call time.
 
 ### 3.2 Headless execution capability (new — does not exist yet anywhere in the ecosystem)
 
-Neither `forge614-engram` nor `gentle-ai` model this; `forge614-shell` comes closest with its per-engine `session.ts` files (SDK call for Claude, JSON-RPC for Codex, `stream-json` for Antigravity, ACP for Gemini), but that logic is chat-session-shaped, not a one-shot headless invocation. For `forge614-atlas`'s non-interactive workers, `headlessCommand()` only needs to answer "what process do I spawn, with what args, to get one non-interactive completion from this agent" — not manage a full session. Initial adapters: `claude-code` (`claude -p <prompt>` equivalent) and `codex` (`codex exec`). Adapters without a viable headless mode set `supportsHeadlessExec: false`.
+`forge614-engram` does not model this; `forge614-shell` comes closest with its per-engine `session.ts` files (SDK call for Claude, JSON-RPC for Codex, `stream-json` for Antigravity, ACP for Gemini), but that logic is chat-session-shaped, not a one-shot headless invocation. For `forge614-atlas`'s non-interactive workers, `headlessCommand()` only needs to answer "what process do I spawn, with what args, to get one non-interactive completion from this agent" — not manage a full session. Initial adapters: `claude-code` (`claude -p <prompt>` equivalent) and `codex` (`codex exec`). Adapters without a viable headless mode set `supportsHeadlessExec: false`.
 
 ## 4. Detection
 
@@ -81,8 +81,8 @@ Pure filesystem inspection, no subprocess spawning:
 Three strictly separated steps, never collapsed:
 
 1. **`plan`** (read-only): parses the agent's current config (format-aware: `jsonc-parse` for JSON/JSONC, a TOML library for Codex, preserving comments/order where the format supports it — same requirement `forge614-engram` already solved), computes the exact diff needed, detects conflicts (an existing entry with the same key but different content → fails closed with a `CONFLICT` result, never silently overwritten) and policy blocks (e.g. an agent-level setting that disables MCP). Returns a `Plan` object with a `planId` and the literal bytes/patch that would be written. Touches no disk.
-2. **snapshot**: immediately before `apply`, back up every file the plan touches (compressed archive + manifest with checksums, under `~/.forge614/engines/snapshots/<planId>/`), following `gentle-ai`'s backup/restore pattern — this is a stronger guarantee than `forge614-engram`'s current per-file temp+rename backup, since it gives a restorable snapshot, not just a `.bak` file.
-3. **`apply`** (given a `planId`): re-validates the plan is still accurate (preflight — reject if the file changed since `plan` was computed, same TOCTOU guard `forge614-engram` already implements), then writes atomically: temp file in the same directory → `chmod` → `fsync` → `rename` → re-read and verify checksum → `fsync` parent directory. If new content equals existing content, no write occurs. This combines `forge614-engram`'s `guardedWrite` with `gentle-ai`'s stronger read-back verification.
+2. **snapshot**: immediately before `apply`, back up every file the plan touches (compressed archive + manifest with checksums, under `~/.forge614/engines/snapshots/<planId>/`), a Forge614 decision of its own — this is a stronger guarantee than `forge614-engram`'s current per-file temp+rename backup, since it gives a restorable snapshot, not just a `.bak` file.
+3. **`apply`** (given a `planId`): re-validates the plan is still accurate (preflight — reject if the file changed since `plan` was computed, same TOCTOU guard `forge614-engram` already implements), then writes atomically: temp file in the same directory → `chmod` → `fsync` → `rename` → re-read and verify checksum → `fsync` parent directory. If new content equals existing content, no write occurs. This combines `forge614-engram`'s `guardedWrite` with a stronger read-back verification, Forge614's own.
 
 Removal (`plan mcp-remove` / `apply`) is the symmetric inverse, only ever touching entries this system itself owns (matched by exact name/signature, never a heuristic that could catch user-authored entries).
 
