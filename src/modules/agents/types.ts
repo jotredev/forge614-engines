@@ -3,11 +3,26 @@ export type AgentId = "claude-code" | "codex";
 
 export type ConfigFormat = "json" | "toml";
 
-export type ReasoningLevel = "low" | "medium" | "high";
+/** Reasoning level Engines accepts for headless execution, from the least to the most effort. */
+export type ReasoningLevel = "low" | "medium" | "high" | "xhigh" | "max";
 
+/** Every `ReasoningLevel` Engines accepts, in order. The single list headless validation and adapter manifests check against. */
+export const REASONING_LEVELS: readonly ReasoningLevel[] = ["low", "medium", "high", "xhigh", "max"];
+
+/** The agent cannot choose a reasoning level at all (`capabilities.supportsReasoningLevel` is false). */
 export class ReasoningLevelUnsupportedError extends Error {
   constructor(agentId: AgentId) {
     super(`${agentId} does not support selecting a reasoning level for headless execution`);
+  }
+}
+
+/**
+ * The requested reasoning level is not one the agent accepts. Distinct from `ReasoningLevelUnsupportedError`,
+ * which means the agent cannot choose a level whatever the value is.
+ */
+export class InvalidReasoningLevelError extends Error {
+  constructor(level: string, agentId: AgentId, validLevels: readonly ReasoningLevel[]) {
+    super(`"${level}" is not a valid reasoning level for ${agentId}; valid levels: ${validLevels.join(", ")}`);
   }
 }
 
@@ -62,7 +77,7 @@ export interface AgentCapabilities {
   supportsMcp: boolean;
   supportsHooks: boolean;
   supportsHeadlessExec: boolean;
-  /** Whether headlessCommand() accepts HeadlessOptions.reasoningLevel instead of rejecting it via ReasoningLevelUnsupportedError. The single source of truth headlessCommandFor() and the capabilities report both read. */
+  /** Whether headlessCommand() accepts HeadlessOptions.reasoningLevel instead of rejecting it via ReasoningLevelUnsupportedError. The single source of truth headlessCommandFor() and the capabilities report both read. When true, the adapter declares which levels in `AgentAdapter.reasoningLevels`. */
   supportsReasoningLevel: boolean;
 }
 
@@ -137,6 +152,12 @@ export interface AgentAdapter {
   configFile(home: string): string;
   mcpEntryShape(server: McpServerDefinition): unknown;
   headlessCommand?(executable: string, opts: HeadlessOptions): HeadlessCommand;
+  /**
+   * Reasoning levels this agent accepts for headless execution, a subset of `REASONING_LEVELS`. Present and
+   * non-empty exactly when `capabilities.supportsReasoningLevel` is true (checked by `validateCapabilityManifest`).
+   * Not part of the `capabilities` or `agents list` output, so those contracts do not change.
+   */
+  reasoningLevels?: readonly ReasoningLevel[];
   /** Absent when this agent has no officially supported, stable, file-based mechanism to auto-load global instructions in new sessions. */
   instructions?: InstructionsTarget;
   /** Absent when this agent has no officially supported, stable session-start hook mechanism this installer can configure. */

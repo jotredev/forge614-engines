@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { ConfirmationRequiredError, NotRepairableError } from "../../app/apply-mcp-repair";
 import { HeadlessUnsupportedError } from "../../app/headless-command";
+import { InvalidReasoningLevelError, ReasoningLevelUnsupportedError } from "../../modules/agents/types";
 import { MCP_ONLY_ID } from "../../../tests/support/mcp-only-adapter";
 import { resolveEngramExecutable } from "../../modules/memory-protocol/constants";
 import pkg from "../../../package.json";
@@ -127,7 +128,7 @@ describe("forge614-engines CLI", () => {
         supportsMcp: true,
         supportsHooks: true,
         supportsHeadlessExec: true,
-        supportsReasoningLevel: false,
+        supportsReasoningLevel: true,
         fullySupported: true,
       },
       {
@@ -282,7 +283,7 @@ describe("forge614-engines CLI", () => {
     });
   });
 
-  test("headless --reasoning-level for claude-code reports REASONING_LEVEL_UNSUPPORTED", async () => {
+  test("headless --reasoning-level xhigh for claude-code prints the command with --effort xhigh", async () => {
     const { stdout, exitCode } = await runCli([
       "headless",
       "--agent",
@@ -292,12 +293,44 @@ describe("forge614-engines CLI", () => {
       "--prompt",
       "hello",
       "--reasoning-level",
-      "high",
+      "xhigh",
     ]);
 
-    expect(exitCode).toBe(1);
+    expect(exitCode).toBe(0);
     const parsed = JSON.parse(stdout);
-    expect(parsed.error.code).toBe("REASONING_LEVEL_UNSUPPORTED");
+    expect(parsed.headless).toEqual({ command: "/bin/claude", args: ["-p", "hello", "--effort", "xhigh"] });
+  });
+
+  for (const agentId of ["claude-code", "codex"]) {
+    test(`headless --reasoning-level banana for ${agentId} reports INVALID_REASONING_LEVEL`, async () => {
+      const { stdout, exitCode } = await runCli([
+        "headless",
+        "--agent",
+        agentId,
+        "--executable",
+        `/bin/${agentId}`,
+        "--prompt",
+        "hello",
+        "--reasoning-level",
+        "banana",
+      ]);
+
+      expect(exitCode).toBe(1);
+      const parsed = JSON.parse(stdout);
+      expect(parsed.error.code).toBe("INVALID_REASONING_LEVEL");
+      expect(parsed.error.message).toBe(
+        `"banana" is not a valid reasoning level for ${agentId}; valid levels: low, medium, high, xhigh, max`,
+      );
+    });
+  }
+
+  test("capabilities --agent claude-code reports supportsReasoningLevel true and no reasoningLevels list", async () => {
+    const { stdout, exitCode } = await runCli(["capabilities", "--agent", "claude-code"]);
+
+    expect(exitCode).toBe(0);
+    const parsed = JSON.parse(stdout);
+    expect(parsed.supportsReasoningLevel).toBe(true);
+    expect(parsed).not.toHaveProperty("reasoningLevels");
   });
 
   test("headless forwards --readable-dir to claude-code's args, before -p", async () => {
@@ -385,6 +418,12 @@ describe("forge614-engines CLI", () => {
       expectNothingCreatedByEngines();
     });
   }
+
+  test("HELP documents every option of headless", () => {
+    expect(HELP).toContain(
+      "[--model <name>] [--reasoning-level <low|medium|high|xhigh|max>] [--stdin-prompt] [--readable-dir <path>] [--timeout-ms <ms>]",
+    );
+  });
 
   test("HELP lists every public command plus --version and --help", () => {
     for (const command of [
@@ -623,6 +662,18 @@ describe("errorCodeFor — mcp-repair", () => {
 
   test("maps ConfirmationRequiredError to CONFIRMATION_REQUIRED", () => {
     expect(errorCodeFor(new ConfirmationRequiredError("abc"))).toBe("CONFIRMATION_REQUIRED");
+  });
+});
+
+describe("errorCodeFor — reasoning level", () => {
+  test("maps ReasoningLevelUnsupportedError to REASONING_LEVEL_UNSUPPORTED", () => {
+    expect(errorCodeFor(new ReasoningLevelUnsupportedError(MCP_ONLY_ID))).toBe("REASONING_LEVEL_UNSUPPORTED");
+  });
+
+  test("maps InvalidReasoningLevelError to INVALID_REASONING_LEVEL", () => {
+    expect(errorCodeFor(new InvalidReasoningLevelError("banana", "codex", ["low", "medium"]))).toBe(
+      "INVALID_REASONING_LEVEL",
+    );
   });
 });
 

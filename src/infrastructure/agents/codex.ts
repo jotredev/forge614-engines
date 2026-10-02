@@ -6,6 +6,7 @@ export const codexAdapter: AgentAdapter = {
   id: "codex",
   label: "Codex",
   capabilities: { supportsMcp: true, supportsHooks: true, supportsHeadlessExec: true, supportsReasoningLevel: true },
+  reasoningLevels: ["low", "medium", "high", "xhigh", "max"],
   configFormat: "toml",
   mcpEntryPath: ["mcp_servers"],
   candidateExecutableNames(platform) {
