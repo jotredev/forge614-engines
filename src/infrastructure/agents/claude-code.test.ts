@@ -10,6 +10,10 @@ describe("claudeCodeAdapter.capabilities", () => {
   test("declares all five reasoning levels, in order", () => {
     expect(claudeCodeAdapter.reasoningLevels).toEqual(["low", "medium", "high", "xhigh", "max"]);
   });
+
+  test("can guarantee read-only execution, through --tools, --permission-mode and --strict-mcp-config", () => {
+    expect(claudeCodeAdapter.capabilities.supportsReadOnly).toBe(true);
+  });
 });
 
 describe("claudeCodeAdapter.headlessCommand", () => {
@@ -71,6 +75,81 @@ describe("claudeCodeAdapter.headlessCommand", () => {
       command: "/bin/claude",
       args: ["--add-dir", "/proj", "-p", "--model", "claude-opus-5", "--effort", "medium"],
       stdin: true,
+    });
+  });
+
+  describe("readOnly", () => {
+    // The lock: only Read, Grep and Glob exist, nothing is asked, and no user MCP server (Engram included) loads.
+    const lock = ["--tools", "Read,Grep,Glob", "--permission-mode", "dontAsk", "--strict-mcp-config"];
+
+    test("with the prompt in the arguments, the lock goes right before -p", () => {
+      expect(headless("/bin/claude", { prompt: "hello", readOnly: true })).toEqual({
+        command: "/bin/claude",
+        args: [...lock, "-p", "hello"],
+      });
+    });
+
+    test("with --stdin-prompt, the lock goes before -p and the prompt stays out of the arguments", () => {
+      expect(headless("/bin/claude", { prompt: "hello", readOnly: true, stdinPrompt: true })).toEqual({
+        command: "/bin/claude",
+        args: [...lock, "-p"],
+        stdin: true,
+      });
+    });
+
+    test("with --readable-dir, the lock goes after --add-dir and its path, and before -p", () => {
+      expect(headless("/bin/claude", { prompt: "hello", readOnly: true, readableDir: "/proj" })).toEqual({
+        command: "/bin/claude",
+        args: ["--add-dir", "/proj", ...lock, "-p", "hello"],
+      });
+    });
+
+    test("with --readable-dir, --model and a reasoning level together, only the lock moves before -p", () => {
+      expect(
+        headless("/bin/claude", {
+          prompt: "hello",
+          readOnly: true,
+          readableDir: "/proj",
+          model: "claude-opus-5",
+          reasoningLevel: "max",
+        }),
+      ).toEqual({
+        command: "/bin/claude",
+        args: [
+          "--add-dir",
+          "/proj",
+          "--tools",
+          "Read,Grep,Glob",
+          "--permission-mode",
+          "dontAsk",
+          "--strict-mcp-config",
+          "-p",
+          "hello",
+          "--model",
+          "claude-opus-5",
+          "--effort",
+          "max",
+        ],
+      });
+    });
+
+    test("with readOnly false, the arguments are exactly the ones without the option", () => {
+      expect(headless("/bin/claude", { prompt: "hello", readOnly: false })).toEqual({
+        command: "/bin/claude",
+        args: ["-p", "hello"],
+      });
+      expect(
+        headless("/bin/claude", {
+          prompt: "hello",
+          readOnly: false,
+          readableDir: "/proj",
+          model: "claude-opus-5",
+          reasoningLevel: "max",
+        }),
+      ).toEqual({
+        command: "/bin/claude",
+        args: ["--add-dir", "/proj", "-p", "hello", "--model", "claude-opus-5", "--effort", "max"],
+      });
     });
   });
 });

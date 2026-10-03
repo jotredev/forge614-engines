@@ -4,7 +4,13 @@ import type { AgentAdapter, McpServerDefinition } from "../../modules/agents/typ
 export const claudeCodeAdapter: AgentAdapter = {
   id: "claude-code",
   label: "Claude Code",
-  capabilities: { supportsMcp: true, supportsHooks: true, supportsHeadlessExec: true, supportsReasoningLevel: true },
+  capabilities: {
+    supportsMcp: true,
+    supportsHooks: true,
+    supportsHeadlessExec: true,
+    supportsReasoningLevel: true,
+    supportsReadOnly: true,
+  },
   reasoningLevels: ["low", "medium", "high", "xhigh", "max"],
   configFormat: "json",
   mcpEntryPath: ["mcpServers"],
@@ -76,6 +82,20 @@ export const claudeCodeAdapter: AgentAdapter = {
     // row), so placed after -p it would swallow the prompt text as another path.
     const args: string[] = [];
     if (opts.readableDir) args.push("--add-dir", opts.readableDir);
+    // Read-only lock. Measured live (Claude Code 2.1.288, empty cwd, `--add-dir` as Workers uses it):
+    // - Without these options (how Engines built the command until now) the helper has every MCP server of the
+    //   user, forge614-engram included with `memory_save` already approved, so it could save to Engram.
+    // - With them, in `-p` mode both with the prompt in the arguments and read from stdin, the helper reads the
+    //   file, cannot write (Write is disabled) and its only tools are Glob, Grep and Read, with no MCP at all.
+    // What each option does: `--tools Read,Grep,Glob` leaves only those three tools available, so nothing can
+    // write; `--permission-mode dontAsk` denies anything not allowed instead of asking, which a headless run
+    // could never answer; `--strict-mcp-config` loads only the MCP servers given with `--mcp-config` (none), so
+    // the user's servers are never loaded. `--tools` is a list option (it takes several values in a row), so like
+    // `--add-dir` the lock goes before `-p`: placed after `-p "<prompt>"` it could swallow text that follows. The
+    // other two options travel with it so the lock stays in one block.
+    if (opts.readOnly) {
+      args.push("--tools", "Read,Grep,Glob", "--permission-mode", "dontAsk", "--strict-mcp-config");
+    }
     // Confirmed against the real `claude` CLI: with no positional prompt, `-p`
     // reads it from stdin instead (verified live: `echo "..." | claude -p`).
     args.push(...(opts.stdinPrompt ? ["-p"] : ["-p", opts.prompt]));

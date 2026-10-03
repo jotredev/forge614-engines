@@ -4,18 +4,34 @@ import { claudeCodeAdapter } from "../infrastructure/agents/claude-code";
 import { codexAdapter } from "../infrastructure/agents/codex";
 import { MCP_ONLY_ID, mcpOnlyAdapter } from "../../tests/support/mcp-only-adapter";
 import type { AgentAdapter, ReasoningLevel } from "../modules/agents/types";
-import { InvalidReasoningLevelError, REASONING_LEVELS, ReasoningLevelUnsupportedError } from "../modules/agents/types";
+import {
+  InvalidReasoningLevelError,
+  REASONING_LEVELS,
+  ReadOnlyUnsupportedError,
+  ReasoningLevelUnsupportedError,
+} from "../modules/agents/types";
 import { HeadlessUnsupportedError, headlessCommandFor } from "./headless-command";
 
 /**
  * Fictional agent with headless execution whose levels are decided by the test. `levels` undefined means the
- * agent cannot choose a level; a list means it accepts exactly those. Its command just echoes the level.
+ * agent cannot choose a level; a list means it accepts exactly those. `supportsReadOnly` is false unless the
+ * test says otherwise. Its command just echoes the level.
  */
-function headlessAdapter(supportsReasoningLevel: boolean, levels?: readonly ReasoningLevel[]): AgentAdapter {
+function headlessAdapter(
+  supportsReasoningLevel: boolean,
+  levels?: readonly ReasoningLevel[],
+  supportsReadOnly = false,
+): AgentAdapter {
   return {
     id: MCP_ONLY_ID,
     label: "Headless test agent",
-    capabilities: { supportsMcp: false, supportsHooks: false, supportsHeadlessExec: true, supportsReasoningLevel },
+    capabilities: {
+      supportsMcp: false,
+      supportsHooks: false,
+      supportsHeadlessExec: true,
+      supportsReasoningLevel,
+      supportsReadOnly,
+    },
     reasoningLevels: levels,
     configFormat: "json",
     mcpEntryPath: [],
@@ -132,7 +148,13 @@ describe("headlessCommandFor", () => {
     const noGuardAdapter: AgentAdapter = {
       id: MCP_ONLY_ID,
       label: "No-guard test adapter",
-      capabilities: { supportsMcp: false, supportsHooks: false, supportsHeadlessExec: true, supportsReasoningLevel: false },
+      capabilities: {
+        supportsMcp: false,
+        supportsHooks: false,
+        supportsHeadlessExec: true,
+        supportsReasoningLevel: false,
+        supportsReadOnly: false,
+      },
       configFormat: "json",
       mcpEntryPath: [],
       candidateExecutableNames: () => [],
@@ -246,5 +268,100 @@ describe("headlessCommandFor — reasoning level validation", () => {
     expect(() => headlessCommandFor(withLevel, MCP_ONLY_ID, "/bin/fake", "hello", undefined, undefined, banana)).toThrow(
       InvalidReasoningLevelError,
     );
+  });
+});
+
+describe("headlessCommandFor — read-only", () => {
+  const banana = "banana" as ReasoningLevel;
+
+  /** Calls headlessCommandFor() with only the options these cases care about. */
+  function build(registry: AgentRegistry, agentId: string, reasoningLevel?: ReasoningLevel, readOnly?: boolean) {
+    return headlessCommandFor(
+      registry,
+      agentId as "claude-code",
+      "/bin/fake",
+      "hello",
+      undefined,
+      undefined,
+      reasoningLevel,
+      undefined,
+      undefined,
+      readOnly,
+    );
+  }
+
+  test("an agent that cannot guarantee read-only execution throws ReadOnlyUnsupportedError with the exact message", () => {
+    const registry = new AgentRegistry();
+    registry.register(headlessAdapter(false));
+
+    const call = () => build(registry, MCP_ONLY_ID, undefined, true);
+    expect(call).toThrow(ReadOnlyUnsupportedError);
+    expect(call).toThrow(`${MCP_ONLY_ID} cannot guarantee read-only execution`);
+  });
+
+  test("the same agent still builds its command when readOnly is not requested", () => {
+    const registry = new AgentRegistry();
+    registry.register(headlessAdapter(false));
+
+    expect(build(registry, MCP_ONLY_ID)).toEqual({ command: "/bin/fake", args: ["hello", "level=undefined"] });
+    expect(build(registry, MCP_ONLY_ID, undefined, false)).toEqual({
+      command: "/bin/fake",
+      args: ["hello", "level=undefined"],
+    });
+  });
+
+  test("an agent that declares supportsReadOnly is not rejected and builds its command", () => {
+    const registry = new AgentRegistry();
+    registry.register(headlessAdapter(false, undefined, true));
+
+    expect(build(registry, MCP_ONLY_ID, undefined, true)).toEqual({
+      command: "/bin/fake",
+      args: ["hello", "level=undefined"],
+    });
+  });
+
+  test("forwards readOnly to claude-code, which puts its lock before -p", () => {
+    const registry = new AgentRegistry();
+    registry.register(claudeCodeAdapter);
+
+    expect(build(registry, "claude-code", undefined, true)).toEqual({
+      command: "/bin/fake",
+      args: ["--tools", "Read,Grep,Glob", "--permission-mode", "dontAsk", "--strict-mcp-config", "-p", "hello"],
+    });
+  });
+
+  test("forwards readOnly to codex, which puts its lock right after exec", () => {
+    const registry = new AgentRegistry();
+    registry.register(codexAdapter);
+
+    expect(build(registry, "codex", undefined, true)).toEqual({
+      command: "/bin/fake",
+      args: ["exec", "--sandbox", "read-only", "--ignore-user-config", "hello"],
+    });
+  });
+
+  test("checks in order: unknown agent, no headless, read-only, then the reasoning level errors", () => {
+    // 1. Unknown agent wins over a read-only request.
+    expect(() => build(new AgentRegistry(), "codex", undefined, true)).toThrow("Unknown agent: codex");
+
+    // 2. An agent without headless execution fails with HEADLESS_UNSUPPORTED before read-only is looked at.
+    const noHeadless = new AgentRegistry();
+    noHeadless.register(mcpOnlyAdapter);
+    expect(() => build(noHeadless, MCP_ONLY_ID, undefined, true)).toThrow(HeadlessUnsupportedError);
+
+    // 3. Read-only wins over a level the agent cannot choose, and over a level it does not list.
+    const noLevel = new AgentRegistry();
+    noLevel.register(headlessAdapter(false));
+    expect(() => build(noLevel, MCP_ONLY_ID, "high", true)).toThrow(ReadOnlyUnsupportedError);
+    expect(() => build(noLevel, MCP_ONLY_ID, banana, true)).toThrow(ReadOnlyUnsupportedError);
+    const withLevel = new AgentRegistry();
+    withLevel.register(headlessAdapter(true, ["low"]));
+    const invalidLevel = () => build(withLevel, MCP_ONLY_ID, banana, true);
+    expect(invalidLevel).toThrow(ReadOnlyUnsupportedError);
+    expect(invalidLevel).not.toThrow(InvalidReasoningLevelError);
+
+    // 4. Without a read-only request, the level errors are the ones from before.
+    expect(() => build(noLevel, MCP_ONLY_ID, banana)).toThrow(ReasoningLevelUnsupportedError);
+    expect(() => build(withLevel, MCP_ONLY_ID, banana)).toThrow(InvalidReasoningLevelError);
   });
 });

@@ -26,6 +26,17 @@ export class InvalidReasoningLevelError extends Error {
   }
 }
 
+/**
+ * Read-only execution was requested for an agent that cannot guarantee it (`capabilities.supportsReadOnly` is
+ * false). Raised instead of building a command without the lock, so a caller never believes a helper cannot write
+ * when it can.
+ */
+export class ReadOnlyUnsupportedError extends Error {
+  constructor(agentId: AgentId) {
+    super(`${agentId} cannot guarantee read-only execution`);
+  }
+}
+
 export interface McpServerDefinition {
   name: string;
   command: string;
@@ -47,14 +58,25 @@ export interface HeadlessOptions {
    */
   stdinPrompt?: boolean;
   /**
-   * Grants the spawned process read access to this directory in addition to
-   * the agent's normal working directory, without otherwise loosening
-   * isolation. Maps to `--add-dir` on both Claude Code and Codex; on Codex
-   * this is accepted as a read-only grant only because `codex exec` defaults
-   * to a read-only sandbox unless `--sandbox workspace-write` or
-   * `--sandbox danger-full-access` is also passed (never done here).
+   * Gives the spawned process access to this directory in addition to the
+   * agent's normal working directory. Maps to `--add-dir` on both Claude Code
+   * and Codex. It is a grant of access, not of read-only access: `codex exec
+   * --help` describes `--add-dir` as directories "that should be writable
+   * alongside the primary workspace". What stopped Codex from writing there in
+   * a live check was the default sandbox of `exec`, which is not a promise the
+   * adapter makes. The real read-only protection is `readOnly`.
    */
   readableDir?: string;
+  /**
+   * When true, the spawned process must only be able to read: it cannot write
+   * files, run commands that change things, or reach the user's MCP servers
+   * (Engram's `memory_save` included). An adapter that cannot guarantee this
+   * must declare `capabilities.supportsReadOnly: false`, and then
+   * `headlessCommandFor()` throws `ReadOnlyUnsupportedError` before the adapter
+   * is called, so it never builds a command without the lock. When absent or
+   * false, the command is exactly the one built without this option.
+   */
+  readOnly?: boolean;
 }
 
 export interface HeadlessCommand {
@@ -79,6 +101,8 @@ export interface AgentCapabilities {
   supportsHeadlessExec: boolean;
   /** Whether headlessCommand() accepts HeadlessOptions.reasoningLevel instead of rejecting it via ReasoningLevelUnsupportedError. The single source of truth headlessCommandFor() and the capabilities report both read. When true, the adapter declares which levels in `AgentAdapter.reasoningLevels`. */
   supportsReasoningLevel: boolean;
+  /** Whether headlessCommand() can guarantee HeadlessOptions.readOnly (no writing, no user MCP servers) instead of having it rejected via ReadOnlyUnsupportedError. The single source of truth headlessCommandFor() and the capabilities report both read; a caller that needs read-only helpers checks it before launching them, because an Engines that predates the option ignores it without an error. */
+  supportsReadOnly: boolean;
 }
 
 export interface HookTarget {

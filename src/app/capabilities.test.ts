@@ -19,6 +19,7 @@ describe("capabilitiesFor", () => {
       supportsHooks: true,
       supportsHeadlessExec: true,
       supportsReasoningLevel: true,
+      supportsReadOnly: true,
       fullySupported: true,
     });
   });
@@ -48,7 +49,13 @@ describe("capabilitiesFor", () => {
     const fullAdapter: AgentAdapter = {
       ...claudeCodeAdapter,
       id: "claude-code",
-      capabilities: { supportsMcp: true, supportsHooks: true, supportsHeadlessExec: true, supportsReasoningLevel: true },
+      capabilities: {
+        supportsMcp: true,
+        supportsHooks: true,
+        supportsHeadlessExec: true,
+        supportsReasoningLevel: true,
+        supportsReadOnly: true,
+      },
     };
 
     function fullySupportedFor(adapter: AgentAdapter): boolean {
@@ -70,7 +77,13 @@ describe("capabilitiesFor", () => {
     });
 
     test("is false without headless execution", () => {
-      expect(fullySupportedFor({ ...fullAdapter, capabilities: { ...fullAdapter.capabilities, supportsHeadlessExec: false } })).toBe(false);
+      // supportsReadOnly goes down with it: a read-only promise without headless execution is a rejected manifest.
+      expect(
+        fullySupportedFor({
+          ...fullAdapter,
+          capabilities: { ...fullAdapter.capabilities, supportsHeadlessExec: false, supportsReadOnly: false },
+        }),
+      ).toBe(false);
     });
 
     test("is false without an instructions target", () => {
@@ -80,6 +93,19 @@ describe("capabilitiesFor", () => {
     test("is not affected by supportsReasoningLevel, which is optional", () => {
       expect(fullySupportedFor({ ...fullAdapter, capabilities: { ...fullAdapter.capabilities, supportsReasoningLevel: false }, reasoningLevels: undefined })).toBe(true);
     });
+
+    test("is not affected by supportsReadOnly, which is optional", () => {
+      expect(fullySupportedFor({ ...fullAdapter, capabilities: { ...fullAdapter.capabilities, supportsReadOnly: false } })).toBe(true);
+    });
+  });
+
+  test("reports supportsReadOnly exactly as the adapter declares it", () => {
+    const registry = new AgentRegistry();
+    registry.register(claudeCodeAdapter);
+    registry.register({ ...codexAdapter, capabilities: { ...codexAdapter.capabilities, supportsReadOnly: false } });
+
+    expect(capabilitiesFor(registry, "claude-code").supportsReadOnly).toBe(true);
+    expect(capabilitiesFor(registry, "codex").supportsReadOnly).toBe(false);
   });
 
   test("throws for an unregistered agent", () => {
@@ -103,6 +129,7 @@ describe("listAgents", () => {
         supportsHooks: true,
         supportsHeadlessExec: true,
         supportsReasoningLevel: true,
+        supportsReadOnly: true,
         fullySupported: true,
       },
       {
@@ -112,6 +139,7 @@ describe("listAgents", () => {
         supportsHooks: true,
         supportsHeadlessExec: true,
         supportsReasoningLevel: true,
+        supportsReadOnly: true,
         fullySupported: true,
       },
       {
@@ -121,6 +149,7 @@ describe("listAgents", () => {
         supportsHooks: false,
         supportsHeadlessExec: false,
         supportsReasoningLevel: false,
+        supportsReadOnly: false,
         fullySupported: false,
       },
     ]);

@@ -6,7 +6,13 @@ function baseAdapter(overrides: Partial<AgentAdapter> = {}): AgentAdapter {
   return {
     id: "claude-code",
     label: "Test Agent",
-    capabilities: { supportsMcp: false, supportsHooks: false, supportsHeadlessExec: false, supportsReasoningLevel: false },
+    capabilities: {
+      supportsMcp: false,
+      supportsHooks: false,
+      supportsHeadlessExec: false,
+      supportsReasoningLevel: false,
+      supportsReadOnly: false,
+    },
     configFormat: "json",
     mcpEntryPath: [],
     candidateExecutableNames: () => [],
@@ -22,7 +28,13 @@ describe("validateCapabilityManifest — hooks", () => {
   test("rejects supportsHooks: true with no hooks target implemented", () => {
     const registry = new AgentRegistry();
     const adapter = baseAdapter({
-      capabilities: { supportsMcp: false, supportsHooks: true, supportsHeadlessExec: false, supportsReasoningLevel: false },
+      capabilities: {
+        supportsMcp: false,
+        supportsHooks: true,
+        supportsHeadlessExec: false,
+        supportsReasoningLevel: false,
+        supportsReadOnly: false,
+      },
     });
     expect(() => registry.register(adapter)).toThrow(InvalidCapabilityManifestError);
   });
@@ -30,7 +42,13 @@ describe("validateCapabilityManifest — hooks", () => {
   test("accepts supportsHooks: true with a hooks target implemented", () => {
     const registry = new AgentRegistry();
     const adapter = baseAdapter({
-      capabilities: { supportsMcp: false, supportsHooks: true, supportsHeadlessExec: false, supportsReasoningLevel: false },
+      capabilities: {
+        supportsMcp: false,
+        supportsHooks: true,
+        supportsHeadlessExec: false,
+        supportsReasoningLevel: false,
+        supportsReadOnly: false,
+      },
       hooks: {
         configFile: (home) => home,
         configFormat: "json",
@@ -47,7 +65,13 @@ describe("validateCapabilityManifest — reasoning levels", () => {
   /** Adapter with no other capability, so only the reasoning-level rules of the manifest are exercised. */
   const withLevels = (supportsReasoningLevel: boolean, reasoningLevels?: readonly ReasoningLevel[]): AgentAdapter =>
     baseAdapter({
-      capabilities: { supportsMcp: false, supportsHooks: false, supportsHeadlessExec: false, supportsReasoningLevel },
+      capabilities: {
+        supportsMcp: false,
+        supportsHooks: false,
+        supportsHeadlessExec: false,
+        supportsReasoningLevel,
+        supportsReadOnly: false,
+      },
       reasoningLevels,
     });
 
@@ -78,5 +102,34 @@ describe("validateCapabilityManifest — reasoning levels", () => {
   test("accepts a subset of the levels, and no list at all when the agent cannot choose a level", () => {
     expect(() => new AgentRegistry().register(withLevels(true, ["low", "medium"]))).not.toThrow();
     expect(() => new AgentRegistry().register(withLevels(false))).not.toThrow();
+  });
+});
+
+describe("validateCapabilityManifest — read-only", () => {
+  /** Adapter with no other capability, so only the read-only rule of the manifest is exercised. */
+  const withReadOnly = (supportsReadOnly: boolean, supportsHeadlessExec: boolean): AgentAdapter =>
+    baseAdapter({
+      capabilities: {
+        supportsMcp: false,
+        supportsHooks: false,
+        supportsHeadlessExec,
+        supportsReasoningLevel: false,
+        supportsReadOnly,
+      },
+      headlessCommand: supportsHeadlessExec
+        ? (executable, opts) => ({ command: executable, args: [opts.prompt] })
+        : undefined,
+    });
+
+  test("rejects supportsReadOnly: true with supportsHeadlessExec: false", () => {
+    expect(() => new AgentRegistry().register(withReadOnly(true, false))).toThrow(
+      "Invalid capability manifest for claude-code: supportsReadOnly is true but supportsHeadlessExec is false",
+    );
+  });
+
+  test("accepts supportsReadOnly: true with headless execution, and false with or without it", () => {
+    expect(() => new AgentRegistry().register(withReadOnly(true, true))).not.toThrow();
+    expect(() => new AgentRegistry().register(withReadOnly(false, true))).not.toThrow();
+    expect(() => new AgentRegistry().register(withReadOnly(false, false))).not.toThrow();
   });
 });

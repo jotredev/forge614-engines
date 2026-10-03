@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { ConfirmationRequiredError, NotRepairableError } from "../../app/apply-mcp-repair";
 import { HeadlessUnsupportedError } from "../../app/headless-command";
-import { InvalidReasoningLevelError, ReasoningLevelUnsupportedError } from "../../modules/agents/types";
+import {
+  InvalidReasoningLevelError,
+  ReadOnlyUnsupportedError,
+  ReasoningLevelUnsupportedError,
+} from "../../modules/agents/types";
 import { MCP_ONLY_ID } from "../../../tests/support/mcp-only-adapter";
 import { resolveEngramExecutable } from "../../modules/memory-protocol/constants";
 import pkg from "../../../package.json";
@@ -129,6 +133,7 @@ describe("forge614-engines CLI", () => {
         supportsHooks: true,
         supportsHeadlessExec: true,
         supportsReasoningLevel: true,
+        supportsReadOnly: true,
         fullySupported: true,
       },
       {
@@ -138,6 +143,7 @@ describe("forge614-engines CLI", () => {
         supportsHooks: true,
         supportsHeadlessExec: true,
         supportsReasoningLevel: true,
+        supportsReadOnly: true,
         fullySupported: true,
       },
     ]);
@@ -369,6 +375,107 @@ describe("forge614-engines CLI", () => {
     expect(parsed.headless).toEqual({ command: "/bin/codex", args: ["exec", "--add-dir", "/tmp/project", "hello"] });
   });
 
+  test("headless --read-only for claude-code prints the command with the read-only lock before -p", async () => {
+    const { stdout, exitCode } = await runCli([
+      "headless",
+      "--agent",
+      "claude-code",
+      "--executable",
+      "/bin/claude",
+      "--prompt",
+      "x",
+      "--read-only",
+    ]);
+
+    expect(exitCode).toBe(0);
+    const parsed = JSON.parse(stdout);
+    expect(parsed.headless).toEqual({
+      command: "/bin/claude",
+      args: ["--tools", "Read,Grep,Glob", "--permission-mode", "dontAsk", "--strict-mcp-config", "-p", "x"],
+    });
+  });
+
+  test("headless --read-only for codex prints the command with the read-only lock right after exec", async () => {
+    const { stdout, exitCode } = await runCli([
+      "headless",
+      "--agent",
+      "codex",
+      "--executable",
+      "/bin/codex",
+      "--prompt",
+      "x",
+      "--read-only",
+    ]);
+
+    expect(exitCode).toBe(0);
+    const parsed = JSON.parse(stdout);
+    expect(parsed.headless).toEqual({
+      command: "/bin/codex",
+      args: ["exec", "--sandbox", "read-only", "--ignore-user-config", "x"],
+    });
+  });
+
+  test("headless --read-only together with --stdin-prompt, --readable-dir, --model and --reasoning-level keeps the claude-code lock before -p", async () => {
+    const claude = await runCli([
+      "headless",
+      "--agent",
+      "claude-code",
+      "--executable",
+      "/bin/claude",
+      "--stdin-prompt",
+      "--readable-dir",
+      "/tmp/project",
+      "--model",
+      "claude-haiku-4-5",
+      "--reasoning-level",
+      "low",
+      "--read-only",
+    ]);
+    expect(claude.exitCode).toBe(0);
+    expect(JSON.parse(claude.stdout).headless).toEqual({
+      command: "/bin/claude",
+      args: [
+        "--add-dir",
+        "/tmp/project",
+        "--tools",
+        "Read,Grep,Glob",
+        "--permission-mode",
+        "dontAsk",
+        "--strict-mcp-config",
+        "-p",
+        "--model",
+        "claude-haiku-4-5",
+        "--effort",
+        "low",
+      ],
+      stdin: true,
+    });
+  });
+
+  test("headless without --read-only keeps the arguments it had before", async () => {
+    const { stdout, exitCode } = await runCli([
+      "headless",
+      "--agent",
+      "claude-code",
+      "--executable",
+      "/bin/claude",
+      "--prompt",
+      "x",
+    ]);
+
+    expect(exitCode).toBe(0);
+    expect(JSON.parse(stdout).headless).toEqual({ command: "/bin/claude", args: ["-p", "x"] });
+  });
+
+  for (const agentId of ["claude-code", "codex"]) {
+    test(`capabilities --agent ${agentId} reports supportsReadOnly true`, async () => {
+      const { stdout, exitCode } = await runCli(["capabilities", "--agent", agentId]);
+
+      expect(exitCode).toBe(0);
+      expect(JSON.parse(stdout).supportsReadOnly).toBe(true);
+    });
+  }
+
   test("an unknown command reports UNKNOWN_COMMAND as JSON", async () => {
     const { stdout, exitCode } = await runCli(["nonsense"]);
 
@@ -421,7 +528,7 @@ describe("forge614-engines CLI", () => {
 
   test("HELP documents every option of headless", () => {
     expect(HELP).toContain(
-      "[--model <name>] [--reasoning-level <low|medium|high|xhigh|max>] [--stdin-prompt] [--readable-dir <path>] [--timeout-ms <ms>]",
+      "[--model <name>] [--reasoning-level <low|medium|high|xhigh|max>] [--stdin-prompt] [--readable-dir <path>] [--read-only] [--timeout-ms <ms>]",
     );
   });
 
@@ -674,6 +781,13 @@ describe("errorCodeFor — reasoning level", () => {
     expect(errorCodeFor(new InvalidReasoningLevelError("banana", "codex", ["low", "medium"]))).toBe(
       "INVALID_REASONING_LEVEL",
     );
+  });
+});
+
+describe("errorCodeFor — read-only", () => {
+  test("maps ReadOnlyUnsupportedError to READ_ONLY_UNSUPPORTED", () => {
+    // No real agent lacks the read-only lock today, so the CLI cannot reproduce this; the mapping is unit-tested.
+    expect(errorCodeFor(new ReadOnlyUnsupportedError(MCP_ONLY_ID))).toBe("READ_ONLY_UNSUPPORTED");
   });
 });
 
