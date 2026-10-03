@@ -23,6 +23,12 @@ export function validateCapabilityManifest(adapter: AgentAdapter): void {
       "supportsHeadlessExec is true but headlessCommand() is not implemented",
     );
   }
+  if (adapter.capabilities.supportsReadOnly && !adapter.capabilities.supportsHeadlessExec) {
+    throw new InvalidCapabilityManifestError(
+      adapter.id,
+      "supportsReadOnly is true but supportsHeadlessExec is false",
+    );
+  }
   if (adapter.capabilities.supportsMcp && adapter.mcpEntryPath.length === 0) {
     throw new InvalidCapabilityManifestError(adapter.id, "supportsMcp is true but mcpEntryPath is empty");
   }

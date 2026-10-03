@@ -84,6 +84,7 @@ export async function runHeadlessCommand(
   reasoningLevel?: ReasoningLevel,
   stdinPrompt?: boolean,
   readableDir?: string,
+  readOnly?: boolean,
 ): Promise<void> {
   const registry = buildDefaultRegistry();
   const result = headlessCommandFor(
@@ -96,6 +97,7 @@ export async function runHeadlessCommand(
     reasoningLevel,
     stdinPrompt,
     readableDir,
+    readOnly,
   );
   printJson({ headless: result });
 }

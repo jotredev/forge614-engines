@@ -40,13 +40,13 @@
       "localPath": "docs/es/02-deteccion-de-agentes-y-capacidades.md",
       "language": "es",
       "notionUrl": "https://app.notion.com/p/3e121943d129813c80f5c12edff4a9d4",
-      "sha256": "d4107c466edbf52b3ea1c6e5ab42897120ade2aae145629ecaf8b1fe0443aace"
+      "sha256": "579e4d01ca180a1a48833b2212016154ac0f551d087ac212da04ac99d558b483"
     },
     {
       "localPath": "docs/en/02-agent-detection-and-capabilities.md",
       "language": "en",
       "notionUrl": "https://app.notion.com/p/3e121943d129818a8d6ffcd3cf3537e8",
-      "sha256": "27fa04be54f979a819e4ce7b6c9c491866e7cfc8140afeeb9a5de196e4818b0a"
+      "sha256": "252b7cdb52baa17226397847c9497242fe25d079a34bff3e649676850e5fbe68"
     },
     {
       "localPath": "docs/es/03-plan-seguro-de-mcp.md",
@@ -76,25 +76,25 @@
       "localPath": "docs/es/05-referencia-del-cli-publico.md",
       "language": "es",
       "notionUrl": "https://app.notion.com/p/3e121943d1298178b133f109e29a742f",
-      "sha256": "a6a3c960d2403819ec795e0825225a7d42dcd1599eec0aa28e37e148aa74e939"
+      "sha256": "6a0c183ed68163463dd9e425e0a8e31b93574f362812a77b6e783a6a8d2f663a"
     },
     {
       "localPath": "docs/en/05-public-cli-reference.md",
       "language": "en",
       "notionUrl": "https://app.notion.com/p/3e121943d12981c097f7ff61185f3454",
-      "sha256": "51e9e8bf427cc97da1ddc2e33f132c1bbbee7c8fefa6dbb45ea91dc86c118704"
+      "sha256": "f4c494a68a50df5f0479c6882f844a173e92ce9bd6a09feae960a765c0bf1067"
     },
     {
       "localPath": "docs/es/06-ejecucion-automatica-e-integraciones.md",
       "language": "es",
       "notionUrl": "https://app.notion.com/p/3e121943d1298120af7dd162a421c1b4",
-      "sha256": "0f36c431b57b286fc2d81d941d51f5002e316b9a050f1d2e686b6cc44008fcf9"
+      "sha256": "0ac76202301054fb2dc547bd7b12a381604c8333c7a834bce8f623e006875e65"
     },
     {
       "localPath": "docs/en/06-headless-execution-and-integrations.md",
       "language": "en",
       "notionUrl": "https://app.notion.com/p/3e121943d12981ca81e8fdd255a086c3",
-      "sha256": "66072daf2618dba8e08254616d7e703c7ef84fd2df44d81898bdd7782129da15"
+      "sha256": "e70f38ca5e7558941fbeabda534dbd3d7f6fd2d7753ddeb23d02d3fe9913aad5"
     },
     {
       "localPath": "docs/es/07-arquitectura-y-mapa-del-codigo.md",

@@ -23,7 +23,13 @@ export const MCP_ONLY_LABEL = "MCP-only test agent";
 export const mcpOnlyAdapter: AgentAdapter = {
   id: MCP_ONLY_ID,
   label: MCP_ONLY_LABEL,
-  capabilities: { supportsMcp: true, supportsHooks: false, supportsHeadlessExec: false, supportsReasoningLevel: false },
+  capabilities: {
+    supportsMcp: true,
+    supportsHooks: false,
+    supportsHeadlessExec: false,
+    supportsReasoningLevel: false,
+    supportsReadOnly: false,
+  },
   configFormat: "json",
   mcpEntryPath: ["mcpServers"],
   candidateExecutableNames: () => [],

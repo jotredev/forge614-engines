@@ -25,7 +25,11 @@ import { UpdateAssetMissingError } from "../../app/self-update";
 import { PlanNotFoundError } from "../../infrastructure/plan-store";
 import { ConfigConflictError } from "../../modules/config-writer/types";
 import type { AgentId, ReasoningLevel } from "../../modules/agents/types";
-import { InvalidReasoningLevelError, ReasoningLevelUnsupportedError } from "../../modules/agents/types";
+import {
+  InvalidReasoningLevelError,
+  ReadOnlyUnsupportedError,
+  ReasoningLevelUnsupportedError,
+} from "../../modules/agents/types";
 import pkg from "../../../package.json";
 import { HELP } from "./help";
 
@@ -81,6 +85,7 @@ export function errorCodeFor(error: unknown): string {
   if (error instanceof PlanNotFoundError) return "PLAN_NOT_FOUND";
   if (error instanceof UpdateAssetMissingError) return "UPDATE_ASSET_MISSING";
   if (error instanceof HeadlessUnsupportedError) return "HEADLESS_UNSUPPORTED";
+  if (error instanceof ReadOnlyUnsupportedError) return "READ_ONLY_UNSUPPORTED";
   if (error instanceof ReasoningLevelUnsupportedError) return "REASONING_LEVEL_UNSUPPORTED";
   if (error instanceof InvalidReasoningLevelError) return "INVALID_REASONING_LEVEL";
   if (error instanceof UnknownCommandError) return "UNKNOWN_COMMAND";
@@ -192,7 +197,18 @@ async function main(): Promise<void> {
     const reasoningLevel = flag(headlessArgs, "--reasoning-level") as ReasoningLevel | undefined;
     const stdinPrompt = boolFlag(headlessArgs, "--stdin-prompt");
     const readableDir = flag(headlessArgs, "--readable-dir");
-    return runHeadlessCommand(agentId, executable, prompt, timeoutMs, model, reasoningLevel, stdinPrompt, readableDir);
+    const readOnly = boolFlag(headlessArgs, "--read-only");
+    return runHeadlessCommand(
+      agentId,
+      executable,
+      prompt,
+      timeoutMs,
+      model,
+      reasoningLevel,
+      stdinPrompt,
+      readableDir,
+      readOnly,
+    );
   }
 
   throw new UnknownCommandError(process.argv.slice(2).join(" "));

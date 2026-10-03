@@ -5,7 +5,13 @@ import { MEMORY_HOOK_CONTEXT_TOKEN_LIMIT } from "../../modules/agents/hook-comma
 export const codexAdapter: AgentAdapter = {
   id: "codex",
   label: "Codex",
-  capabilities: { supportsMcp: true, supportsHooks: true, supportsHeadlessExec: true, supportsReasoningLevel: true },
+  capabilities: {
+    supportsMcp: true,
+    supportsHooks: true,
+    supportsHeadlessExec: true,
+    supportsReasoningLevel: true,
+    supportsReadOnly: true,
+  },
   reasoningLevels: ["low", "medium", "high", "xhigh", "max"],
   configFormat: "toml",
   mcpEntryPath: ["mcp_servers"],
@@ -69,10 +75,20 @@ export const codexAdapter: AgentAdapter = {
   },
   headlessCommand(executable, opts) {
     const args = ["exec"];
-    // Codex's --add-dir can technically grant write access, but as long as neither
-    // --sandbox workspace-write nor --sandbox danger-full-access is passed (never
-    // done here), `codex exec`'s default sandbox stays read-only. Placed before
-    // the prompt for the same reason as Claude Code: it must not swallow it.
+    // Read-only lock, right after `exec` and before every other option. Measured live (Codex 0.159.3, empty cwd,
+    // `--add-dir` as Workers uses it):
+    // - `codex exec --help` describes `--add-dir` as "directories that should be writable alongside the primary
+    //   workspace", so it is not a read-only grant. Writing into the `--add-dir` folder still failed with
+    //   "operation not permitted", with and without `--sandbox read-only`: what stopped it was the default
+    //   sandbox of `exec`, which is read-only. That default is not something this adapter controls, so with
+    //   `readOnly` the sandbox is requested explicitly.
+    // - Even with `--sandbox read-only` the user's `config.toml` is still loaded, and with it the MCP servers: the
+    //   helper called `memory_context` of forge614-engram successfully, so it could also call `memory_save`.
+    //   `--ignore-user-config` does not load `$CODEX_HOME/config.toml` (auth still uses `CODEX_HOME`), and with
+    //   it that tool does not exist.
+    if (opts.readOnly) args.push("--sandbox", "read-only", "--ignore-user-config");
+    // --add-dir goes before the prompt for the same reason as Claude Code: it must not swallow it. Without
+    // `readOnly` the arguments are exactly the ones from before this option existed.
     if (opts.readableDir) args.push("--add-dir", opts.readableDir);
     if (opts.model) args.push("--model", opts.model);
     if (opts.reasoningLevel) args.push("-c", `model_reasoning_effort=${opts.reasoningLevel}`);

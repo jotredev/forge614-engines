@@ -1,6 +1,7 @@
 import type { AgentRegistry } from "../modules/agents/registry";
 import {
   InvalidReasoningLevelError,
+  ReadOnlyUnsupportedError,
   ReasoningLevelUnsupportedError,
   type AgentId,
   type HeadlessCommand,
@@ -15,11 +16,13 @@ export class HeadlessUnsupportedError extends Error {
 }
 
 /**
- * Builds the command that runs an agent headless. It is the single place that validates `reasoningLevel`,
- * so the CLI and any other caller get the same error. Checks run in this order: unknown agent, agent without
- * headless execution (`HeadlessUnsupportedError`), a level given to an agent that cannot choose one
+ * Builds the command that runs an agent headless. It is the single place that validates `reasoningLevel` and
+ * `readOnly`, so the CLI and any other caller get the same error. Checks run in this order: unknown agent, agent
+ * without headless execution (`HeadlessUnsupportedError`), `readOnly` requested from an agent that cannot
+ * guarantee it (`ReadOnlyUnsupportedError`), a level given to an agent that cannot choose one
  * (`ReasoningLevelUnsupportedError`), and finally a level the agent does not list
- * (`InvalidReasoningLevelError`). `reasoningLevel` may be unvalidated text typed as `ReasoningLevel`.
+ * (`InvalidReasoningLevelError`). When `readOnly` is requested it never builds a command without the lock: it
+ * either reaches the adapter or throws. `reasoningLevel` may be unvalidated text typed as `ReasoningLevel`.
  */
 export function headlessCommandFor(
   registry: AgentRegistry,
@@ -31,11 +34,15 @@ export function headlessCommandFor(
   reasoningLevel?: ReasoningLevel,
   stdinPrompt?: boolean,
   readableDir?: string,
+  readOnly?: boolean,
 ): HeadlessCommand {
   const adapter = registry.get(agentId);
   if (!adapter) throw new Error(`Unknown agent: ${agentId}`);
   if (!adapter.capabilities.supportsHeadlessExec || !adapter.headlessCommand) {
     throw new HeadlessUnsupportedError(agentId);
+  }
+  if (readOnly && !adapter.capabilities.supportsReadOnly) {
+    throw new ReadOnlyUnsupportedError(agentId);
   }
   if (reasoningLevel && !adapter.capabilities.supportsReasoningLevel) {
     throw new ReasoningLevelUnsupportedError(agentId);
@@ -44,5 +51,13 @@ export function headlessCommandFor(
   if (reasoningLevel && !validLevels.includes(reasoningLevel)) {
     throw new InvalidReasoningLevelError(reasoningLevel, agentId, validLevels);
   }
-  return adapter.headlessCommand(executable, { prompt, timeoutMs, model, reasoningLevel, stdinPrompt, readableDir });
+  return adapter.headlessCommand(executable, {
+    prompt,
+    timeoutMs,
+    model,
+    reasoningLevel,
+    stdinPrompt,
+    readableDir,
+    readOnly,
+  });
 }

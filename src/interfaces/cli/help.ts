@@ -21,7 +21,7 @@ Commands:
   apply mcp-repair --plan-id <id> --confirm
                                            Apply a repair plan after explicit confirmation.
   headless --agent <id> --executable <path> --prompt <text>
-           [--model <name>] [--reasoning-level <low|medium|high|xhigh|max>] [--stdin-prompt] [--readable-dir <path>] [--timeout-ms <ms>]
+           [--model <name>] [--reasoning-level <low|medium|high|xhigh|max>] [--stdin-prompt] [--readable-dir <path>] [--read-only] [--timeout-ms <ms>]
                                            Build the command to run an agent without a screen.
   update                                   Update Forge614 Engines to the latest release.
   verify memory-integration --agent <id>   Check the Engram memory install, tool approval included.
