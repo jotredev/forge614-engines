@@ -16,7 +16,7 @@ Cada producto Forge614 posee solamente su propia subcarpeta:
 └─ atlas/
 ```
 
-Shell instala y valida Engines automáticamente cuando lo necesita. En macOS y Linux, el binario esperado es `~/.forge614/engines/bin/forge614-engines`; en Windows termina en `.exe`. El instalador no cambia perfiles de terminal ni agrega Engines al PATH.
+Shell instala y valida Engines automáticamente cuando lo necesita. En macOS y Linux, el binario esperado es `~/.forge614/engines/bin/forge614-engines`; en Windows termina en `.exe`. El instalador no cambia perfiles de terminal ni agrega Engines al PATH. Para funcionar necesita `tar`; `curl` para bajar la última versión publicada; `shasum` o `sha256sum` para verificar la descarga; y Node, o `python3` 3.9 o posterior si no hay Node, para leer la descripción de la versión.
 
 La variable `FORGE614_HOME` puede cambiar la carpeta familiar durante pruebas controladas. No es una forma de compartir o borrar las carpetas de otros productos.
 

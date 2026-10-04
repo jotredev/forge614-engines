@@ -28,13 +28,13 @@
       "localPath": "docs/es/01-instalacion-interna-y-limites.md",
       "language": "es",
       "notionUrl": "https://app.notion.com/p/3e121943d129817e9816e1ca683b1f78",
-      "sha256": "5da428afac6120599af94feb01fb663ff6f181632b9dbf155aa4d645d8b87425"
+      "sha256": "ec91ff63861bb54c4f025c856452772fb77249b8404f63861dd4c021afdf73dc"
     },
     {
       "localPath": "docs/en/01-internal-installation-and-boundaries.md",
       "language": "en",
       "notionUrl": "https://app.notion.com/p/3e121943d129819dad58de9f4be3e563",
-      "sha256": "7a0f2022b09deaf63a00f060bc126c531c299a904ffecefabbc495eeb6a0f596"
+      "sha256": "022d2bdb64971d1ca0691220454351eb14ed7e998c9eb30befe69b97818e92bd"
     },
     {
       "localPath": "docs/es/02-deteccion-de-agentes-y-capacidades.md",

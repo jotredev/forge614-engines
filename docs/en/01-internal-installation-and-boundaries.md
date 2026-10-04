@@ -16,7 +16,7 @@ Each Forge614 product owns only its own subdirectory:
 └─ atlas/
 ```
 
-Shell automatically installs and validates Engines when required. On macOS and Linux the expected binary is `~/.forge614/engines/bin/forge614-engines`; on Windows it ends in `.exe`. The installer does not change terminal profiles or add Engines to PATH.
+Shell automatically installs and validates Engines when required. On macOS and Linux the expected binary is `~/.forge614/engines/bin/forge614-engines`; on Windows it ends in `.exe`. The installer does not change terminal profiles or add Engines to PATH. To run it needs `tar`; `curl` to download the latest release; `shasum` or `sha256sum` to verify the download; and Node, or `python3` 3.9 or later when there is no Node, to read the release description.
 
 `FORGE614_HOME` can change the shared home for controlled tests. It is not a way to share or delete the folders owned by other products.
 

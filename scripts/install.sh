@@ -60,18 +60,29 @@ const ok=u=>{try{const p=new URL(u);return p.protocol==="https:"||(process.env.F
 if(!ok(a[0].browser_download_url)||!ok(c[0].browser_download_url))process.exit(1);
 process.stdout.write(`${v}\t${a[0].browser_download_url}\t${c[0].browser_download_url}`);
   ' "$platform" "$arch" 2>/dev/null || printf '%s' "$release_json" | python3 -c '
-import json,re,sys
+import json,os,re,sys
+from urllib.parse import urlparse
+# No f-strings here: the macOS system Python is 3.9, which rejects backslashes inside f-string braces.
 r=json.load(sys.stdin)
 v=re.sub(r"^v","",r.get("tag_name") or "")
 platform, arch = sys.argv[1], sys.argv[2]
 if not re.match(r"^\d+\.\d+\.\d+$", v) or not isinstance(r.get("assets"), list):
     sys.exit(1)
-name=f"forge614-engines-{v}-{platform}-{arch}.tar.gz"
+name="forge614-engines-"+v+"-"+platform+"-"+arch+".tar.gz"
 assets=[a for a in r["assets"] if a and a.get("name")==name]
-checks=[a for a in r["assets"] if a and a.get("name")==f"{name}.sha256"]
+checks=[a for a in r["assets"] if a and a.get("name")==name+".sha256"]
 if len(assets)!=1 or len(checks)!=1:
     sys.exit(1)
-print(f"{v}\t{assets[0][\"browser_download_url\"]}\t{checks[0][\"browser_download_url\"]}")
+# Same URL check as the Node path: https, or http only when FORGE614_RELEASE_API_URL is set.
+def ok(u):
+    try:
+        scheme=urlparse(u).scheme
+    except Exception:
+        return False
+    return scheme=="https" or (bool(os.environ.get("FORGE614_RELEASE_API_URL")) and scheme=="http")
+if not ok(assets[0].get("browser_download_url")) or not ok(checks[0].get("browser_download_url")):
+    sys.exit(1)
+print("\t".join([v, assets[0]["browser_download_url"], checks[0]["browser_download_url"]]))
 ' "$platform" "$arch")"; then echo "Latest release is missing a Forge614 Engines asset for $platform-$arch." >&2; exit 65; fi
   IFS=$'\t' read -r version archive_url checksum_url <<< "$release_info"
   [[ -n "$version" && -n "$archive_url" && -n "$checksum_url" ]] || { echo "Latest release is missing a Forge614 Engines asset for $platform-$arch." >&2; exit 65; }
