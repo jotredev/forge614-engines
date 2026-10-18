@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { chmodSync, existsSync, mkdtempSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
 import { homedir, tmpdir } from "node:os";
-import { dirname, isAbsolute, join, relative, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import pkg from "../../package.json";
 
 const REPOSITORY = "jotredev/forge614-engines";
@@ -130,9 +130,11 @@ function verifyChecksum(name: string, bytes: Uint8Array, sums: string, code = "U
 /** Moves the running Windows executable out of the directory being replaced. */
 function parkWindowsLauncher(action: "update" | "uninstall", env: Record<string, string | undefined>): { original: string; parked: string } | undefined {
   if (process.platform !== "win32") return undefined;
-  const original = join(forgeHome(env), "engines", "bin", "forge614-engines.exe");
-  const normalize = (value: string) => value.replaceAll("/", "\\").toLocaleLowerCase("en-US");
-  if (normalize(process.execPath) !== normalize(original)) return undefined;
+  const enginesRoot = resolve(forgeHome(env), "engines");
+  const original = join(enginesRoot, "bin", "forge614-engines.exe");
+  const normalize = (value: string) => resolve(value).replaceAll("/", "\\").toLocaleLowerCase("en-US");
+  const runningPath = relative(normalize(enginesRoot), normalize(process.execPath));
+  if (!runningPath || runningPath === ".." || runningPath.startsWith(`..${sep}`) || isAbsolute(runningPath)) return undefined;
   const parked = action === "update" ? `${original}.old-${randomUUID()}` : join(forgeHome(env), `.forge614-engines-old-${randomUUID()}.exe`);
   renameSync(original, parked);
   return { original, parked };

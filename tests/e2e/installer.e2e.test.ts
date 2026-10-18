@@ -139,6 +139,20 @@ async function runLegacyInstaller(home: string, origin: string): Promise<{ statu
   return { status, stdout, stderr };
 }
 
+/** Recreates the exact Windows layout written by the 1.17.1 PowerShell installer. */
+function prepareLegacyWindowsInstall(home: string): void {
+  const forgeHome = join(home, ".forge614");
+  const enginesRoot = join(forgeHome, "engines");
+  const version = join(enginesRoot, "1.17.1");
+  const bin = join(enginesRoot, "bin");
+  const packageDir = join(root, "stage-1.17.1", `forge614-engines-1.17.1-${platform}-${arch}`);
+  const executable = `forge614-engines.exe`;
+  mkdirSync(bin, { recursive: true });
+  cpSync(packageDir, version, { recursive: true });
+  copyFileSync(join(version, executable), join(bin, executable));
+  writeFileSync(join(enginesRoot, ".active-version"), "1.17.1");
+}
+
 /** Runs an installed legacy launcher until its active binary reports the requested version. */
 async function waitForLegacyUpdate(launcher: string, version: string, home: string): Promise<boolean> {
   const env = { ...process.env, HOME: home, USERPROFILE: home, FORGE614_HOME: join(home, ".forge614") };
@@ -236,11 +250,19 @@ describe("shared installer end to end", () => {
   test("migrates the real 1.17.1 installer layout through 1.18.0 and into 1.18.1", async () => {
     const home = mkdtempSync(join(root, "legacy-user-home-"));
     const origin = `http://127.0.0.1:${server.port}`;
-    const legacyInstall = await runLegacyInstaller(home, origin);
+    if (platform === "windows") {
+      // The legacy installer writes UTF-8 PowerShell source without a BOM;
+      // pwsh on the Windows runner rejects its em dash during parsing. Build
+      // the same versioned directory, copied launcher, and active marker that
+      // the installer writes, then exercise the real 1.17.1 updater below.
+      prepareLegacyWindowsInstall(home);
+    } else {
+      const legacyInstall = await runLegacyInstaller(home, origin);
+      expect(legacyInstall.status, `${legacyInstall.stdout}\n${legacyInstall.stderr}`).toBe(0);
+      expect(legacyInstall.stderr).toBe("");
+    }
     const forgeHome = join(home, ".forge614");
     const launcher = join(forgeHome, "engines", "bin", `forge614-engines${platform === "windows" ? ".exe" : ""}`);
-    expect(legacyInstall.status, `${legacyInstall.stdout}\n${legacyInstall.stderr}`).toBe(0);
-    expect(legacyInstall.stderr).toBe("");
     const oldVersion = Bun.spawnSync([launcher, "--version"], { env: { ...process.env, HOME: home, USERPROFILE: home, FORGE614_HOME: forgeHome }, stdout: "pipe", stderr: "pipe" });
     expect(oldVersion.stdout.toString().trim()).toBe("forge614-engines 1.17.1");
 
