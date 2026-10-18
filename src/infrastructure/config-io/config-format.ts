@@ -4,5 +4,7 @@ export interface ConfigFormatIO {
   withMcpEntry(raw: string, entryPath: string[], name: string, value: unknown): string;
   getValueAtPath(raw: string, path: string[]): unknown;
   withValueAtPath(raw: string, path: string[], value: unknown): string;
+  removeValueAtPath(raw: string, path: string[]): string;
+  removeArrayItems(raw: string, path: string[], indexes: number[]): string;
   isParsable(raw: string): boolean;
 }

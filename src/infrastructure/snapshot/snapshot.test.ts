@@ -2,22 +2,30 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createSnapshot, restoreSnapshot } from "./snapshot";
+import { createSnapshot, restoreSnapshot, snapshotDirectory } from "./snapshot";
 
 let home: string;
+let previousForgeHome: string | undefined;
 let configPath: string;
 
 beforeEach(() => {
+  previousForgeHome = process.env.FORGE614_HOME;
   home = mkdtempSync(join(tmpdir(), "engines-snapshot-"));
+  process.env.FORGE614_HOME = join(home, "forge-home");
   configPath = join(home, "config.json");
   writeFileSync(configPath, '{"original":true}');
 });
 
 afterEach(() => {
   rmSync(home, { recursive: true, force: true });
+  if (previousForgeHome === undefined) delete process.env.FORGE614_HOME;
+  else process.env.FORGE614_HOME = previousForgeHome;
 });
 
 describe("snapshot", () => {
+  test("stores snapshots under FORGE614_HOME/engines", () => {
+    expect(snapshotDirectory(home, "plan-1")).toBe(join(home, "forge-home", "engines", "snapshots", "plan-1"));
+  });
   test("creates a manifest recording the backed-up file and its checksum", async () => {
     const manifest = await createSnapshot(home, "plan-1", [configPath]);
     expect(manifest.files).toHaveLength(1);

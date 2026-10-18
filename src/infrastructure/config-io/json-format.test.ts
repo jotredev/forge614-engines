@@ -28,6 +28,20 @@ describe("jsonConfigFormat.getValueAtPath / withValueAtPath", () => {
     const parsed = JSON.parse(next);
     expect(parsed.hooks).toEqual({ other: true });
   });
+
+  test("removes an owned property while leaving the neighboring property bytes untouched", () => {
+    const foreign = '  "otherServer" : { "command" : "other", "args" : ["keep"] }';
+    const raw = `{
+  "mcpServers" : {
+${foreign},
+    "forge614-engram": { "command": "engram", "args": ["mcp"] }
+  }
+}
+`;
+    const next = jsonConfigFormat.withMcpEntry(raw, ["mcpServers"], "forge614-engram", undefined);
+    expect(next).toContain(foreign);
+    expect(parse(next).mcpServers).toEqual({ otherServer: { command: "other", args: ["keep"] } });
+  });
 });
 
 /** Ten allow rules, one with escaped quotes, inside a JSONC file with a comment: the shape of a real ~/.claude/settings.json. */

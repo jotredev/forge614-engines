@@ -28,4 +28,19 @@ describe("tomlConfigFormat.getValueAtPath / withValueAtPath", () => {
     const next = tomlConfigFormat.withValueAtPath(raw, ["hooks", "SessionStart"], undefined);
     expect(tomlConfigFormat.getValueAtPath(next, ["hooks", "SessionStart"])).toBeUndefined();
   });
+
+  test("removes only a managed array-of-tables hook and preserves a foreign hook verbatim", () => {
+    const foreign = '[[hooks.SessionStart]]\nmatcher = "startup"\nhooks = [{ type = "command", command = "/foreign/hook" }]';
+    const raw = `[[hooks.SessionStart]]
+matcher = "startup"
+hooks = [{ type = "command", command = "/engines/hook" }]
+
+[[hooks.SessionStart]]
+matcher = "startup"
+hooks = [{ type = "command", command = "/foreign/hook" }]
+`;
+    const next = tomlConfigFormat.removeArrayItems(raw, ["hooks", "SessionStart"], [0]);
+    expect(next).toContain(foreign);
+    expect((parse(next) as any).hooks.SessionStart).toHaveLength(1);
+  });
 });

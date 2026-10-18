@@ -15,7 +15,7 @@ export interface SnapshotManifest {
 }
 
 export function snapshotDirectory(home: string, planId: string): string {
-  return join(home, ".forge614", "engines", "snapshots", planId);
+  return join(process.env.FORGE614_HOME ?? join(home, ".forge614"), "engines", "snapshots", planId);
 }
 
 export async function createSnapshot(home: string, planId: string, filePaths: string[]): Promise<SnapshotManifest> {

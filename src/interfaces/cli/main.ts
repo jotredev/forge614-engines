@@ -13,6 +13,9 @@ import {
   runPlanMemoryInstall,
   runPlanMemoryRemove,
   runUpdate,
+  runUninstall,
+  uninstallDependents,
+  runUninstallSelfCli,
   runVerifyMcpRepair,
   runVerifyMemoryIntegration,
 } from "./commands";
@@ -22,6 +25,7 @@ import { StalePlanError } from "../../app/apply-plan";
 import { HeadlessUnsupportedError } from "../../app/headless-command";
 import { UnrecognizedEntryError } from "../../app/plan-mcp-remove";
 import { UpdateAssetMissingError } from "../../app/self-update";
+import { InstallerActionError } from "../../app/installer-actions";
 import { PlanNotFoundError } from "../../infrastructure/plan-store";
 import { ConfigConflictError } from "../../modules/config-writer/types";
 import type { AgentId, ReasoningLevel } from "../../modules/agents/types";
@@ -32,6 +36,7 @@ import {
 } from "../../modules/agents/types";
 import pkg from "../../../package.json";
 import { HELP } from "./help";
+import { createInterface } from "node:readline/promises";
 
 const SCHEMA_VERSION = 1;
 
@@ -76,6 +81,15 @@ function mcpArgsFlag(args: string[]): string[] {
 }
 
 export function errorCodeFor(error: unknown): string {
+  if (error instanceof InstallerActionError) {
+    if (error.code === "DEPENDENT_NODES_INSTALLED") return "DEPENDENT_NODES_INSTALLED";
+    if (error.code === "UNINSTALL_FROM_INSTALLATION") return "UNINSTALL_FROM_INSTALLATION";
+    if (error.code === "INVALID_FORGE614_HOME") return "INVALID_FORGE614_HOME";
+    if (error.code === "INVALID_VERSION") return "INVALID_VERSION";
+    if (error.code === "UPDATE_FAILED") return "UPDATE_FAILED";
+    if (error.code === "UNINSTALL_FAILED") return "UNINSTALL_FAILED";
+    return "INTERNAL_ERROR";
+  }
   if (error instanceof ConfigConflictError) return "CONFLICT";
   if (error instanceof EngramProtocolUnavailableError) return "ENGRAM_PROTOCOL_UNAVAILABLE";
   if (error instanceof NotRepairableError) return "NOT_REPAIRABLE";
@@ -100,6 +114,10 @@ async function main(): Promise<void> {
   // (`forge614-engines <version>`, like `forge614-engram 1.8.5`), and asking must never create or
   // read anything under the home folder.
   if (command === "--version" || command === "-v") {
+    if (boolFlag(process.argv.slice(2), "--json")) {
+      console.log(JSON.stringify({ schemaVersion: SCHEMA_VERSION, name: "forge614-engines", version: pkg.version }));
+      return;
+    }
     console.log(`forge614-engines ${pkg.version}`);
     return;
   }
@@ -171,7 +189,26 @@ async function main(): Promise<void> {
   }
 
   if (command === "update") {
-    return runUpdate();
+    return runUpdate(flag(process.argv.slice(3), "--version"));
+  }
+
+  if (command === "uninstall") {
+    const args = process.argv.slice(3);
+    const json = boolFlag(args, "--json");
+    if (boolFlag(args, "--self")) return runUninstallSelfCli(json);
+    const force = boolFlag(args, "--force");
+    if (!force) {
+      const dependents = uninstallDependents();
+      if (dependents.length) throw new InstallerActionError("DEPENDENT_NODES_INSTALLED", `No se puede retirar Engines mientras estén instalados: ${dependents.join(", ")}. Usa --force para continuar.`);
+    }
+    if (!json && process.stdin.isTTY && process.stdout.isTTY) {
+      const prompt = createInterface({ input: process.stdin, output: process.stdout });
+      try {
+        const answer = await prompt.question("Se retirarán Engines, sus datos en FORGE614_HOME/engines y las integraciones administradas que existan en Claude Code y Codex. ¿Continuar? [s/N] ");
+        if (!/^(s|si|sí|y|yes)$/i.test(answer.trim())) { process.exitCode = 130; return; }
+      } finally { prompt.close(); }
+    }
+    return runUninstall(force, json);
   }
 
   if (command === "verify" && subcommand === "memory-integration") {
@@ -218,6 +255,11 @@ if (import.meta.main) {
   main()
     .catch((error: unknown) => {
       const message = error instanceof Error ? error.message : String(error);
+      if (error instanceof InstallerActionError) {
+        process.stderr.write(`${JSON.stringify({ schemaVersion: SCHEMA_VERSION, code: error.code, error: message })}\n`);
+        process.exitCode = 1;
+        return;
+      }
       console.log(
         JSON.stringify({ schemaVersion: SCHEMA_VERSION, error: { code: errorCodeFor(error), message } }, null, 2),
       );
