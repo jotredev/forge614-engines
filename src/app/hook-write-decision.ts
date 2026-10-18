@@ -138,7 +138,9 @@ export async function decideHookRemove(
     write: {
       path: configPath,
       beforeHash: createHash("sha256").update(hashExists ? hashRaw : "").digest("hex"),
-      afterContent: format.withValueAtPath(sourceRaw, hooks.entryPath, nextEntries.length === 0 ? undefined : nextEntries),
+      afterContent: nextEntries.length === 0
+        ? format.removeValueAtPath(sourceRaw, hooks.entryPath)
+        : format.removeArrayItems(sourceRaw, hooks.entryPath, [ownIndex]),
     },
   };
 }

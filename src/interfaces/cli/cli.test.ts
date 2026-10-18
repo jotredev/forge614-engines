@@ -19,13 +19,18 @@ import { readdirSync } from "node:fs";
 const ENTRY = "src/interfaces/cli/main.ts";
 
 let home: string;
+let previousForgeHome: string | undefined;
 
 beforeEach(() => {
+  previousForgeHome = process.env.FORGE614_HOME;
   home = mkdtempSync(join(tmpdir(), "engines-cli-"));
+  process.env.FORGE614_HOME = join(home, ".forge614");
 });
 
 afterEach(() => {
   rmSync(home, { recursive: true, force: true });
+  if (previousForgeHome === undefined) delete process.env.FORGE614_HOME;
+  else process.env.FORGE614_HOME = previousForgeHome;
 });
 
 const PROTOCOL_JSON = JSON.stringify({
@@ -86,18 +91,21 @@ function installEngramFixture(testHome: string): void {
  * profile there (evidence written and .claude.json read from the wrong folder).
  */
 function homeEnv(testHome: string, extra: Record<string, string> = {}): Record<string, string | undefined> {
-  return { ...process.env, HOME: testHome, USERPROFILE: testHome, ...extra };
+  return { ...process.env, HOME: testHome, USERPROFILE: testHome, FORGE614_HOME: join(testHome, ".forge614"), ...extra };
 }
 
-async function runCli(args: string[]): Promise<{ stdout: string; exitCode: number }> {
+async function runCli(args: string[]): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   const proc = Bun.spawn(["bun", ENTRY, ...args], {
     stdout: "pipe",
     stderr: "pipe",
     env: homeEnv(home),
   });
-  const stdout = await new Response(proc.stdout).text();
-  const exitCode = await proc.exited;
-  return { stdout, exitCode };
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+  return { stdout, stderr, exitCode };
 }
 
 describe("child-process environment", () => {
@@ -105,10 +113,41 @@ describe("child-process environment", () => {
     const env = homeEnv(home);
     expect(env.HOME).toBe(home);
     expect(env.USERPROFILE).toBe(home);
+    expect(env.FORGE614_HOME).toBe(join(home, ".forge614"));
   });
 });
 
 describe("forge614-engines CLI", () => {
+  test("--version --json returns the common version object", async () => {
+    const { stdout, exitCode } = await runCli(["--version", "--json"]);
+
+    expect(exitCode).toBe(0);
+    expect(JSON.parse(stdout)).toEqual({ schemaVersion: 1, name: "forge614-engines", version: pkg.version });
+  });
+
+  test("uninstall --json blocks a detected Workers installation with a stable stderr error", async () => {
+    const workers = join(home, ".forge614", "workers", "bin");
+    mkdirSync(workers, { recursive: true });
+    writeFileSync(join(workers, "forge614-workers"), "");
+
+    const result = await runCli(["uninstall", "--json"]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(JSON.parse(result.stderr)).toMatchObject({ schemaVersion: 1, code: "DEPENDENT_NODES_INSTALLED" });
+    expect(result.stderr).toContain("workers");
+  });
+
+  test("uninstall --self --json reports each assistant and leaves absent integrations alone", async () => {
+    const result = await runCli(["uninstall", "--self", "--json"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({
+      schemaVersion: 1,
+      result: { integrationsRemoved: true, assistants: { "claude-code": false, codex: false } },
+    });
+  });
+
   test("detect --json outputs a schemaVersion and an agents array", async () => {
     const { stdout, exitCode } = await runCli(["detect"]);
 

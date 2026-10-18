@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { AgentAdapter, PermissionRulesApproval, ServerModeApproval } from "../modules/agents/types";
 import type { MemoryIntegrationComponentStatus, PlanWrite } from "../modules/config-writer/types";
 import { configFormats } from "../infrastructure/config-io/formats";
-import { appendToArray, removeArrayItems } from "../infrastructure/config-io/json-format";
+import { appendToArray } from "../infrastructure/config-io/json-format";
 
 /*
  * "Always" approval of the Engram tools.
@@ -134,8 +134,8 @@ async function installPermissionRule(
   if (alreadyAllowed && denyIndexes.length === 0 && askIndexes.length === 0) return { configPath, decision: { kind: "noop" } };
 
   let next = sourceRaw;
-  if (denyIndexes.length > 0) next = removeArrayItems(next, target.denyPath, denyIndexes);
-  if (askIndexes.length > 0) next = removeArrayItems(next, target.askPath, askIndexes);
+  if (denyIndexes.length > 0) next = format.removeArrayItems(next, target.denyPath, denyIndexes);
+  if (askIndexes.length > 0) next = format.removeArrayItems(next, target.askPath, askIndexes);
   if (!alreadyAllowed) {
     const rule = target.serverRule(serverName);
     next = Array.isArray(allow) ? appendToArray(next, target.allowPath, rule) : format.withValueAtPath(next, target.allowPath, [rule]);
@@ -201,7 +201,7 @@ export async function decideToolApprovalRemove(
     return {
       configPath,
       decision: { kind: "write" },
-      write: { path: configPath, beforeHash, afterContent: format.withValueAtPath(sourceRaw, keyPath, undefined) },
+      write: { path: configPath, beforeHash, afterContent: format.removeValueAtPath(sourceRaw, keyPath) },
     };
   }
 
@@ -212,7 +212,7 @@ export async function decideToolApprovalRemove(
   return {
     configPath,
     decision: { kind: "write" },
-    write: { path: configPath, beforeHash, afterContent: removeArrayItems(sourceRaw, target.allowPath, indexes) },
+    write: { path: configPath, beforeHash, afterContent: format.removeArrayItems(sourceRaw, target.allowPath, indexes) },
   };
 }
 

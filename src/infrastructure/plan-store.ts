@@ -10,7 +10,7 @@ export class PlanNotFoundError extends Error {
 }
 
 export function plansDirectory(home: string): string {
-  return join(home, ".forge614", "engines", "plans");
+  return join(process.env.FORGE614_HOME ?? join(home, ".forge614"), "engines", "plans");
 }
 
 export function newPlanId(): string {

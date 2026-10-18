@@ -10,9 +10,10 @@ import { planMcpRemove } from "../../app/plan-mcp-remove";
 import { planMcpRepair } from "../../app/plan-mcp-repair";
 import { planMemoryInstall } from "../../app/plan-memory-install";
 import { planMemoryRemove } from "../../app/plan-memory-remove";
+import { resolveEngramMcpServer } from "../../modules/memory-protocol/constants";
 import { recordHookEvidence } from "../../app/hook-evidence";
 import { runMemoryHook } from "../../app/run-memory-hook";
-import { performUpdate } from "../../app/self-update";
+import { assertUninstallAllowed, detectInstalledDependents, uninstallEngines, updateEngines } from "../../app/installer-actions";
 import { verifyMcpRepair } from "../../app/verify-mcp-repair";
 import { verifyMemoryIntegration } from "../../app/verify-memory-integration";
 import { loadPlan } from "../../infrastructure/plan-store";
@@ -70,9 +71,45 @@ export async function runAgentsList(): Promise<void> {
   printJson({ agents: listAgents(registry) });
 }
 
-export async function runUpdate(): Promise<void> {
-  const result = await performUpdate(homedir());
+export async function runUpdate(version?: string): Promise<void> {
+  const result = await updateEngines(version);
   printJson({ result });
+}
+
+/** Retires the Engines installation and reports its dependent nodes. */
+export async function runUninstall(force: boolean, json = false): Promise<void> {
+  assertUninstallAllowed({ force });
+  await runUninstallSelf(false);
+  const result = await uninstallEngines({ force });
+  if (json) printJson({ result });
+  else console.log("forge614-engines se desinstaló.");
+}
+
+/** Removes only the Engram integration entries Engines manages in each assistant. */
+export async function runUninstallSelf(print = true): Promise<{ integrationsRemoved: true; assistants: Record<string, boolean> }> {
+  const registry = buildDefaultRegistry();
+  const assistants: Record<string, boolean> = {};
+  for (const agentId of ["claude-code", "codex"] as const) {
+    const mcpPlan = await planMcpRemove(registry, { agentId, home: homedir(), server: resolveEngramMcpServer(homedir()) });
+    const mcpResult = await applyPlan(homedir(), mcpPlan.planId);
+    const memoryPlan = await planMemoryRemove(registry, { agentId, home: homedir() });
+    const memoryResult = await applyPlan(homedir(), memoryPlan.planId);
+    assistants[agentId] = mcpResult.changedFiles.length + memoryResult.changedFiles.length > 0;
+  }
+  const result = { integrationsRemoved: true as const, assistants };
+  if (print) printJson({ result });
+  return result;
+}
+
+export async function runUninstallSelfCli(json = false): Promise<void> {
+  const result = await runUninstallSelf(false);
+  if (json) printJson({ result });
+  else console.log("Se retiraron las integraciones administradas de Forge614 Engines.");
+}
+
+/** Summarizes the dependents that uninstall would currently protect. */
+export function uninstallDependents(): string[] {
+  return detectInstalledDependents();
 }
 
 export async function runHeadlessCommand(

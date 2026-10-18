@@ -23,7 +23,9 @@ Commands:
   headless --agent <id> --executable <path> --prompt <text>
            [--model <name>] [--reasoning-level <low|medium|high|xhigh|max>] [--stdin-prompt] [--readable-dir <path>] [--read-only] [--timeout-ms <ms>]
                                            Build the command to run an agent without a screen.
-  update                                   Update Forge614 Engines to the latest release.
+  update [--version X.Y.Z] [--json]        Update Forge614 Engines through the shared installer.
+  uninstall [--force] [--json]             Remove Engines and its managed assistant integrations.
+  uninstall --self [--json]                 Remove only the managed assistant integrations.
   verify memory-integration --agent <id>   Check the Engram memory install, tool approval included.
   verify mcp-repair --agent <id> --plan-id <id>
                                            Check a repair after it was applied.
@@ -31,4 +33,5 @@ Commands:
 
 Options:
   --version, -v                            Print the installed version.
+  --json                                   Print machine-readable JSON where supported.
   --help, -h                               Print this help.`;

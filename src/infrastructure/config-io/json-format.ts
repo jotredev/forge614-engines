@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { applyEdits, modify, parse } from "jsonc-parser";
+import { applyEdits, findNodeAtLocation, modify, parse, parseTree, type Node } from "jsonc-parser";
 import type { ConfigFormatIO } from "./config-format";
 
 async function readOrDefault(path: string): Promise<{ raw: string; exists: boolean }> {
@@ -21,10 +21,55 @@ function getMcpEntry(raw: string, entryPath: string[], name: string): unknown {
 }
 
 function withMcpEntry(raw: string, entryPath: string[], name: string, value: unknown): string {
+  if (value === undefined) return removeValueAtPath(raw, [...entryPath, name]);
   const edits = modify(raw, [...entryPath, name], value, {
     formattingOptions: { insertSpaces: true, tabSize: 2 },
   });
   return applyEdits(raw, edits);
+}
+
+function removeNode(raw: string, node: Node): string {
+  const parent = node.parent;
+  if (!parent?.children?.length) return raw;
+  const siblings = parent.children;
+  const index = siblings.indexOf(node);
+  if (index < 0) return raw;
+  let start = node.offset;
+  let end = node.offset + node.length;
+  if (parent.type === "object") {
+    const property = node;
+    const siblingProperties = siblings;
+    if (index < siblingProperties.length - 1) {
+      end = siblingProperties[index + 1]!.offset;
+    } else if (index > 0) {
+      start = siblingProperties[index - 1]!.offset + siblingProperties[index - 1]!.length;
+    }
+  } else if (parent.type === "array") {
+    if (index < siblings.length - 1) end = siblings[index + 1]!.offset;
+    else if (index > 0) start = siblings[index - 1]!.offset + siblings[index - 1]!.length;
+  }
+  return raw.slice(0, start) + raw.slice(end);
+}
+
+function removeValueAtPath(raw: string, path: string[]): string {
+  const tree = parseTree(raw);
+  if (!tree || path.length === 0) return raw;
+  const node = findNodeAtLocation(tree, path);
+  if (!node) return raw;
+  const target = node.parent?.parent?.type === "object" ? node.parent : node;
+  return removeNode(raw, target);
+}
+
+function removeArrayItemsRaw(raw: string, path: string[], indexes: number[]): string {
+  let current = raw;
+  for (const index of [...indexes].sort((a, b) => b - a)) {
+    const tree = parseTree(current);
+    if (!tree) continue;
+    const array = findNodeAtLocation(tree, path);
+    const item = array?.children?.[index];
+    if (array?.type === "array" && item) current = removeNode(current, item);
+  }
+  return current;
 }
 
 function isParsable(raw: string): boolean {
@@ -68,9 +113,7 @@ export function appendToArray(raw: string, path: string[], value: unknown): stri
  * empty it stays as an empty array.
  */
 export function removeArrayItems(raw: string, path: string[], indexes: number[]): string {
-  return [...indexes]
-    .sort((a, b) => b - a)
-    .reduce((current, index) => applyEdits(current, modify(current, [...path, index], undefined, { formattingOptions: FORMATTING })), raw);
+  return removeArrayItemsRaw(raw, path, indexes);
 }
 
 export const jsonConfigFormat: ConfigFormatIO = {
@@ -79,5 +122,7 @@ export const jsonConfigFormat: ConfigFormatIO = {
   withMcpEntry,
   getValueAtPath,
   withValueAtPath,
+  removeValueAtPath,
+  removeArrayItems: removeArrayItemsRaw,
   isParsable,
 };

@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "node": "engines",
+  "kind": "product",
+  "standard": {
+    "version": "1.2.1",
+    "sha256": "357f26a5391cfcd5abc48abe1bd750db1a540e95b511f6bd12ac681a1527100e"
+  },
+  "ecosystem": "forge614",
+  "install": {
+    "repository": "jotredev/forge614-engines",
+    "minimumNodeVersion": "22.19.0",
+    "systems": [
+      { "os": "darwin", "architectures": ["arm64", "x64"] },
+      { "os": "linux", "architectures": ["arm64", "x64"] },
+      { "os": "windows", "architectures": ["x64"] }
+    ],
+    "tagFormat": "vX.Y.Z",
+    "asset": {
+      "type": "binary-tar-gzip",
+      "pattern": "forge614-engines-<ver>-<plat>-<arch>.tar.gz",
+      "checksumFile": "SHA256SUMS"
+    },
+    "dependencies": [],
+    "path": { "modify": false, "retireWhen": null },
+    "smokeTest": ["--version"]
+  }
+}
