@@ -20,7 +20,7 @@ Shell automatically installs and validates Engines when required. On macOS and L
 
 The shared installer uses `install.sh` or `install.ps1`, which verify `SHA256SUMS` before running `install.mjs`. It requires Node.js 22.19.0 or newer and does not change PATH or shell profiles. `FORGE614_HOME` can change the shared home for controlled tests. It is not a way to share or delete the folders owned by other products.
 
-`update` calls the gatekeeper with a resolved tag, verifies its checksum, and reads the installed version afterward. To preserve Shell 1.17.0 compatibility, it returns the update JSON even without `--json`; this exception to decision 0031 will be removed when Shell passes that flag. From Engines 1.17.x, two `update` commands are required: the first installs 1.18.0 in the earlier layout; the second migrates to the latest version through the shared installer.
+`update` calls the gatekeeper with a resolved tag, verifies its checksum, and reads the installed version afterward. To preserve Shell 1.17.0 compatibility, it returns the update JSON even without `--json`; this exception to decision 0031 will be removed when Shell passes that flag. From Engines 1.17.x, two `update` commands are required: the first installs 1.18.0 in the earlier layout; the 1.17.1 updater also writes `.active-version` on macOS and Linux, and the second update migrates through the shared installer.
 
 `uninstall` stops when it detects Shell, Workers, Atlas, or Engram under `FORGE614_HOME`; `--force` allows removal and cleans the managed Claude Code and Codex integrations. `uninstall --self` removes only those integrations through transactional plans, without replacing configuration or deleting whole files.
 

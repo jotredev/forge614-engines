@@ -20,7 +20,7 @@ Shell instala y valida Engines automáticamente cuando lo necesita. En macOS y L
 
 La instalación común usa `install.sh` o `install.ps1`, que verifican `SHA256SUMS` antes de ejecutar `install.mjs`. Requiere Node.js 22.19.0 o posterior; no cambia PATH ni los perfiles de terminal. `FORGE614_HOME` puede cambiar la carpeta compartida durante pruebas controladas. No es una forma de compartir o borrar las carpetas de otros productos.
 
-`update` llama al portero con una etiqueta resuelta, verifica su huella y lee la versión instalada después. Para conservar compatibilidad con Shell 1.17.0, devuelve el JSON de actualización incluso sin `--json`; se retirará esta excepción al acta 0031 cuando Shell pase esa opción. Desde Engines 1.17.x se requieren dos `update`: el primero instala 1.18.0 con el formato anterior; el segundo migra a la versión más reciente mediante el instalador común.
+`update` llama al portero con una etiqueta resuelta, verifica su huella y lee la versión instalada después. Para conservar compatibilidad con Shell 1.17.0, devuelve el JSON de actualización incluso sin `--json`; se retirará esta excepción al acta 0031 cuando Shell pase esa opción. Desde Engines 1.17.x se requieren dos `update`: el primero instala 1.18.0 con el formato anterior; el actualizador de 1.17.1 también escribe `.active-version` en macOS y Linux, aunque el segundo `update` migra mediante el instalador común.
 
 `uninstall` se detiene si detecta Shell, Workers, Atlas o Engram bajo `FORGE614_HOME`; `--force` permite continuar y limpia las integraciones administradas de Claude Code y Codex. `uninstall --self` retira únicamente esas integraciones mediante planes transaccionales, sin reemplazar configuraciones ni borrar archivos enteros.
 
