@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "bun test",
+    "verify": "bun run typecheck && bun test && bun run verify:docs && git diff --check",
     "typecheck": "tsc --noEmit",
     "verify:docs": "bun scripts/verify-documentation.mjs",
     "verify:release": "bun scripts/verify-release.mjs",

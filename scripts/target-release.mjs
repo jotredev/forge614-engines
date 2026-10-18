@@ -55,7 +55,7 @@ function smoke() {
   } finally { rmSync(temporary, { recursive: true, force: true }); }
 }
 
-/** Adds the compatibility sidecars and records their own digests in SHA256SUMS. */
+/** Adds the compatibility sidecars and rebuilds SHA256SUMS in GNU format. */
 function sidecars() {
   const directory = join("dist", "release");
   const names = readdirSync(directory).filter((name) => name.endsWith(".tar.gz")).sort();
@@ -65,17 +65,16 @@ function sidecars() {
     writeFileSync(join(directory, `${name}.sha256`), `${digest}  ${name}\n`);
   }
   const sumsPath = join(directory, "SHA256SUMS");
-  const sums = readFileSync(sumsPath, "utf8").trimEnd().split(/\r?\n/);
-  for (const name of names) {
-    const sidecar = `${name}.sha256`;
-    const digest = createHash("sha256").update(readFileSync(join(directory, sidecar))).digest("hex");
-    sums.push(`${digest}  ${sidecar}`);
-  }
+  const sums = readdirSync(directory).filter((name) => name !== "SHA256SUMS").sort().map((name) => {
+    const digest = createHash("sha256").update(readFileSync(join(directory, name))).digest("hex");
+    return `${digest}  ${name}`;
+  });
   writeFileSync(sumsPath, `${sums.join("\n")}\n`);
 }
 
 /** Publishes the staged release assets after a version tag triggers the release workflow. */
 function publish() {
+  sidecars();
   const tag = `v${version()}`;
   const assets = readdirSync(join("dist", "release")).sort().map((name) => join("dist", "release", name));
   run("gh", ["release", "create", tag, ...assets, "--title", tag, "--generate-notes"], { env: { ...process.env, GH_REPO: "jotredev/forge614-engines" } });

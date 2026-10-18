@@ -1,15 +1,15 @@
+# Precondition: a node with `file:../` dependencies to sibling repositories in
+# its package.json cannot use this template. This workflow checks out a
+# single repository, so `bun install --frozen-lockfile` would fail against a
+# path dependency that only exists on the machine that authored it. Replace
+# the dependency with the published version of the sibling node before
+# adopting this template.
 name: release
 on:
-  push:
-    tags: ["v*"]
-
-permissions:
-  contents: read
-
+  push: { tags: ["v*"] }
 jobs:
   build:
     strategy:
-      fail-fast: false
       matrix:
         include:
           - { os: macos-15, target: darwin-arm64 }
@@ -20,45 +20,30 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.4.2
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
+        with: { bun-version: "1.4.2" }
       - run: bun install --frozen-lockfile
       - run: bun run build:target
-        env:
-          FORGE614_TARGET: ${{ matrix.target }}
+        env: { FORGE614_TARGET: "${{ matrix.target }}" }
       - run: bun run smoke:target
-        env:
-          FORGE614_TARGET: ${{ matrix.target }}
-      - uses: actions/upload-artifact@v4
-        with:
-          name: release-${{ matrix.target }}
-          path: dist/release/*.tar.gz
-          if-no-files-found: error
-
+        env: { FORGE614_TARGET: "${{ matrix.target }}" }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with: { name: "${{ matrix.target }}", path: dist/release/* }
   publish:
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    permissions:
-      contents: write
+    permissions: { contents: write }
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.4.2
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22.19.0
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: release-*
-          merge-multiple: true
-          path: dist/release
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
+        with: { bun-version: "1.4.2" }
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: "22.19.0" }
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with: { path: dist/release, merge-multiple: true }
       - run: bun install --frozen-lockfile
       - run: bun run scripts/prepare-release-assets.mjs
-      - run: bun run release:sidecars
       - run: bun run release:publish
-        env:
-          GH_TOKEN: ${{ github.token }}
+        env: { GH_TOKEN: "${{ github.token }}" }
