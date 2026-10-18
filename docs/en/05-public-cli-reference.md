@@ -9,6 +9,7 @@ The CLI (command-line interface) is the Engines counter. Every request returns a
 | Command | Main result | Writes |
 | --- | --- | --- |
 | `forge614-engines --version` (or `-v`) | plain text `forge614-engines <version>` | No |
+| `forge614-engines --version --json` | `{"schemaVersion":1,"name":"forge614-engines","version":"X.Y.Z"}` | No |
 | `forge614-engines --help` (or `-h`) | plain-text help listing these commands | No |
 | `forge614-engines detect` | detected `agents` | No |
 | `forge614-engines agents list` | every agent the code supports, installed or not | No |
@@ -19,7 +20,9 @@ The CLI (command-line interface) is the Engines counter. Every request returns a
 | `forge614-engines plan memory-remove --agent <id>` | one coherent memory-integration removal `plan` (the tool approval is removed too) | Stores the plan only |
 | `forge614-engines apply --plan-id <id>` | application `result` | Yes, only for confirmed plan |
 | `forge614-engines headless ...` | `headless` command and arguments | No |
-| `forge614-engines update` | update `result` | Manages Engines only |
+| `forge614-engines update [--version X.Y.Z] [--json]` | `result` with `updated`, `currentVersion`, `latestVersion`, `note`, and `installedVersion` | Updates Engines through the verified gatekeeper |
+| `forge614-engines uninstall [--force] [--json]` | text confirmation or JSON `result`; blocks when dependent nodes are present | Removes Engines, its data, and managed integrations |
+| `forge614-engines uninstall --self [--json]` | `integrationsRemoved` and per-assistant result | Removes only Engines-managed integrations |
 | `forge614-engines verify memory-integration --agent <id>` | current MCP/instructions/hook/approval `verification` | No |
 | `forge614-engines memory-hook-run --agent <id>` | plain text (Claude Code) or `hookSpecificOutput.additionalContext` JSON (Codex) on stdout | No |
 | `forge614-engines plan mcp-repair --agent <id>` | repair `plan` with status (`not-installed`/`already-correct`/`repairable-conflict`/`blocked`) | Stores the plan only |
@@ -28,7 +31,9 @@ The CLI (command-line interface) is the Engines counter. Every request returns a
 
 `--args` consumes values until the next flag beginning with `--`. This keeps MCP-server arguments from accidentally swallowing another Engines option.
 
-`--version` and `-v` print `forge614-engines <version>` (the `package.json` version) as plain text and exit with 0, like every Forge614 node. `--help` and `-h` print a plain-text help with the public commands plus `--version` and `--help`, and also exit with 0. Both are answered first thing, without reading or creating anything on disk; every other command keeps answering the JSON receipt.
+`--version` and `-v` print `forge614-engines <version>` (the `package.json` version) as plain text; with `--json`, they return the shared version object. `update` preserves today's JSON even without `--json` so Shell 1.17.0 can keep reading its fields; this exception to decision 0031 ends when Shell passes `--json`. Installer and removal errors go to stderr as `{ "schemaVersion": 1, "code": "...", "error": "..." }`. `uninstall` prompts in a terminal except with `--json` or without a TTY. From Engines 1.17.x, run `update` twice: the first leaves 1.18.0 in the earlier layout; the second migrates through the gatekeeper. `--help` and `-h` print plain text without touching disk.
+
+`uninstall` detects Shell, Workers, Atlas, and Engram by their `FORGE614_HOME` folder and `.active-version`, launcher, or `.bin-dir`. It blocks removal while any are installed; `--force` continues. `uninstall --self` uses the `mcp-remove` and `memory-remove` plans to remove Engram's MCP entry, managed instructions, `SessionStart`, and its permissions while preserving unrelated entries and text byte for byte.
 
 ## Examples
 
@@ -73,7 +78,7 @@ Every time `memory-hook-run` receives a payload shaped like a genuine `SessionSt
 
 ## Public errors
 
-Every error is JSON with `error.code` and `error.message`.
+Existing errors retain `error.code` and `error.message`. Installer and removal errors go to stderr as `{ "schemaVersion": 1, "code": "...", "error": "..." }`.
 
 | Code | Cause |
 | --- | --- |
@@ -89,6 +94,12 @@ Every error is JSON with `error.code` and `error.message`.
 | `UNKNOWN_COMMAND` | the word combination is not a public command |
 | `UNKNOWN_AGENT` | the identifier is not registered |
 | `INTERNAL_ERROR` | an unclassified problem occurred |
+| `INVALID_FORGE614_HOME` | `FORGE614_HOME` is not a valid absolute path |
+| `INVALID_VERSION` | the requested version is not `X.Y.Z` |
+| `UPDATE_FAILED` | gatekeeper download, verification, or execution failed |
+| `UNINSTALL_FAILED` | the gatekeeper did not remove Engines |
+| `DEPENDENT_NODES_INSTALLED` | Shell, Workers, Atlas, or Engram is installed |
+| `UNINSTALL_FROM_INSTALLATION` | the current directory is inside the Engines installation |
 | `ENGRAM_PROTOCOL_UNAVAILABLE` | Engram is not installed, the command failed, or its JSON did not match the protocol shape |
 | `NOT_REPAIRABLE` | the given `planId` is not a `forge614-engram` repair plan |
 | `CONFIRMATION_REQUIRED` | attempted to apply an mcp-repair plan via the generic `apply` command instead of `apply mcp-repair --confirm` |
