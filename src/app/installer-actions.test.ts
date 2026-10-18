@@ -33,7 +33,8 @@ describe("detectInstalledDependents", () => {
 });
 
 describe("updateEngines", () => {
-  test("uses a loopback gatekeeper and reports the version read from the installed launcher", async () => {
+  // Windows exercises update through the real installer in installer.e2e.test.ts; this fixture is a POSIX shell script.
+  test.skipIf(process.platform === "win32")("uses a loopback gatekeeper and reports the version read from the installed launcher", async () => {
     root = mkdtempSync(join(tmpdir(), "engines-update-"));
     const installer = [
       "#!/bin/sh",
