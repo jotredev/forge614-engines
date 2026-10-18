@@ -23,7 +23,7 @@ jobs:
           forge_home="$RUNNER_TEMP/forge614-home"
           forge614_home="$forge_home/.forge614"
           mkdir -p "$forge_home" "$forge614_home"
-          printf 'HOME=%s\nFORGE614_HOME=%s\n' "$forge_home" "$forge614_home" >> "$GITHUB_ENV"
+          printf 'HOME=%s\n' "$forge_home" >> "$GITHUB_ENV"
       - name: Create isolated test homes on Windows
         if: runner.os == 'Windows'
         shell: pwsh
@@ -32,7 +32,6 @@ jobs:
           $forge614Home = Join-Path $forgeHome ".forge614"
           New-Item -ItemType Directory -Force -Path $forgeHome, $forge614Home | Out-Null
           "HOME=$forgeHome" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "FORGE614_HOME=$forge614Home" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - run: bun install --frozen-lockfile
       - run: bun run verify
 
