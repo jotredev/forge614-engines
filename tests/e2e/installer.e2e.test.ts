@@ -194,7 +194,7 @@ beforeAll(() => {
       return bytes ? new Response(Buffer.from(bytes)) : new Response("not found", { status: 404 });
     },
   });
-});
+}, { timeout: 120_000 });
 
 afterAll(() => {
   server?.stop(true);
