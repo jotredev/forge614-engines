@@ -207,11 +207,11 @@ describe("shared installer end to end", () => {
     const baseUrl = `http://127.0.0.1:${server.port}`;
     const result = await runInstaller(home, baseUrl);
     const launcher = join(home, ".forge614", "engines", "bin", `forge614-engines${platform === "windows" ? ".exe" : ""}`);
-    expect(result.status).toBe(0);
+    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
     expect(result.stderr).toBe("");
     expect(existsSync(launcher)).toBe(true);
     const version = Bun.spawnSync([launcher, "--version"], { env: { ...process.env, HOME: home, USERPROFILE: home, FORGE614_HOME: join(home, ".forge614") }, stdout: "pipe", stderr: "pipe" });
-    expect(version.exitCode).toBe(0);
+    expect(version.exitCode, `${version.stdout.toString()}\n${version.stderr.toString()}`).toBe(0);
     expect(version.stdout.toString().trim()).toBe(`forge614-engines ${assetVersion}`);
     const update = Bun.spawn([launcher, "update", "--version", "1.18.1"], {
       env: { ...process.env, HOME: home, USERPROFILE: home, FORGE614_HOME: join(home, ".forge614"), FORGE614_INSTALL_TEST_BASE_URL: baseUrl },
@@ -224,11 +224,11 @@ describe("shared installer end to end", () => {
       new Response(update.stderr).text(),
       update.exited,
     ]);
-    expect(updateCode).toBe(0);
+    expect(updateCode, `${updateOut}\n${updateErr}`).toBe(0);
     expect(updateErr).toBe("");
     expect(JSON.parse(updateOut).result).toMatchObject({ currentVersion: assetVersion, latestVersion: "1.18.1", installedVersion: "1.18.1" });
     const upgraded = Bun.spawnSync([launcher, "--version"], { env: { ...process.env, HOME: home, USERPROFILE: home, FORGE614_HOME: join(home, ".forge614") }, stdout: "pipe", stderr: "pipe" });
-    expect(upgraded.exitCode).toBe(0);
+    expect(upgraded.exitCode, `${upgraded.stdout.toString()}\n${upgraded.stderr.toString()}`).toBe(0);
     expect(upgraded.stdout.toString().trim()).toBe("forge614-engines 1.18.1");
     rmSync(home, { recursive: true, force: true });
   }, 120_000);
@@ -239,7 +239,7 @@ describe("shared installer end to end", () => {
     const legacyInstall = await runLegacyInstaller(home, origin);
     const forgeHome = join(home, ".forge614");
     const launcher = join(forgeHome, "engines", "bin", `forge614-engines${platform === "windows" ? ".exe" : ""}`);
-    expect(legacyInstall.status).toBe(0);
+    expect(legacyInstall.status, `${legacyInstall.stdout}\n${legacyInstall.stderr}`).toBe(0);
     expect(legacyInstall.stderr).toBe("");
     const oldVersion = Bun.spawnSync([launcher, "--version"], { env: { ...process.env, HOME: home, USERPROFILE: home, FORGE614_HOME: forgeHome }, stdout: "pipe", stderr: "pipe" });
     expect(oldVersion.stdout.toString().trim()).toBe("forge614-engines 1.17.1");
@@ -255,7 +255,7 @@ describe("shared installer end to end", () => {
       new Response(oldUpdate.stderr).text(),
       oldUpdate.exited,
     ]);
-    expect(oldUpdateCode).toBe(0);
+    expect(oldUpdateCode, `${oldUpdateOut}\n${oldUpdateErr}`).toBe(0);
     expect(oldUpdateErr).toBe("");
     expect(JSON.parse(oldUpdateOut).result).toMatchObject({ updated: true, currentVersion: "1.17.1", latestVersion: assetVersion });
     expect(await waitForLegacyUpdate(launcher, assetVersion, home)).toBe(true);
@@ -275,7 +275,7 @@ describe("shared installer end to end", () => {
       new Response(secondUpdate.stderr).text(),
       secondUpdate.exited,
     ]);
-    expect(secondCode).toBe(0);
+    expect(secondCode, `${secondOut}\n${secondErr}`).toBe(0);
     expect(secondErr).toBe("");
     expect(JSON.parse(secondOut).result).toMatchObject({ currentVersion: assetVersion, latestVersion: "1.18.1", installedVersion: "1.18.1" });
     const migrated = Bun.spawnSync([launcher, "--version"], { env: { ...process.env, HOME: home, USERPROFILE: home, FORGE614_HOME: forgeHome }, stdout: "pipe", stderr: "pipe" });
@@ -329,18 +329,18 @@ ${mcpForeign}
     const codexManualRaw = readFileSync(codexManualPath, "utf8");
 
     const blocked = await runInstalledCli(launcher, ["uninstall", "--json"], home, home);
-    expect(blocked.status).toBe(1);
+    expect(blocked.status, `${blocked.stdout}\n${blocked.stderr}`).toBe(1);
     expect(JSON.parse(blocked.stderr)).toMatchObject({ schemaVersion: 1, code: "DEPENDENT_NODES_INSTALLED" });
     expect(readFileSync(mcpConfig, "utf8")).toBe(claudeBefore);
 
     const fromInside = await runInstalledCli(launcher, ["uninstall", "--force", "--json"], home, join(forgeHome, "engines", "bin"));
-    expect(fromInside.status).toBe(1);
+    expect(fromInside.status, `${fromInside.stdout}\n${fromInside.stderr}`).toBe(1);
     expect(JSON.parse(fromInside.stderr)).toMatchObject({ schemaVersion: 1, code: "UNINSTALL_FROM_INSTALLATION" });
     expect(readFileSync(claudeSettingsPath, "utf8")).toBe(claudeSettingsRaw);
     expect(readFileSync(codexConfigPath, "utf8")).toBe(codexBefore);
 
     const removed = await runInstalledCli(launcher, ["uninstall", "--force", "--json"], home, home, { FORGE614_INSTALL_TEST_BASE_URL: origin });
-    expect(removed.status).toBe(0);
+    expect(removed.status, `${removed.stdout}\n${removed.stderr}`).toBe(0);
     expect(JSON.parse(removed.stdout).result).toMatchObject({ removed: true, dependents: ["workers"] });
     expect(existsSync(join(forgeHome, "engines"))).toBe(false);
     expect(existsSync(join(forgeHome, "workers"))).toBe(true);
