@@ -144,7 +144,7 @@ describe("forge614-engines CLI", () => {
     expect(result.exitCode).toBe(0);
     expect(JSON.parse(result.stdout)).toEqual({
       schemaVersion: 1,
-      result: { integrationsRemoved: true, assistants: { "claude-code": false, codex: false } },
+      result: { integrationsRemoved: true, assistants: { "claude-code": false, codex: false, antigravity: false } },
     });
   });
 
@@ -178,6 +178,16 @@ describe("forge614-engines CLI", () => {
       {
         id: "codex",
         label: "Codex",
+        supportsMcp: true,
+        supportsHooks: true,
+        supportsHeadlessExec: true,
+        supportsReasoningLevel: true,
+        supportsReadOnly: true,
+        fullySupported: true,
+      },
+      {
+        id: "antigravity",
+        label: "Antigravity",
         supportsMcp: true,
         supportsHooks: true,
         supportsHeadlessExec: true,
@@ -346,7 +356,7 @@ describe("forge614-engines CLI", () => {
     expect(parsed.headless).toEqual({ command: "/bin/claude", args: ["-p", "hello", "--effort", "xhigh"] });
   });
 
-  for (const agentId of ["claude-code", "codex"]) {
+  for (const agentId of ["claude-code", "codex", "antigravity"]) {
     test(`headless --reasoning-level banana for ${agentId} reports INVALID_REASONING_LEVEL`, async () => {
       const { stdout, exitCode } = await runCli([
         "headless",
@@ -506,7 +516,7 @@ describe("forge614-engines CLI", () => {
     expect(JSON.parse(stdout).headless).toEqual({ command: "/bin/claude", args: ["-p", "x"] });
   });
 
-  for (const agentId of ["claude-code", "codex"]) {
+  for (const agentId of ["claude-code", "codex", "antigravity"]) {
     test(`capabilities --agent ${agentId} reports supportsReadOnly true`, async () => {
       const { stdout, exitCode } = await runCli(["capabilities", "--agent", agentId]);
 
@@ -531,7 +541,7 @@ describe("forge614-engines CLI", () => {
   const BUN_OWN_HOME_FOLDERS = ["Library", ".bun"];
 
   /** Folders Engines itself would create in HOME; none may exist after `--version` or `--help`. */
-  const ENGINES_HOME_FOLDERS = [".forge614", ".claude", ".codex"];
+  const ENGINES_HOME_FOLDERS = [".forge614", ".claude", ".codex", ".gemini"];
 
   /** What is left in the temp HOME after a run, minus the folders Bun creates by itself. */
   function homeEntriesCreatedByEngines(): string[] {
@@ -654,6 +664,63 @@ describe("forge614-engines CLI", () => {
     expect(parsed.hookSpecificOutput.additionalContext.toLowerCase()).toContain("no disponible");
     expect(parsed).not.toHaveProperty("systemMessage");
   });
+
+  test("memory-hook-run --agent antigravity prints structured injectSteps systemMessage JSON, recognizes camelCase hookEventName and always exits 0", async () => {
+    const { resolveHookEvidencePath } = await import("../../modules/agents/hook-command");
+    const evidencePath = resolveHookEvidencePath(home, "antigravity");
+
+    const proc = Bun.spawnSync(["bun", ENTRY, "memory-hook-run", "--agent", "antigravity"], {
+      stdin: Buffer.from(JSON.stringify({ cwd: "/tmp/some-repo-that-is-not-bound", hookEventName: "SessionStart" })),
+      env: homeEnv(home),
+    });
+
+    expect(proc.exitCode).toBe(0);
+    const parsed = JSON.parse(proc.stdout.toString());
+    expect(Array.isArray(parsed.injectSteps)).toBe(true);
+    expect(parsed.injectSteps[0].systemMessage.systemMessage.toLowerCase()).toContain("no disponible");
+    expect(existsSync(evidencePath)).toBe(true);
+    expect(JSON.parse(readFileSync(evidencePath, "utf8")).agentId).toBe("antigravity");
+  });
+
+  test.skipIf(process.platform === "win32")(
+    "full memory-install cycle for antigravity: not complete until the real hook runs and leaves evidence, then removal clears everything",
+    async () => {
+      installEngramFixture(home);
+
+      const planned = await runCli(["plan", "memory-install", "--agent", "antigravity"]);
+      expect(planned.exitCode).toBe(0);
+      const plan = JSON.parse(planned.stdout).plan;
+      expect(plan.metadata.hook.status.kind).toBe("write");
+      expect(plan.metadata.hook.runtimeStatus.kind).toBe("pending-runtime-verification");
+
+      const applied = await runCli(["apply", "--plan-id", plan.planId]);
+      expect(applied.exitCode).toBe(0);
+
+      const hookRun = Bun.spawnSync(["bun", ENTRY, "memory-hook-run", "--agent", "antigravity"], {
+        stdin: Buffer.from(JSON.stringify({ cwd: "/tmp/some-repo", hookEventName: "SessionStart" })),
+        env: homeEnv(home),
+      });
+      expect(hookRun.exitCode).toBe(0);
+      const hookPayload = JSON.parse(hookRun.stdout.toString());
+      expect(hookPayload.injectSteps[0].systemMessage.systemMessage.toLowerCase()).toContain("recovered memory");
+
+      const verified = await runCli(["verify", "memory-integration", "--agent", "antigravity"]);
+      expect(verified.exitCode).toBe(0);
+      const verification = JSON.parse(verified.stdout).verification;
+      expect(verification.hook.runtimeStatus.kind).toBe("runtime-observed");
+      expect(verification.approval.present).toBe(true);
+      expect(verification.overallStatus).toBe("complete");
+
+      const removePlanned = await runCli(["plan", "memory-remove", "--agent", "antigravity"]);
+      const removePlan = JSON.parse(removePlanned.stdout).plan;
+      const removeApplied = await runCli(["apply", "--plan-id", removePlan.planId]);
+      expect(removeApplied.exitCode).toBe(0);
+
+      const finalVerified = await runCli(["verify", "memory-integration", "--agent", "antigravity"]);
+      const finalVerification = JSON.parse(finalVerified.stdout).verification;
+      expect(finalVerification.overallStatus).toBe("absent");
+    },
+  );
 
   test("memory-hook-run exits 0 even with garbage stdin", () => {
     const proc = Bun.spawnSync(["bun", ENTRY, "memory-hook-run", "--agent", "claude-code"], {

@@ -21,7 +21,7 @@ The executable is at `~/.forge614/engines/bin/forge614-engines`, or under `%USER
 
 `forge614-engines update [--version X.Y.Z] [--json]` updates through the verified gatekeeper and returns the JSON consumed by Shell 1.17.0 even without `--json`. This exception to decision 0031 will be removed when Shell passes that flag. From 1.17.x, two updates are required: the first leaves 1.18.0 in the earlier layout; the second migrates through the shared installer.
 
-`forge614-engines uninstall [--force] [--json]` stops if Shell, Workers, Atlas, or Engram is installed. `--force` also removes the integrations Engines manages in Claude Code and Codex. `uninstall --self` removes only those integrations and preserves unrelated content.
+`forge614-engines uninstall [--force] [--json]` stops if Shell, Workers, Atlas, or Engram is installed. `--force` also removes the integrations Engines manages in Claude Code, Codex, and Antigravity. `uninstall --self` removes only those integrations and preserves unrelated content.
 
 ## Development
 

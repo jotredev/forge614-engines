@@ -18,10 +18,11 @@ forge614-engines headless --agent codex --executable codex --prompt "Explain the
 | --- | --- | --- |
 | Claude Code | `claude -p <prompt>` | Yes |
 | Codex | `codex exec <prompt>` | Yes |
+| Antigravity | `agy -p <prompt>` | Yes |
 
 An agent without headless execution answers `HEADLESS_UNSUPPORTED`.
 
-`--timeout-ms` accepts a duration in milliseconds (one thousandths of a second) so the consumer can include it in its own control. The current adapter constructs the order and does not add that value to Claude Code or Codex arguments.
+`--timeout-ms` accepts a duration in milliseconds (one thousandths of a second) so the consumer can include it in its own control. The Claude Code and Codex adapters do not add that value to their arguments; Antigravity maps positive values to `--print-timeout <ms>ms`.
 
 `--model <model-id>` and `--reasoning-level <low|medium|high|xhigh|max>` are optional and additive: omitting both keeps the exact command each adapter always built. Each adapter decides for itself how to honor them, the same way each adapter already owns its own headless command shape. Engines checks once, before any adapter runs, in this order: unknown agent (`UNKNOWN_AGENT`), agent without headless execution (`HEADLESS_UNSUPPORTED`), `--read-only` asked of an agent that cannot guarantee it (`READ_ONLY_UNSUPPORTED`; no real agent does that today), a level given to an agent that cannot choose one (`REASONING_LEVEL_UNSUPPORTED`; no real agent does that today) and, last, a value the agent does not list, which is any value outside the five (`INVALID_REASONING_LEVEL`):
 
@@ -29,6 +30,7 @@ An agent without headless execution answers `HEADLESS_UNSUPPORTED`.
 | --- | --- | --- |
 | Claude Code | Appends `--model <model-id>` | Appends `--effort <level>` as the last argument: after `-p`, after the prompt (when it is not sent through stdin) and after `--model` (when given). Haiku 4.5 has no reasoning levels and Claude Code ignores the flag for it without an error. Claude Code does not reject an unknown value either (it warns and keeps its default effort), which is why Engines validates the level first. |
 | Codex | Appends `--model <model-id>` | Appends `-c model_reasoning_effort=<level>` |
+| Antigravity | Appends `--model <model-id>` | Appends `--effort <level>`. When the `--model` slug already encodes a different effort (such as `gemini-3.8-flash-medium` with `--effort low`) or the model lacks that level, `agy` fails loudly instead of ignoring it. |
 
 ## Keeping the prompt out of `ps`
 
@@ -48,8 +50,9 @@ forge614-engines headless --agent claude-code --executable claude --prompt "Expl
 | --- | --- | --- |
 | Claude Code | Supported: `claude -p` with no positional prompt reads it from stdin | Live invocation against the real CLI |
 | Codex | Supported: `codex exec` with no positional prompt argument reads it from stdin | `codex exec --help`: "If not provided as an argument (or if `-` is used), instructions are read from stdin" |
+| Antigravity | Supported: `agy --input-format text` (without `-p`) reads the prompt from piped stdin in non-interactive print mode | Live invocation against `agy` 1.5.16 |
 
-Both currently-supported headless agents honor `--stdin-prompt`, so there is no exception to document today. If a future adapter cannot deliver the prompt via stdin, it must throw an explicit error from its own `headlessCommand()` (the same pattern as `REASONING_LEVEL_UNSUPPORTED`) rather than silently leaving the prompt in `args` — silently ignoring the flag would defeat the security goal this flag exists for.
+All currently-supported headless agents honor `--stdin-prompt`, so there is no exception to document today. If a future adapter cannot deliver the prompt via stdin, it must throw an explicit error from its own `headlessCommand()` (the same pattern as `REASONING_LEVEL_UNSUPPORTED`) rather than silently leaving the prompt in `args` — silently ignoring the flag would defeat the security goal this flag exists for.
 
 ## Granting access to a real directory
 
@@ -69,8 +72,9 @@ Both currently-supported headless agents map it to `--add-dir <path>`, always pl
 | --- | --- | --- |
 | Claude Code | Appends `--add-dir <path>` before `-p`. Confirmed not to load that folder's `CLAUDE.md` — only the real user's global `CLAUDE.md` loads, which is the expected behavior. | Live invocation against the real CLI |
 | Codex | Appends `--add-dir <path>` before the positional prompt. `codex exec --help` describes `--add-dir` as directories "that should be writable alongside the primary workspace", so it is not a read-only grant. In a live check, writing into that folder still failed with "operation not permitted" because the default sandbox of `codex exec` is read-only, but that default is not a promise this adapter makes: the real protection is `--read-only`. | `codex exec --help` and a live invocation against the real CLI |
+| Antigravity | Appends `--add-dir <path>` before the remaining options and the prompt. Grants workspace access to that folder (and loads its `AGENTS.md` if present); read-only protection comes from `--read-only`. | Live invocation against `agy` 1.5.16 |
 
-**Accepted limitation (Codex only):** unlike Claude Code, Codex may read and be influenced by that folder's `AGENTS.md` if it decides to explore the directory on its own — Codex has no equivalent to Claude Code's `--allowedTools` to restrict this further. This is a low-risk, accepted limitation (with `--read-only` Codex runs in an explicit read-only sandbox and cannot write to or damage anything; without it that depends on the default sandbox of `codex exec`, which this adapter does not control) and is not something this integration attempts to solve.
+**Accepted limitation (Codex and Antigravity):** unlike Claude Code, both Codex and Antigravity can read and be influenced by that additional folder's `AGENTS.md`. This is a low-risk, accepted limitation because with `--read-only` both block file writes, mutating commands and MCP servers.
 
 ## Locking the helper to read-only
 
@@ -88,14 +92,16 @@ forge614-engines headless --agent codex --executable codex --prompt "Explain the
 | --- | --- | --- |
 | Claude Code | `--tools Read,Grep,Glob --permission-mode dontAsk --strict-mcp-config` | After `--add-dir` (when given) and before `-p`: `--tools` is a list option, so after `-p "<prompt>"` it could swallow text |
 | Codex | `--sandbox read-only --ignore-user-config` | Right after `exec`, before `--add-dir`, `--model`, `-c` and the prompt |
+| Antigravity | `--settings '{"agentMode":"","toolPermission":"request-review","permissions":{"allow":[],"ask":[],"deny":["write_file(*)","command(*)","mcp(*)","read_url(*)","execute_url(*)"]}}'` | After `--add-dir` (when given) and before the rest of the options and the prompt; applies to this session only and never touches `settings.json` |
 
-What was measured live (Claude Code 2.1.288, Codex 0.159.3, empty working directory, `--add-dir` as Workers uses it):
+What was measured live (Claude Code 2.1.288, Codex 0.159.3, Antigravity CLI 1.5.16, empty working directory, `--add-dir` as Workers uses it):
 
 - **Claude Code without the option** has every MCP server of the user, including `forge614-engram` with `memory_save` already approved. **With it**, in `-p` mode (prompt in the arguments or read from stdin) the helper reads the file, cannot write (`Write` is disabled) and its only tools are `Glob`, `Grep` and `Read`, with no MCP at all. `--tools` leaves only those three tools, `--permission-mode dontAsk` denies what is not allowed instead of asking, and `--strict-mcp-config` loads only the MCP servers given with `--mcp-config` (none).
 - **Codex** `exec` with and without `--sandbox read-only` could not write into the `--add-dir` folder ("operation not permitted"): the default sandbox of `exec` is read-only, even though `codex exec --help` calls `--add-dir` writable. Asking for the sandbox explicitly means the protection no longer depends on that default. With `--sandbox read-only` but with its `config.toml` loaded, the helper called `memory_context` of `forge614-engram` successfully, so it could also save. `--ignore-user-config` does not load `$CODEX_HOME/config.toml` (authentication still uses `$CODEX_HOME`), and with it that tool does not exist.
-- **The whole order, run for real** (2026-10-03): the command that `--read-only` builds could neither write nor call Engram, with Claude Code (`claude-haiku-4-5`) and with Codex (`gpt-5.6-terra`).
+- **Antigravity (`agy` 1.5.16)** with session-only `--settings`: `read_file` read the file inside `--add-dir`, while `write_file`, `run_command` (including `unsandboxed`), and every MCP call (tested against a real Engram stdio server for both `memory_save` and `memory_context`) were rejected with `Permission denied ... Matches user-configured deny rule`, creating no files and leaving `~/.gemini/antigravity-cli/settings.json` untouched.
+- **The whole order, run for real** (2026-10-03 and 2026-11-24): the command that `--read-only` builds could neither write nor call Engram, with Claude Code (`claude-haiku-4-5`), Codex (`gpt-5.6-terra`), or Antigravity (`gemini-3.8-flash-medium` / `gemini-4-argon`).
 
-An agent that cannot guarantee this declares `supportsReadOnly: false` in `capabilities` (see 02), and `--read-only` answers `READ_ONLY_UNSUPPORTED` with the message `<agent> cannot guarantee read-only execution` instead of building an order without the lock. No real agent triggers it today: both `claude-code` and `codex` report `supportsReadOnly: true`. A caller that needs read-only helpers should read that field first, because an Engines older than this option does not reject unknown flags: it ignores `--read-only` without an error and builds the order without the lock.
+An agent that cannot guarantee this declares `supportsReadOnly: false` in `capabilities` (see 02), and `--read-only` answers `READ_ONLY_UNSUPPORTED` with the message `<agent> cannot guarantee read-only execution` instead of building an order without the lock. No real agent triggers it today: `claude-code`, `codex`, and `antigravity` report `supportsReadOnly: true`. A caller that needs read-only helpers should read that field first, because an Engines older than this option does not reject unknown flags: it ignores `--read-only` without an error and builds the order without the lock.
 
 ## Relationship with Atlas
 

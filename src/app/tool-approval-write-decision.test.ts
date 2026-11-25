@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { parse as parseToml } from "smol-toml";
+import { antigravityAdapter } from "../infrastructure/agents/antigravity";
 import { claudeCodeAdapter } from "../infrastructure/agents/claude-code";
 import { codexAdapter } from "../infrastructure/agents/codex";
 import { mcpOnlyAdapter } from "../../tests/support/mcp-only-adapter";
@@ -337,5 +338,80 @@ describe("readToolApprovalState", () => {
 
   test("an adapter without toolApproval: not supported", async () => {
     expect(await readToolApprovalState(mcpOnlyAdapter, home, SERVER)).toEqual({ supported: false, path: "", present: false });
+  });
+});
+
+describe("Antigravity tool approval (settings.json)", () => {
+  function agySettingsPath(): string {
+    return antigravityAdapter.toolApproval!.configFile(home);
+  }
+
+  test("appends mcp(forge614-engram/*), preserves unrelated settings and removes conflicting Engram deny/ask rules with notice", async () => {
+    const original = JSON.stringify(
+      {
+        model: "Gemini 3.8 Flash (High)",
+        permissions: {
+          allow: ["command(git)", "mcp(notion/*)"],
+          deny: ["command(rm -rf)", "mcp(forge614-engram/memory_save)", "mcp(forge614-engram-other/*)"],
+          ask: ["mcp(forge614-engram/*)", "command(git push)"],
+        },
+        trustedWorkspaces: ["/repo/a"],
+      },
+      null,
+      2,
+    );
+    writeFileEnsuringDir(agySettingsPath(), original);
+
+    const install = await decideToolApprovalInstall(antigravityAdapter, home, SERVER);
+    expect(install.decision).toEqual({ kind: "write" });
+    const written = JSON.parse(install.write!.afterContent);
+    expect(written).toEqual({
+      model: "Gemini 3.8 Flash (High)",
+      permissions: {
+        allow: ["command(git)", "mcp(notion/*)", "mcp(forge614-engram/*)"],
+        deny: ["command(rm -rf)", "mcp(forge614-engram-other/*)"],
+        ask: ["command(git push)"],
+      },
+      trustedWorkspaces: ["/repo/a"],
+    });
+    expect(install.notice).toContain("Antigravity evaluates deny and ask rules before allow rules");
+    expect(install.notice).toContain('plan memory-remove --agent antigravity');
+  });
+
+  test("single-tool allow rule does not count as whole-server approval, while mcp(forge614-engram/*) does", async () => {
+    writeFileEnsuringDir(
+      agySettingsPath(),
+      JSON.stringify({ permissions: { allow: ["mcp(forge614-engram/memory_get)"] } }),
+    );
+    expect((await readToolApprovalState(antigravityAdapter, home, SERVER)).present).toBe(false);
+
+    writeFileEnsuringDir(
+      agySettingsPath(),
+      JSON.stringify({ permissions: { allow: ["mcp(forge614-engram/*)"] } }),
+    );
+    expect((await readToolApprovalState(antigravityAdapter, home, SERVER)).present).toBe(true);
+    expect((await decideToolApprovalInstall(antigravityAdapter, home, SERVER)).decision).toEqual({ kind: "noop" });
+  });
+
+  test("remove strips whole-server and single-tool Engram rules while preserving unrelated rules", async () => {
+    writeFileEnsuringDir(
+      agySettingsPath(),
+      JSON.stringify({
+        permissions: {
+          allow: [
+            "command(git)",
+            "mcp(forge614-engram/*)",
+            "mcp(forge614-engram/memory_save)",
+            "mcp(forge614-engram-other/*)",
+          ],
+        },
+      }),
+    );
+
+    const removed = await decideToolApprovalRemove(antigravityAdapter, home, SERVER);
+    expect(removed.decision).toEqual({ kind: "write" });
+    expect(JSON.parse(removed.write!.afterContent)).toEqual({
+      permissions: { allow: ["command(git)", "mcp(forge614-engram-other/*)"] },
+    });
   });
 });

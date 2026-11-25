@@ -185,6 +185,32 @@ describe("runMemoryHook", () => {
     expect(output.recognizedInvocation).toBe(false);
   });
 
+  test("recognizes Antigravity camelCase hookEventName SessionStart and ignores other camelCase events", async () => {
+    const result = {
+      format: 1,
+      shared: { pinned: [], recent: [{ title: "Pref", preview: "ok" }], sessions: [], truncated: false },
+      project: { status: "unbound", projectId: null, context: null },
+    };
+    const script = legacyStartupScript("agy-ok.js", result);
+
+    const recognized = await runMemoryHook({
+      home: dir,
+      agentId: "antigravity",
+      stdin: JSON.stringify({ cwd: "/repo/x", hookEventName: "SessionStart", workspacePaths: ["/repo/x"] }),
+      startupContextOptions: { command: process.execPath, args: [script] },
+    });
+    expect(recognized.available).toBe(true);
+    expect(recognized.recognizedInvocation).toBe(true);
+
+    const other = await runMemoryHook({
+      home: dir,
+      agentId: "antigravity",
+      stdin: JSON.stringify({ cwd: "/repo/x", hookEventName: "PreToolUse" }),
+      startupContextOptions: { command: process.execPath, args: [script] },
+    });
+    expect(other.recognizedInvocation).toBe(false);
+  });
+
   test("does not recognize a manual/incomplete invocation missing cwd even if hook_event_name is present", async () => {
     const output = await runMemoryHook({
       home: dir,

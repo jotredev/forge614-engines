@@ -89,7 +89,8 @@ export async function runUninstall(force: boolean, json = false): Promise<void> 
 export async function runUninstallSelf(print = true): Promise<{ integrationsRemoved: true; assistants: Record<string, boolean> }> {
   const registry = buildDefaultRegistry();
   const assistants: Record<string, boolean> = {};
-  for (const agentId of ["claude-code", "codex"] as const) {
+  for (const adapter of registry.list()) {
+    const agentId = adapter.id;
     const mcpPlan = await planMcpRemove(registry, { agentId, home: homedir(), server: resolveEngramMcpServer(homedir()) });
     const mcpResult = await applyPlan(homedir(), mcpPlan.planId);
     const memoryPlan = await planMemoryRemove(registry, { agentId, home: homedir() });
@@ -164,12 +165,22 @@ export async function runVerifyMcpRepair(agentId: AgentId, planId: string): Prom
 }
 
 /**
- * Serializes the hook's rendered text for the specific host's contract: plain
- * text for Claude Code (added as context on stdout with exit 0), structured
- * hookSpecificOutput.additionalContext for Codex (its SessionStart wire rejects
- * a top-level additionalContext field). Never returns the {schemaVersion, ...}
- * envelope other commands use — that is not part of either host's hook contract.
+ * Serializes rendered hook text for each host's exact SessionStart contract:
+ * - Claude Code: plain text on stdout.
+ * - Codex: structured `hookSpecificOutput.additionalContext` JSON.
+ * - Antigravity: structured `injectSteps` JSON with a `systemMessage` step.
+ * Never returns the `{schemaVersion, ...}` envelope other commands use.
  */
+export function formatMemoryHookOutput(agentId: AgentId, text: string): string {
+  if (agentId === "codex") {
+    return JSON.stringify({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: text } });
+  }
+  if (agentId === "antigravity") {
+    return JSON.stringify({ injectSteps: [{ systemMessage: { systemMessage: text } }] });
+  }
+  return text;
+}
+
 export async function runMemoryHookRun(agentId: AgentId, stdin: string): Promise<string> {
   const home = homedir();
   const result = await runMemoryHook({ home, agentId, stdin });
@@ -179,8 +190,5 @@ export async function runMemoryHookRun(agentId: AgentId, stdin: string): Promise
     // returning context to the host.
     await recordHookEvidence(home, agentId, result.available).catch(() => {});
   }
-  if (agentId === "codex") {
-    return JSON.stringify({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: result.text } });
-  }
-  return result.text;
+  return formatMemoryHookOutput(agentId, result.text);
 }

@@ -26,19 +26,25 @@ export interface HookSeed {
   raw: string;
 }
 
-function findOwnIndex(entries: unknown[], command: string): number {
+function isCommandHandler(value: unknown, command: string, allowOmittedType = false): boolean {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  const typeOk = record.type === "command" || (allowOmittedType && record.type === undefined);
+  return typeOk && record.command === command;
+}
+
+function findOwnIndex(entries: unknown[], command: string, entryStyle: "grouped" | "flat" = "grouped"): number {
   return entries.findIndex((entry) => {
     if (!entry || typeof entry !== "object") return false;
+    if (entryStyle === "flat") return isCommandHandler(entry, command, true);
     const nested = (entry as Record<string, unknown>).hooks;
     if (!Array.isArray(nested)) return false;
-    return nested.some(
-      (h) =>
-        h &&
-        typeof h === "object" &&
-        (h as Record<string, unknown>).type === "command" &&
-        (h as Record<string, unknown>).command === command,
-    );
+    return nested.some((h) => isCommandHandler(h, command));
   });
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 async function readExistingEntries(
@@ -63,6 +69,14 @@ async function readExistingEntries(
   const configPath = hooks.configFile(home);
   const { raw: diskRaw, exists: diskExists } = await format.readOrDefault(configPath);
   const sourceRaw = seed?.raw ?? diskRaw;
+
+  for (let depth = 1; depth < hooks.entryPath.length; depth += 1) {
+    const ancestor = format.getValueAtPath(sourceRaw, hooks.entryPath.slice(0, depth));
+    if (ancestor !== undefined && !isPlainObject(ancestor)) {
+      return { blocked: true, configPath };
+    }
+  }
+
   const existingValue = format.getValueAtPath(sourceRaw, hooks.entryPath);
 
   if (existingValue !== undefined && !Array.isArray(existingValue)) {
@@ -77,7 +91,7 @@ async function readExistingEntries(
     hashRaw: diskRaw,
     hashExists: diskExists,
     entries,
-    ownIndex: findOwnIndex(entries, command),
+    ownIndex: findOwnIndex(entries, command, hooks.entryStyle ?? "grouped"),
   };
 }
 
@@ -132,15 +146,27 @@ export async function decideHookRemove(
   const format = configFormats[hooks.configFormat];
   const nextEntries = entries.filter((_, i) => i !== ownIndex);
 
+  let afterContent: string;
+  if (nextEntries.length === 0) {
+    afterContent = format.removeValueAtPath(sourceRaw, hooks.entryPath);
+    if (hooks.removeEmptyParent && hooks.entryPath.length >= 2) {
+      const parentPath = hooks.entryPath.slice(0, -1);
+      const parentValue = format.getValueAtPath(afterContent, parentPath);
+      if (isPlainObject(parentValue) && Object.keys(parentValue).length === 0) {
+        afterContent = format.removeValueAtPath(afterContent, parentPath);
+      }
+    }
+  } else {
+    afterContent = format.removeArrayItems(sourceRaw, hooks.entryPath, [ownIndex]);
+  }
+
   return {
     configPath,
     decision: { kind: "write" },
     write: {
       path: configPath,
       beforeHash: createHash("sha256").update(hashExists ? hashRaw : "").digest("hex"),
-      afterContent: nextEntries.length === 0
-        ? format.removeValueAtPath(sourceRaw, hooks.entryPath)
-        : format.removeArrayItems(sourceRaw, hooks.entryPath, [ownIndex]),
+      afterContent,
     },
   };
 }
