@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import {
+  formatMemoryHookOutput,
   runAgentsList,
   runApply,
   runApplyMcpRepair,
@@ -129,13 +130,17 @@ async function main(): Promise<void> {
   if (command === "memory-hook-run") {
     // Bypasses the generic JSON-error envelope below on purpose: this command's
     // only contract is the host's own SessionStart hook contract (plain stdout
-    // for Claude Code, structured additionalContext JSON for Codex), and it must
-    // always exit 0 so a failure here never looks like it could block a session.
+    // for Claude Code, structured additionalContext JSON for Codex, injectSteps
+    // JSON for Antigravity), and it must always exit 0 so a failure here never
+    // looks like it could block a session.
     const hookArgs = process.argv.slice(3);
     const agentId = (flag(hookArgs, "--agent") ?? "claude-code") as AgentId;
     const stdin = await readStdin();
-    const output = await runMemoryHookRun(agentId, stdin).catch(
-      () => `[Forge614 Engram] Memoria no disponible (motivo: internal-error). La sesión continúa sin contexto precargado.`,
+    const output = await runMemoryHookRun(agentId, stdin).catch(() =>
+      formatMemoryHookOutput(
+        agentId,
+        `[Forge614 Engram] Memoria no disponible (motivo: internal-error). La sesión continúa sin contexto precargado.`,
+      ),
     );
     console.log(output);
     return;
@@ -204,7 +209,7 @@ async function main(): Promise<void> {
     if (!json && process.stdin.isTTY && process.stdout.isTTY) {
       const prompt = createInterface({ input: process.stdin, output: process.stdout });
       try {
-        const answer = await prompt.question("Se retirarán Engines, sus datos en FORGE614_HOME/engines y las integraciones administradas que existan en Claude Code y Codex. ¿Continuar? [s/N] ");
+        const answer = await prompt.question("Se retirarán Engines, sus datos en FORGE614_HOME/engines y las integraciones administradas que existan en Claude Code, Codex y Antigravity. ¿Continuar? [s/N] ");
         if (!/^(s|si|sí|y|yes)$/i.test(answer.trim())) { process.exitCode = 130; return; }
       } finally { prompt.close(); }
     }

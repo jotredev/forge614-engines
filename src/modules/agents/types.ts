@@ -1,5 +1,5 @@
 /** Identifier of an agent Engines fully supports. */
-export type AgentId = "claude-code" | "codex";
+export type AgentId = "claude-code" | "codex" | "antigravity";
 
 export type ConfigFormat = "json" | "toml";
 
@@ -111,7 +111,19 @@ export interface HookTarget {
   configFormat: ConfigFormat;
   /** Key path to the SessionStart hook-group array inside that file, e.g. ["hooks", "SessionStart"]. */
   entryPath: string[];
-  /** Builds one hook-group array element (not the whole array) for the given exact shell command string. */
+  /**
+   * Shape of each element inside the array at `entryPath`.
+   * - `"grouped"` (default): `{ hooks: [{ type: "command", command }] }` (Claude Code, Codex).
+   * - `"flat"`: `{ type: "command", command }` directly (Antigravity `hooks.json` SessionStart).
+   */
+  entryStyle?: "grouped" | "flat";
+  /**
+   * When true, removing the last entry at `entryPath` also deletes its immediate parent key if
+   * that parent object has no remaining properties (e.g. removing the named hook group
+   * `"forge614-engram-memory"` from Antigravity's `hooks.json` instead of leaving `{}`).
+   */
+  removeEmptyParent?: boolean;
+  /** Builds one hook array element (not the whole array) for the given exact shell command string. */
   entryShape(command: string): unknown;
   /**
    * True when this agent gates hook execution behind a one-time interactive trust

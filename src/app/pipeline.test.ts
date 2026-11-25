@@ -27,9 +27,9 @@ afterEach(() => {
 
 // The MCP-only test agent walks the MCP lifecycle alongside the real agents. It has no instructions
 // component to round-trip, so its memory lifecycle is exactly its MCP lifecycle and is not repeated below.
-const AGENT_IDS: AgentId[] = ["claude-code", "codex", MCP_ONLY_ID];
+const AGENT_IDS: AgentId[] = ["claude-code", "codex", "antigravity", MCP_ONLY_ID];
 
-const MEMORY_AGENT_IDS: AgentId[] = ["claude-code", "codex"];
+const MEMORY_AGENT_IDS: AgentId[] = ["claude-code", "codex", "antigravity"];
 
 function writeProtocolFixtureScript(home: string): string {
   const script = join(home, "engram-fixture.js");
@@ -152,6 +152,10 @@ describe("memory-install → apply → verify → memory-remove → apply → ve
       // The approval is really on disk, in the file each agent reads it from.
       if (agentId === "claude-code") {
         expect(JSON.parse(readFileSync(join(home, ".claude", "settings.json"), "utf8")).permissions.allow).toEqual(["mcp__forge614-engram"]);
+      } else if (agentId === "antigravity") {
+        expect(
+          JSON.parse(readFileSync(join(home, ".gemini", "antigravity-cli", "settings.json"), "utf8")).permissions.allow,
+        ).toEqual(["mcp(forge614-engram/*)"]);
       } else {
         expect(
           configFormats.toml.getValueAtPath(readFileSync(join(home, ".codex", "config.toml"), "utf8"), [
@@ -191,9 +195,13 @@ describe("memory-install → apply → verify → memory-remove → apply → ve
       expect(removeResult.changedFiles.length).toBeGreaterThan(0);
 
       const afterRemove = await verifyMemoryIntegration(registry, { agentId, home, startupContextOptions });
-      // Uninstalling takes the approval away too: the rule (Claude Code) or the key together with the entry (Codex).
+      // Uninstalling takes the approval away too: the rule (Claude Code / Antigravity) or the key together with the entry (Codex).
       if (agentId === "claude-code") {
         expect(JSON.parse(readFileSync(join(home, ".claude", "settings.json"), "utf8")).permissions.allow).toEqual([]);
+      } else if (agentId === "antigravity") {
+        expect(
+          JSON.parse(readFileSync(join(home, ".gemini", "antigravity-cli", "settings.json"), "utf8")).permissions.allow,
+        ).toEqual([]);
       } else {
         expect(readFileSync(join(home, ".codex", "config.toml"), "utf8")).not.toContain("default_tools_approval_mode");
       }

@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { AgentRegistry } from "../modules/agents/registry";
+import { antigravityAdapter } from "../infrastructure/agents/antigravity";
+import { ANTIGRAVITY_READ_ONLY_SETTINGS } from "../infrastructure/agents/antigravity";
 import { claudeCodeAdapter } from "../infrastructure/agents/claude-code";
 import { codexAdapter } from "../infrastructure/agents/codex";
 import { MCP_ONLY_ID, mcpOnlyAdapter } from "../../tests/support/mcp-only-adapter";
@@ -337,6 +339,43 @@ describe("headlessCommandFor — read-only", () => {
     expect(build(registry, "codex", undefined, true)).toEqual({
       command: "/bin/fake",
       args: ["exec", "--sandbox", "read-only", "--ignore-user-config", "hello"],
+    });
+  });
+
+  test("forwards readOnly, stdinPrompt, readableDir, timeoutMs, model and reasoningLevel to antigravity", () => {
+    const registry = new AgentRegistry();
+    registry.register(antigravityAdapter);
+
+    expect(
+      headlessCommandFor(
+        registry,
+        "antigravity",
+        "/bin/agy",
+        "hello",
+        25_000,
+        "gemini-4-argon",
+        "medium",
+        true,
+        "/tmp/project",
+        true,
+      ),
+    ).toEqual({
+      command: "/bin/agy",
+      args: [
+        "--add-dir",
+        "/tmp/project",
+        "--settings",
+        ANTIGRAVITY_READ_ONLY_SETTINGS,
+        "--print-timeout",
+        "25000ms",
+        "--model",
+        "gemini-4-argon",
+        "--effort",
+        "medium",
+        "--input-format",
+        "text",
+      ],
+      stdin: true,
     });
   });
 

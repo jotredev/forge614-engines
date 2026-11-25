@@ -234,12 +234,12 @@ export async function runMemoryHook(input: RunMemoryHookInput): Promise<RunMemor
   try {
     const parsed = JSON.parse(input.stdin) as Record<string, unknown>;
     if (typeof parsed.cwd === "string" && parsed.cwd.length > 0) cwd = parsed.cwd;
-    // Only an exact SessionStart event name counts. This narrows false positives
-    // from a bare cwd (any manual/partial invocation could supply one) without
-    // constraining on other fields (e.g. a "source"/"session_start_reason"
-    // value) that differ in shape between Claude Code and Codex and are not
-    // needed to rule out the overwhelming majority of non-hook invocations.
-    if (cwd && parsed.hook_event_name === "SessionStart") recognizedInvocation = true;
+    // Only an exact SessionStart event name counts — snake_case (`hook_event_name`,
+    // Claude Code & Codex) or camelCase (`hookEventName`, Antigravity protojson).
+    // This narrows false positives from a bare cwd (any manual/partial invocation
+    // could supply one) without constraining on host-specific fields.
+    const eventName = parsed.hook_event_name ?? parsed.hookEventName;
+    if (cwd && eventName === "SessionStart") recognizedInvocation = true;
   } catch {
     // malformed or empty stdin: fall through with cwd undefined, unrecognized
   }

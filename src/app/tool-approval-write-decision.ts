@@ -70,7 +70,7 @@ function matchingIndexes(rules: unknown, matches: (rule: unknown) => boolean): n
 function removalNotice(adapter: AgentAdapter, configPath: string, removed: { list: string; rule: string }[]): string {
   const items = removed.map(({ list, rule }) => `${list} rule "${rule}"`).join(", ");
   return (
-    `Removed ${items} from ${configPath}: Claude Code evaluates deny and ask rules before allow rules, so they would keep the Engram tools blocked. ` +
+    `Removed ${items} from ${configPath}: ${adapter.label} evaluates deny and ask rules before allow rules, so they would keep the Engram tools blocked. ` +
     `The approval is part of the Engram memory install; to turn it off, run "plan memory-remove --agent ${adapter.id}" and apply the plan.`
   );
 }

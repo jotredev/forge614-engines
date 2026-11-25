@@ -153,13 +153,17 @@ function prepareLegacyWindowsInstall(home: string): void {
   writeFileSync(join(enginesRoot, ".active-version"), "1.17.1");
 }
 
-/** Runs an installed legacy launcher until its active binary reports the requested version. */
+/** Runs an installed legacy launcher until both its active binary and `.active-version` report the requested version. */
 async function waitForLegacyUpdate(launcher: string, version: string, home: string): Promise<boolean> {
-  const env = { ...process.env, HOME: home, USERPROFILE: home, FORGE614_HOME: join(home, ".forge614") };
+  const forgeHome = join(home, ".forge614");
+  const activeVersion = join(forgeHome, "engines", ".active-version");
+  const env = { ...process.env, HOME: home, USERPROFILE: home, FORGE614_HOME: forgeHome };
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
     const result = Bun.spawnSync([launcher, "--version"], { env, stdout: "pipe", stderr: "pipe" });
-    if (result.exitCode === 0 && result.stdout.toString().trim() === `forge614-engines ${version}`) return true;
+    const binaryReady = result.exitCode === 0 && result.stdout.toString().trim() === `forge614-engines ${version}`;
+    const markerReady = existsSync(activeVersion) && readFileSync(activeVersion, "utf8").trim() === version;
+    if (binaryReady && markerReady) return true;
     await Bun.sleep(250);
   }
   return false;
@@ -212,7 +216,7 @@ beforeAll(() => {
 
 afterAll(() => {
   server?.stop(true);
-  rmSync(root, { recursive: true, force: true });
+  rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 });
 
 describe("shared installer end to end", () => {

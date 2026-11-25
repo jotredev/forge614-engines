@@ -21,7 +21,7 @@ El ejecutable queda en `~/.forge614/engines/bin/forge614-engines` o, en Windows,
 
 `forge614-engines update [--version X.Y.Z] [--json]` actualiza mediante el portero verificado y devuelve el JSON que Shell 1.17.0 consume incluso sin `--json`. Esta excepción al acta 0031 se retirará cuando Shell pase esa opción. Desde 1.17.x se requieren dos actualizaciones: la primera deja 1.18.0 en el formato anterior; la segunda migra mediante el instalador compartido.
 
-`forge614-engines uninstall [--force] [--json]` detiene la retirada si Shell, Workers, Atlas o Engram están instalados. `--force` retira también las integraciones administradas por Engines en Claude Code y Codex. `uninstall --self` retira solo esas integraciones y conserva el contenido ajeno.
+`forge614-engines uninstall [--force] [--json]` detiene la retirada si Shell, Workers, Atlas o Engram están instalados. `--force` retira también las integraciones administradas por Engines en Claude Code, Codex y Antigravity. `uninstall --self` retira solo esas integraciones y conserva el contenido ajeno.
 
 ## Desarrollo
 

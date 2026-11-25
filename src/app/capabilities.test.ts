@@ -155,11 +155,11 @@ describe("listAgents", () => {
     ]);
   });
 
-  test("the default registry lists exactly claude-code and codex, both fully supported", () => {
+  test("the default registry lists claude-code, codex, and antigravity, all fully supported", () => {
     const agents = listAgents(buildDefaultRegistry());
 
-    expect(agents.map((agent) => agent.id)).toEqual(["claude-code", "codex"]);
-    expect(agents.map((agent) => agent.fullySupported)).toEqual([true, true]);
+    expect(agents.map((agent) => agent.id)).toEqual(["claude-code", "codex", "antigravity"]);
+    expect(agents.map((agent) => agent.fullySupported)).toEqual([true, true, true]);
   });
 
   test("returns an empty array for an empty registry", () => {

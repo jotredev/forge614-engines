@@ -42,25 +42,25 @@
       "localPath": "docs/es/02-deteccion-de-agentes-y-capacidades.md",
       "language": "es",
       "notionUrl": "https://app.notion.com/p/3e121943d129813c80f5c12edff4a9d4",
-      "sha256": "579e4d01ca180a1a48833b2212016154ac0f551d087ac212da04ac99d558b483"
+      "sha256": "c1fc63fda3cb6aa41de0ac90d2da7f5aa2aeacef3c2a5ffd06df9195976d061a"
     },
     {
       "localPath": "docs/en/02-agent-detection-and-capabilities.md",
       "language": "en",
       "notionUrl": "https://app.notion.com/p/3e121943d129818a8d6ffcd3cf3537e8",
-      "sha256": "252b7cdb52baa17226397847c9497242fe25d079a34bff3e649676850e5fbe68"
+      "sha256": "ecb7ddceea734fb266fc3aa23f341b6b745a0d3450a405e08c326e0be4a1d2b2"
     },
     {
       "localPath": "docs/es/03-plan-seguro-de-mcp.md",
       "language": "es",
       "notionUrl": "https://app.notion.com/p/3e121943d12981f79fd1e4fd43e2587c",
-      "sha256": "b72fec59e9149a4a22f9e39a2299b5c359cab6da7900b74de82101274e2c54b7"
+      "sha256": "cf4d05da40bcdabccadfe0045e839c5558035eb98deb979ebceea6c3ca3c9c65"
     },
     {
       "localPath": "docs/en/03-safe-mcp-planning.md",
       "language": "en",
       "notionUrl": "https://app.notion.com/p/3e121943d129811a822eec896be4b4dc",
-      "sha256": "b5f58c554bec26d77503d1db5cb696b59242aece50ac14cdcbf8fc86ebc807b3"
+      "sha256": "8541d6a62e3c29c41e047d657a1d2b57fc718ac2d8e623341b3213b7dc0525dc"
     },
     {
       "localPath": "docs/es/04-aplicacion-segura-y-recuperacion.md",
@@ -78,27 +78,27 @@
       "localPath": "docs/es/05-referencia-del-cli-publico.md",
       "language": "es",
       "notionUrl": "https://app.notion.com/p/3e121943d1298178b133f109e29a742f",
-      "sha256": "af16a512965a4ce2531301818e008b556099e524f77307b0c7caae35e3f8cc45",
+      "sha256": "281239a978fd60d0be55a4a84130b52ab65de8be2cee639f9ecf293434e710eb",
       "notionSyncPending": true
     },
     {
       "localPath": "docs/en/05-public-cli-reference.md",
       "language": "en",
       "notionUrl": "https://app.notion.com/p/3e121943d12981c097f7ff61185f3454",
-      "sha256": "8ffdda48de499a331b2bdae4f4684e010e0fb693853349cec525d914c664c17c",
+      "sha256": "eabb870e11feaa10f6bc58aa6901f2a576674cf6b5116db6d4e3fbc1c1dc58fa",
       "notionSyncPending": true
     },
     {
       "localPath": "docs/es/06-ejecucion-automatica-e-integraciones.md",
       "language": "es",
       "notionUrl": "https://app.notion.com/p/3e121943d1298120af7dd162a421c1b4",
-      "sha256": "0ac76202301054fb2dc547bd7b12a381604c8333c7a834bce8f623e006875e65"
+      "sha256": "09115a5af1acd364a0e1757fe4c768082965a48edfe8ed1134838927f9c2309c"
     },
     {
       "localPath": "docs/en/06-headless-execution-and-integrations.md",
       "language": "en",
       "notionUrl": "https://app.notion.com/p/3e121943d12981ca81e8fdd255a086c3",
-      "sha256": "e70f38ca5e7558941fbeabda534dbd3d7f6fd2d7753ddeb23d02d3fe9913aad5"
+      "sha256": "cb6ac3e1c9e0fedfc8a6bfe3a4bffc1b74d10dc6967c72df404d65527f7a6d5c"
     },
     {
       "localPath": "docs/es/07-arquitectura-y-mapa-del-codigo.md",
