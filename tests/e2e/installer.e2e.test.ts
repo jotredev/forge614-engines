@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import pkg from "../../package.json";
@@ -153,17 +153,47 @@ function prepareLegacyWindowsInstall(home: string): void {
   writeFileSync(join(enginesRoot, ".active-version"), "1.17.1");
 }
 
-/** Runs an installed legacy launcher until both its active binary and `.active-version` report the requested version. */
+/** Removes a directory tree, retrying across transient Windows file locks (Bun's rmSync ignores maxRetries). */
+async function removeTree(path: string): Promise<void> {
+  for (let attempt = 0; attempt < 25; attempt += 1) {
+    try {
+      rmSync(path, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      if (attempt === 24) throw error;
+      await Bun.sleep(200);
+    }
+  }
+}
+
+/**
+ * Waits for the legacy 1.17.1 updater to finish swapping both the binary and `.active-version`.
+ * On Windows the 1.17.1 updater swaps asynchronously via a background PowerShell helper that copies
+ * the new `.exe`, hashes it, writes `.active-version`, and deletes its own `swap-helper-*.ps1`
+ * right before exiting. Checking `.active-version` and the helper script before spawning `launcher`
+ * avoids `EBUSY` on `uv_spawn` while the binary is still being copied, and catching transient errors
+ * inside the loop keeps the poll resilient to brief sharing locks.
+ */
 async function waitForLegacyUpdate(launcher: string, version: string, home: string): Promise<boolean> {
   const forgeHome = join(home, ".forge614");
-  const activeVersion = join(forgeHome, "engines", ".active-version");
+  const enginesDir = join(forgeHome, "engines");
+  const activeVersion = join(enginesDir, ".active-version");
   const env = { ...process.env, HOME: home, USERPROFILE: home, FORGE614_HOME: forgeHome };
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
-    const result = Bun.spawnSync([launcher, "--version"], { env, stdout: "pipe", stderr: "pipe" });
-    const binaryReady = result.exitCode === 0 && result.stdout.toString().trim() === `forge614-engines ${version}`;
-    const markerReady = existsSync(activeVersion) && readFileSync(activeVersion, "utf8").trim() === version;
-    if (binaryReady && markerReady) return true;
+    try {
+      const markerReady = existsSync(activeVersion) && readFileSync(activeVersion, "utf8").trim() === version;
+      const helperPending =
+        process.platform === "win32" &&
+        existsSync(enginesDir) &&
+        readdirSync(enginesDir).some((name) => /^swap-helper-\d+\.ps1$/.test(name));
+      if (markerReady && !helperPending) {
+        const result = Bun.spawnSync([launcher, "--version"], { env, stdout: "pipe", stderr: "pipe" });
+        if (result.exitCode === 0 && result.stdout.toString().trim() === `forge614-engines ${version}`) return true;
+      }
+    } catch {
+      // Retry while the detached Windows swap helper still holds a handle.
+    }
     await Bun.sleep(250);
   }
   return false;
@@ -214,9 +244,9 @@ beforeAll(() => {
   });
 }, { timeout: 120_000 });
 
-afterAll(() => {
+afterAll(async () => {
   server?.stop(true);
-  rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  await removeTree(root);
 });
 
 describe("shared installer end to end", () => {
@@ -248,7 +278,7 @@ describe("shared installer end to end", () => {
     const upgraded = Bun.spawnSync([launcher, "--version"], { env: { ...process.env, HOME: home, USERPROFILE: home, FORGE614_HOME: join(home, ".forge614") }, stdout: "pipe", stderr: "pipe" });
     expect(upgraded.exitCode, `${upgraded.stdout.toString()}\n${upgraded.stderr.toString()}`).toBe(0);
     expect(upgraded.stdout.toString().trim()).toBe("forge614-engines 1.18.1");
-    rmSync(home, { recursive: true, force: true });
+    await removeTree(home);
   }, 120_000);
 
   test("migrates the real 1.17.1 installer layout through 1.18.0 and into 1.18.1", async () => {
@@ -390,6 +420,6 @@ ${mcpForeign}
     expect(claudeSettingsAfter.length).toBeGreaterThan(0);
     expect(claudeSettingsRaw).toContain('"foreign" : { "keep" : true }');
     expect(codexBefore).toContain('[mcp_servers.other]\ncommand = "other"\nargs = ["keep"]');
-    rmSync(home, { recursive: true, force: true });
+    await removeTree(home);
   }, 120_000);
 });
